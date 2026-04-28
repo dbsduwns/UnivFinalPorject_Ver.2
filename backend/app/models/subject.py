@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, TIMESTAMP
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.database import Base
 
 class Subject(Base):
@@ -13,3 +14,5 @@ class Subject(Base):
     course_type = Column(String)
     semester = Column(String, nullable=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
+
+    courses = relationship("Course", back_populates="subject")

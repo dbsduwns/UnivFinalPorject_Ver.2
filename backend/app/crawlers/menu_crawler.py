@@ -4,21 +4,29 @@ from app.database import SessionLocal
 from app.models.daily_menu import DailyMenu
 from app.models.menu_item import MenuItem
 from dotenv import load_dotenv
+from pathlib import Path
 import os, json, requests, re, datetime
-load_dotenv()
 
-KNU_USER_ID = os.getenv("KNU_USER_ID")
-KNU_PASSWORD = os.getenv("KNU_PASSWORD")
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 def login(page):
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=True)
+    knu_user_id = os.getenv("KNU_USER_ID")
+    knu_password = os.getenv("KNU_PASSWORD")
+
+    if not knu_user_id or not knu_password:
+        raise RuntimeError("KNU_USER_ID and KNU_PASSWORD must be set in .env")
+
     page.goto("https://nsso.kangnam.ac.kr/sso/auth?response_type=code&client_id=HOMEPAGE&redirect_uri=https://web.kangnam.ac.kr/nsso/login_proc.jsp")
     page.wait_for_load_state("networkidle")
 
-    page.fill("input[name='user_id']", KNU_USER_ID)
-    page.fill("input[name='pw']", KNU_PASSWORD)
+    page.fill("input[name='user_id']", knu_user_id)
+    page.fill("input[name='pw']", knu_password)
 
     page.click("button[type='submit']")
     page.wait_for_load_state("networkidle")
+    if page.locator("input[name='user_id']").count() > 0:
+        raise RuntimeError("KNU login failed")
 
     if "kangnam.ac.kr" in page.url:
         print("로그인 성공!")
@@ -47,7 +55,7 @@ def download_img(image_url, filename):
 
         print(f"이미지 저장 완료: {filename}")
 
-def crawl_menu_list():
+def crawl_menu_list(max_items: int | None = None):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
@@ -56,12 +64,19 @@ def crawl_menu_list():
 
         page.goto("https://web.kangnam.ac.kr/menu/ddc681caea557950be41fc172d7b8142.do")
         page.wait_for_load_state("networkidle")
+        try:
+            page.wait_for_selector("a.detailLink", timeout=15000)
+        except Exception:
+            pass
 
         links = page.query_selector_all("a.detailLink")
 
         menus = []
 
         for link in links:
+            if max_items is not None and len(menus) >= max_items:
+                break
+
             title = link.inner_text().strip()
             data_params = json.loads(link.get_attribute("data-params"))
             enc_menu_seq = data_params["encMenuSeq"]

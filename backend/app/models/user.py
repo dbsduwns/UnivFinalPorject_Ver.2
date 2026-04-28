@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean, TIMESTAMP
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.database import Base
 
 class User(Base):
@@ -17,3 +18,5 @@ class User(Base):
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
+    timetables = relationship("Timetable", back_populates="user")
+    chat_rooms = relationship("ChatRoom", back_populates="user")

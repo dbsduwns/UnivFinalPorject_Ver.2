@@ -4,8 +4,9 @@ from datetime import date, datetime
 class DailyMenuResponse(BaseModel):
     id: int
     menu_date: date
-    image_url: str
-    crawled_at: datetime
+    image_url: str | None = None
+    crawled_at: datetime | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True
+    }

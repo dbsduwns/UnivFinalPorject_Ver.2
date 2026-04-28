@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Float, Text
+from sqlalchemy.orm import relationship
 from app.database import Base
 
 class Building(Base):
@@ -12,3 +13,5 @@ class Building(Base):
     floors = Column(Integer)
     description = Column(Text)
     image_url = Column(String)
+
+    rooms = relationship("Room", back_populates="building")

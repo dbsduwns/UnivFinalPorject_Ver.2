@@ -1,0 +1,334 @@
+
+<!---- Jsp dfault include files ..........------------------------->
+
+
+
+
+
+
+
+
+<html>
+<head>
+ 
+<link rel="stylesheet" type="text/css" href="../function/css/base_style.css?ut=20250824" />
+
+
+<!---- Link and css Define area.   --------------------------------->
+<style type="text/css">
+ #list { Z-INDEX: 25;  OVERFLOW: auto;  POSITION: relative;
+	     LEFT: 0px; TOP: 0px; WIDTH: 837px;  HEIGHT: 462px;   }
+</style>
+
+<!---- Link and css Define area.   --------------------------------->
+<title>개설강좌 리스트</title>
+<!------ If You need Java operation, Insert statment as followin area -->
+
+
+<!--....  You must modify default script value for js run..................-->
+
+<script language="javascript" src="../function/subaction.js"></script>
+<script language="javascript" src="../function/common.js"></script>
+<script language="javascript" src="../function/checkField.js"></script>
+<script language="javascript">
+   setvalue = "frm1,frameI,../sb/sbm3070L.jsp";
+   bsetvalue = "search";
+
+   function modify_chk() {
+      return "true";
+   }
+
+   function value_chk() {
+      return "true";
+   }
+</script>
+
+<!--... This area for program use js code ...........................-->
+<script language="javascript">
+
+   function goPrint(rownum, values){
+      valu_arry = values.split(",");
+      
+      //강의주수 15주 변경으로 인한 RD 분기  2013.11.12 수정.
+      var tempYear = parseInt(frm1.schl_year.value,10);
+      var repoPath = '../sbr/sbr3070.mrd';
+	  if(tempYear >= 2014) repoPath = '../sbr/sbr3070_New.mrd';
+	  
+	  
+	  var url = '../sbr/syllabus.jsp';
+	  if(tempYear >= 2020) url = '../sbr/syllabus2020.jsp';
+	  else if(tempYear >= 2017) url = '../sbr/syllabus2017.jsp';
+      
+      //var src = "../rdreport/r_designer.jsp?repo_val1="+valu_arry[1]+"&repo_val2="+valu_arry[2]+"&repo_val3="+valu_arry[3]+"&repo_val4="+valu_arry[4]+"&repo_val5="+valu_arry[0]+"&repo_path="+repoPath;
+      var src = url + "?schl_year="+valu_arry[1]+"&schl_smst="+valu_arry[2]+"&subj_numb="+valu_arry[3]+"&lctr_clas="+valu_arry[4]+"&empl_numb="+valu_arry[0]+"&repo_path="+repoPath+"&winopt=3070";
+      openWin('',src,900,700,50,5);
+   }
+
+	function value_set(arg_flag, arg_row_number, values){
+		var form1 = self.document.forms[0];
+		var flength	= form1.elements.length;
+	 	var tvalue = values.split(",");
+	  	var valueLength	= tvalue.length;
+		for ( var i = 0; i < valueLength; i++ ) {
+			form1.elements[i].value = tvalue[i];
+		}
+		TdColor(arg_row_number);
+	}
+</script>
+
+</head>
+
+ <!-- Body Define Area. --------------------------------------------->
+<body Oncontextmenu="return true" style="margin-left:10px;margin-top:0px" onload="javascript:bodyset(setvalue);"
+       onclick="javascript:bset(bsetvalue); bodyset(setvalue);">
+<form name="frm1" method="post" action="" target="">
+
+<!---- Jsp Program area. ------------------------------------------->
+
+<!---- Submit value Area for define hidden object ------------------>
+<input type="hidden" name="empl_numb" value="">
+<input type="hidden" name="schl_year" value="2026">
+<input type="hidden" name="schl_smst" value="1">
+<input type="hidden" name="subj_numb" value="">
+<input type="hidden" name="lctr_clas" value="">
+
+<input type="hidden" name="save_gubn" value="">
+<!---- HTML Main Area. --------------------------------------------->
+
+	<h5>소속과목 개설강좌 조회</h5>
+
+	<table width="820" class="grid_title" style="margin-top:5px;">
+
+         <col width="8%" />
+         <col width="5%" />
+         <col width="%" />
+         <col width="13%" />
+         <col width="6%" />
+         <col width="6%" />
+         <col width="23%" />
+         <col width="13%" />
+         <tr>
+				<th>학수번호</th>
+				<th>분반</th>
+				<th>과목명</th>
+				<th>담당교수</th>
+				<th>학점</th>
+				<th>시수</th>
+				<th>강의시간</th>
+				<th></th>
+   	   </tr>
+	</table>
+
+	<div id="list">
+	<table width="820" class="grid_list">
+
+         <col width="8%" />
+         <col width="5%" />
+         <col width="%" />
+         <col width="13%" />
+         <col width="6%" />
+         <col width="6%" />
+         <col width="23%" />
+         <col width="13%" />
+
+		<tr id="row1" height="22" class="odd" onclick="TdColor('1');">
+			<td onclick="value_set('true','1','109203,2026,1,EF14209,01');">EF14209</td>
+			<td onclick="value_set('true','1','109203,2026,1,EF14209,01');">01</td>
+			<td align="left" onclick="value_set('true','1','109203,2026,1,EF14209,01');">진로지도상담III</td>
+			<td align="left" onclick="value_set('true','1','109203,2026,1,EF14209,01');">최인엽</td>
+			<td onclick="value_set('true','1','109203,2026,1,EF14209,01');">0</td>
+
+			<td onclick="value_set('true','1','109203,2026,1,EF14209,01');">0</td>
+			<td align="left" onclick="value_set('true','1','109203,2026,1,EF14209,01');"></td>
+
+			<td><div style="margin-left:10px;" onclick="goPrint('1','109203,2026,1,EF14209,01')" style="cursor:hand;"><div class="btn1_left"></div><div class="btn1_center">강의계획서보기</div><div class="btn1_right"></div></div></td>
+
+		</tr>
+
+		<tr id="row2" height="22" class="even" onclick="TdColor('2');">
+			<td onclick="value_set('true','2','100076,2026,1,EF14209,03');">EF14209</td>
+			<td onclick="value_set('true','2','100076,2026,1,EF14209,03');">03</td>
+			<td align="left" onclick="value_set('true','2','100076,2026,1,EF14209,03');">진로지도상담III</td>
+			<td align="left" onclick="value_set('true','2','100076,2026,1,EF14209,03');">양재형</td>
+			<td onclick="value_set('true','2','100076,2026,1,EF14209,03');">0</td>
+
+			<td onclick="value_set('true','2','100076,2026,1,EF14209,03');">0</td>
+			<td align="left" onclick="value_set('true','2','100076,2026,1,EF14209,03');"></td>
+
+			<td><div style="margin-left:10px;" onclick="goPrint('2','100076,2026,1,EF14209,03')" style="cursor:hand;"><div class="btn1_left"></div><div class="btn1_center">강의계획서보기</div><div class="btn1_right"></div></div></td>
+
+		</tr>
+
+		<tr id="row3" height="22" class="odd" onclick="TdColor('3');">
+			<td onclick="value_set('true','3','109383,2026,1,EF14209,04');">EF14209</td>
+			<td onclick="value_set('true','3','109383,2026,1,EF14209,04');">04</td>
+			<td align="left" onclick="value_set('true','3','109383,2026,1,EF14209,04');">진로지도상담III</td>
+			<td align="left" onclick="value_set('true','3','109383,2026,1,EF14209,04');">박정수</td>
+			<td onclick="value_set('true','3','109383,2026,1,EF14209,04');">0</td>
+
+			<td onclick="value_set('true','3','109383,2026,1,EF14209,04');">0</td>
+			<td align="left" onclick="value_set('true','3','109383,2026,1,EF14209,04');"></td>
+
+			<td><div style="margin-left:10px;" onclick="goPrint('3','109383,2026,1,EF14209,04')" style="cursor:hand;"><div class="btn1_left"></div><div class="btn1_center">강의계획서보기</div><div class="btn1_right"></div></div></td>
+
+		</tr>
+
+		<tr id="row4" height="22" class="even" onclick="TdColor('4');">
+			<td onclick="value_set('true','4','105351,2026,1,EF14209,05');">EF14209</td>
+			<td onclick="value_set('true','4','105351,2026,1,EF14209,05');">05</td>
+			<td align="left" onclick="value_set('true','4','105351,2026,1,EF14209,05');">진로지도상담III</td>
+			<td align="left" onclick="value_set('true','4','105351,2026,1,EF14209,05');">김가영</td>
+			<td onclick="value_set('true','4','105351,2026,1,EF14209,05');">0</td>
+
+			<td onclick="value_set('true','4','105351,2026,1,EF14209,05');">0</td>
+			<td align="left" onclick="value_set('true','4','105351,2026,1,EF14209,05');"></td>
+
+			<td><div style="margin-left:10px;" onclick="goPrint('4','105351,2026,1,EF14209,05')" style="cursor:hand;"><div class="btn1_left"></div><div class="btn1_center">강의계획서보기</div><div class="btn1_right"></div></div></td>
+
+		</tr>
+
+		<tr id="row5" height="22" class="odd" onclick="TdColor('5');">
+			<td onclick="value_set('true','5','109383,2026,1,EF14215,00');">EF14215</td>
+			<td onclick="value_set('true','5','109383,2026,1,EF14215,00');">00</td>
+			<td align="left" onclick="value_set('true','5','109383,2026,1,EF14215,00');">정보보호응용</td>
+			<td align="left" onclick="value_set('true','5','109383,2026,1,EF14215,00');">박정수</td>
+			<td onclick="value_set('true','5','109383,2026,1,EF14215,00');">3</td>
+
+			<td onclick="value_set('true','5','109383,2026,1,EF14215,00');">3</td>
+			<td align="left" onclick="value_set('true','5','109383,2026,1,EF14215,00');">(주)수1ab2ab3ab</td>
+
+			<td><div style="margin-left:10px;" onclick="goPrint('5','109383,2026,1,EF14215,00')" style="cursor:hand;"><div class="btn1_left"></div><div class="btn1_center">강의계획서보기</div><div class="btn1_right"></div></div></td>
+
+		</tr>
+
+		<tr id="row6" height="22" class="even" onclick="TdColor('6');">
+			<td onclick="value_set('true','6','100076,2026,1,EF14216,01');">EF14216</td>
+			<td onclick="value_set('true','6','100076,2026,1,EF14216,01');">01</td>
+			<td align="left" onclick="value_set('true','6','100076,2026,1,EF14216,01');">캡스톤디자인(SW)I</td>
+			<td align="left" onclick="value_set('true','6','100076,2026,1,EF14216,01');">양재형</td>
+			<td onclick="value_set('true','6','100076,2026,1,EF14216,01');">3</td>
+
+			<td onclick="value_set('true','6','100076,2026,1,EF14216,01');">4</td>
+			<td align="left" onclick="value_set('true','6','100076,2026,1,EF14216,01');">(주)목1ab2ab3ab4ab</td>
+
+			<td><div style="margin-left:10px;" onclick="goPrint('6','100076,2026,1,EF14216,01')" style="cursor:hand;"><div class="btn1_left"></div><div class="btn1_center">강의계획서보기</div><div class="btn1_right"></div></div></td>
+
+		</tr>
+
+		<tr id="row7" height="22" class="odd" onclick="TdColor('7');">
+			<td onclick="value_set('true','7','109203,2026,1,EF14216,02');">EF14216</td>
+			<td onclick="value_set('true','7','109203,2026,1,EF14216,02');">02</td>
+			<td align="left" onclick="value_set('true','7','109203,2026,1,EF14216,02');">캡스톤디자인(SW)I</td>
+			<td align="left" onclick="value_set('true','7','109203,2026,1,EF14216,02');">최인엽</td>
+			<td onclick="value_set('true','7','109203,2026,1,EF14216,02');">3</td>
+
+			<td onclick="value_set('true','7','109203,2026,1,EF14216,02');">4</td>
+			<td align="left" onclick="value_set('true','7','109203,2026,1,EF14216,02');">(주)목1ab2ab3ab4ab</td>
+
+			<td><div style="margin-left:10px;" onclick="goPrint('7','109203,2026,1,EF14216,02')" style="cursor:hand;"><div class="btn1_left"></div><div class="btn1_center">강의계획서보기</div><div class="btn1_right"></div></div></td>
+
+		</tr>
+
+		<tr id="row8" height="22" class="even" onclick="TdColor('8');">
+			<td onclick="value_set('true','8','100063,2026,1,EF14216,03');">EF14216</td>
+			<td onclick="value_set('true','8','100063,2026,1,EF14216,03');">03</td>
+			<td align="left" onclick="value_set('true','8','100063,2026,1,EF14216,03');">캡스톤디자인(SW)I</td>
+			<td align="left" onclick="value_set('true','8','100063,2026,1,EF14216,03');">김태권</td>
+			<td onclick="value_set('true','8','100063,2026,1,EF14216,03');">3</td>
+
+			<td onclick="value_set('true','8','100063,2026,1,EF14216,03');">4</td>
+			<td align="left" onclick="value_set('true','8','100063,2026,1,EF14216,03');">(주)목1ab2ab3ab4ab</td>
+
+			<td><div style="margin-left:10px;" onclick="goPrint('8','100063,2026,1,EF14216,03')" style="cursor:hand;"><div class="btn1_left"></div><div class="btn1_center">강의계획서보기</div><div class="btn1_right"></div></div></td>
+
+		</tr>
+
+		<tr id="row9" height="22" class="odd" onclick="TdColor('9');">
+			<td onclick="value_set('true','9','109203,2026,1,EF14217,00');">EF14217</td>
+			<td onclick="value_set('true','9','109203,2026,1,EF14217,00');">00</td>
+			<td align="left" onclick="value_set('true','9','109203,2026,1,EF14217,00');">AIoT소프트웨어</td>
+			<td align="left" onclick="value_set('true','9','109203,2026,1,EF14217,00');">최인엽</td>
+			<td onclick="value_set('true','9','109203,2026,1,EF14217,00');">3</td>
+
+			<td onclick="value_set('true','9','109203,2026,1,EF14217,00');">3</td>
+			<td align="left" onclick="value_set('true','9','109203,2026,1,EF14217,00');">(주)금4ab5ab6ab</td>
+
+			<td><div style="margin-left:10px;" onclick="goPrint('9','109203,2026,1,EF14217,00')" style="cursor:hand;"><div class="btn1_left"></div><div class="btn1_center">강의계획서보기</div><div class="btn1_right"></div></div></td>
+
+		</tr>
+
+		<tr id="row10" height="22" class="even" onclick="TdColor('10');">
+			<td onclick="value_set('true','10','108165,2026,1,EF14218,01');">EF14218</td>
+			<td onclick="value_set('true','10','108165,2026,1,EF14218,01');">01</td>
+			<td align="left" onclick="value_set('true','10','108165,2026,1,EF14218,01');">클라우드컴퓨팅</td>
+			<td align="left" onclick="value_set('true','10','108165,2026,1,EF14218,01');">신흥철</td>
+			<td onclick="value_set('true','10','108165,2026,1,EF14218,01');">3</td>
+
+			<td onclick="value_set('true','10','108165,2026,1,EF14218,01');">3</td>
+			<td align="left" onclick="value_set('true','10','108165,2026,1,EF14218,01');">(주)화4ab5ab6ab</td>
+
+			<td><div style="margin-left:10px;" onclick="goPrint('10','108165,2026,1,EF14218,01')" style="cursor:hand;"><div class="btn1_left"></div><div class="btn1_center">강의계획서보기</div><div class="btn1_right"></div></div></td>
+
+		</tr>
+
+		<tr id="row11" height="22" class="odd" onclick="TdColor('11');">
+			<td onclick="value_set('true','11','108165,2026,1,EF14218,02');">EF14218</td>
+			<td onclick="value_set('true','11','108165,2026,1,EF14218,02');">02</td>
+			<td align="left" onclick="value_set('true','11','108165,2026,1,EF14218,02');">클라우드컴퓨팅</td>
+			<td align="left" onclick="value_set('true','11','108165,2026,1,EF14218,02');">신흥철</td>
+			<td onclick="value_set('true','11','108165,2026,1,EF14218,02');">3</td>
+
+			<td onclick="value_set('true','11','108165,2026,1,EF14218,02');">3</td>
+			<td align="left" onclick="value_set('true','11','108165,2026,1,EF14218,02');">(주)화7ab8ab9ab</td>
+
+			<td><div style="margin-left:10px;" onclick="goPrint('11','108165,2026,1,EF14218,02')" style="cursor:hand;"><div class="btn1_left"></div><div class="btn1_center">강의계획서보기</div><div class="btn1_right"></div></div></td>
+
+		</tr>
+
+		<tr id="row12" height="22" class="even" onclick="TdColor('12');">
+			<td onclick="value_set('true','12','109203,2026,1,EF14301,00');">EF14301</td>
+			<td onclick="value_set('true','12','109203,2026,1,EF14301,00');">00</td>
+			<td align="left" onclick="value_set('true','12','109203,2026,1,EF14301,00');">졸업종합평가</td>
+			<td align="left" onclick="value_set('true','12','109203,2026,1,EF14301,00');">최인엽</td>
+			<td onclick="value_set('true','12','109203,2026,1,EF14301,00');">0</td>
+
+			<td onclick="value_set('true','12','109203,2026,1,EF14301,00');">0</td>
+			<td align="left" onclick="value_set('true','12','109203,2026,1,EF14301,00');"></td>
+
+			<td><div style="margin-left:10px;" onclick="goPrint('12','109203,2026,1,EF14301,00')" style="cursor:hand;"><div class="btn1_left"></div><div class="btn1_center">강의계획서보기</div><div class="btn1_right"></div></div></td>
+
+		</tr>
+
+		<tr id="row13" height="22" class="odd" onclick="TdColor('13');">
+			<td onclick="value_set('true','13','109530,2026,1,ND01602,08');">ND01602</td>
+			<td onclick="value_set('true','13','109530,2026,1,ND01602,08');">08</td>
+			<td align="left" onclick="value_set('true','13','109530,2026,1,ND01602,08');">공학수학</td>
+			<td align="left" onclick="value_set('true','13','109530,2026,1,ND01602,08');">신수연</td>
+			<td onclick="value_set('true','13','109530,2026,1,ND01602,08');">3</td>
+
+			<td onclick="value_set('true','13','109530,2026,1,ND01602,08');">3</td>
+			<td align="left" onclick="value_set('true','13','109530,2026,1,ND01602,08');">(주)수1ab2ab3ab</td>
+
+			<td><div style="margin-left:10px;" onclick="goPrint('13','109530,2026,1,ND01602,08')" style="cursor:hand;"><div class="btn1_left"></div><div class="btn1_center">강의계획서보기</div><div class="btn1_right"></div></div></td>
+
+		</tr>
+
+</table>
+</div>
+<p class="grid_count">
+	13건을 검색하였습니다.
+</p>
+<input type="hidden" name="data_rowcount" value="13">
+
+
+</form>
+</body>
+
+<!--... This area for program use js code ...........................-->
+<script language="javascript">
+	document.getElementById("list").style.height = document.body.clientHeight-89;
+</script>
+
+</html>
+<!---- Process Define Area after Load HTML   ----------------------->
+

@@ -18,7 +18,7 @@ CATEGORIES = {
    "취창업": "344"
 }
 
-def crawl_notice_list():
+def crawl_notice_list(max_items: int | None = None):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         notices = []
@@ -40,6 +40,9 @@ def crawl_notice_list():
                 print(f"첫 번째 공지: {links[0].inner_text().strip()}")
 
             for link in links:
+                if max_items is not None and len(notices) >= max_items:
+                    break
+
                 title = link.inner_text().strip()
                 data_params = json.loads(link.get_attribute("data-params"))
                 enc_menu_seq = data_params["encMenuSeq"]
@@ -65,6 +68,9 @@ def crawl_notice_list():
                 })
 
             page.close()
+
+            if max_items is not None and len(notices) >= max_items:
+                break
 
         browser.close()
         return notices

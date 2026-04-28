@@ -13,10 +13,10 @@ class TokenResponse(BaseModel):
     refresh_token: str
     access_token: str
 
-    class UserResponse(BaseModel):
-        id: int
-        email: str
-        name: str
-        department: str | None = None
-        grade: int | None = None
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    name: str
+    department: str | None = None
+    grade: int | None = None
 

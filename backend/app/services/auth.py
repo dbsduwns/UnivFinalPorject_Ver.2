@@ -35,3 +35,4 @@ def login(db: Session, data: UserLogin):
         "access_token": access_token,
         "refresh_token": refresh_token
     }
+

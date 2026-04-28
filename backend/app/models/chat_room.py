@@ -13,3 +13,4 @@ class ChatRoom(Base):
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
     user = relationship("User", back_populates="chat_rooms")
+    messages = relationship("Message", back_populates="chat_room", cascade="all, delete-orphan")

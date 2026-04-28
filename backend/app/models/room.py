@@ -13,3 +13,4 @@ class Room(Base):
     room_type = Column(String)
 
     building = relationship("Building", back_populates="rooms")
+    courses = relationship("Course", back_populates="room")

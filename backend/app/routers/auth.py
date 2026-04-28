@@ -1,24 +1,21 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.schemas.user import UserSignup, UserLogin, TokenResponse
+from app.schemas.user import UserSignup, UserLogin, TokenResponse, UserResponse
 from app.services import auth as auth_service
+from app.models.user import User
+from app.core.dependencies import get_current_user
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"])
 
-@router.post("/signup")
+@router.post("/signup", response_model=UserResponse)
 def signup(data: UserSignup, db: Session = Depends(get_db)):
-    try:
-        user = auth_service.signup(db, data)
-        return {"message": "회원가입이 완료되었습니다"}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    return auth_service.signup(db, data)
     
 @router.post("/login", response_model=TokenResponse)
 def login(data: UserLogin, db: Session = Depends(get_db)):
-    try:
-        user = auth_service.login(db, data)
-        return user
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    
+    return auth_service.login(db, data)
+
+@router.get("/me", response_model=UserResponse)
+def me(current_user: User= Depends(get_current_user)):
+    return current_user
