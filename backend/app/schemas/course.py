@@ -34,6 +34,46 @@ class CourseImportResponse(BaseModel):
     items: list[ParsedCourseResponse]
 
 
+class DepartmentCrawlTarget(BaseModel):
+    code: str
+    name: str
+    course_type: str | None = None
+
+
+class DepartmentCourseCrawlRequest(BaseModel):
+    session_cookie: str
+    year: str
+    semester: str
+    student_number: str
+    student_grade: str = "4"
+    student_department_code: str
+    fact_code: str
+    fact_srch: str
+    student_dorn: str = "1"
+    grad_srch: str | None = None
+    dept_code2: str = "5100"
+    grad_area1: str = "H4"
+    grad_area2: str = "H4"
+    delay_seconds: float = 1.0
+    save: bool = True
+    departments: list[DepartmentCrawlTarget]
+
+
+class DepartmentCourseCrawlResult(BaseModel):
+    department_code: str
+    department_name: str
+    parsed_count: int
+    saved_count: int
+    error: str | None = None
+
+
+class DepartmentCourseCrawlResponse(BaseModel):
+    department_count: int
+    parsed_count: int
+    saved_count: int
+    results: list[DepartmentCourseCrawlResult]
+
+
 class SubjectResponse(BaseModel):
     id: int
     name: str

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import re
+import time as time_module
 from datetime import time
 
+import requests
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 
@@ -39,6 +41,8 @@ DAY_MAP = {
     "SAT": "SAT",
     "SUN": "SUN",
 }
+
+KNU_COURSE_LIST_URL = "https://app.kangnam.ac.kr/knumis/sbr/sbr3070L.jsp"
 
 
 def parse_course_list_html(html: str, department: str | None = None) -> list[dict]:
@@ -84,6 +88,135 @@ def parse_course_list_html(html: str, department: str | None = None) -> list[dic
         )
 
     return courses
+
+
+def crawl_course_list_html(
+    *,
+    session_cookie: str,
+    year: str,
+    semester: str,
+    department_code: str,
+    student_number: str,
+    student_grade: str,
+    student_department_code: str,
+    fact_code: str,
+    fact_srch: str,
+    student_dorn: str = "1",
+    grad_srch: str | None = None,
+    dept_code2: str = "5100",
+    grad_area1: str = "H4",
+    grad_area2: str = "H4",
+    timeout: int = 20,
+) -> str:
+    form_data = {
+        "schl_year": year,
+        "schl_smst": semester,
+        "stnt_numb": student_number,
+        "dept_srch": department_code,
+        "srch_gubn": "41",
+        "stnt_grad": student_grade,
+        "stnt_dept": student_department_code,
+        "fact_code": fact_code,
+        "stnt_dorn": student_dorn,
+        "subj_knam": "",
+        "subj_knam2": "",
+        "fact_srch": fact_srch,
+        "grad_srch": grad_srch or student_grade,
+        "dept_code1": department_code,
+        "grad_area1": grad_area1,
+        "dept_code2": dept_code2,
+        "grad_area2": grad_area2,
+    }
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Cookie": session_cookie,
+        "Origin": "https://app.kangnam.ac.kr",
+        "Referer": "https://app.kangnam.ac.kr/knumis/sbr/sbr3070T.jsp",
+        "User-Agent": "Mozilla/5.0",
+    }
+
+    response = requests.post(
+        KNU_COURSE_LIST_URL,
+        data=form_data,
+        headers=headers,
+        timeout=timeout,
+    )
+    response.raise_for_status()
+
+    for encoding in ("euc-kr", "cp949", "utf-8"):
+        try:
+            return response.content.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return response.text
+
+
+def crawl_department_courses(
+    *,
+    session_cookie: str,
+    year: str,
+    semester: str,
+    departments: list[dict],
+    student_number: str,
+    student_grade: str,
+    student_department_code: str,
+    fact_code: str,
+    fact_srch: str,
+    student_dorn: str = "1",
+    grad_srch: str | None = None,
+    dept_code2: str = "5100",
+    grad_area1: str = "H4",
+    grad_area2: str = "H4",
+    delay_seconds: float = 1.0,
+) -> list[dict]:
+    results = []
+    for index, department in enumerate(departments):
+        code = department["code"]
+        name = department.get("name") or code
+        try:
+            html = crawl_course_list_html(
+                session_cookie=session_cookie,
+                year=year,
+                semester=semester,
+                department_code=code,
+                student_number=student_number,
+                student_grade=student_grade,
+                student_department_code=student_department_code,
+                fact_code=fact_code,
+                fact_srch=fact_srch,
+                student_dorn=student_dorn,
+                grad_srch=grad_srch,
+                dept_code2=dept_code2,
+                grad_area1=grad_area1,
+                grad_area2=grad_area2,
+            )
+            parsed_courses = parse_course_list_html(html, department=name)
+            for course in parsed_courses:
+                course["course_type"] = department.get("course_type")
+            results.append(
+                {
+                    "department_code": code,
+                    "department_name": name,
+                    "parsed_count": len(parsed_courses),
+                    "items": parsed_courses,
+                    "error": None,
+                }
+            )
+        except Exception as exc:
+            results.append(
+                {
+                    "department_code": code,
+                    "department_name": name,
+                    "parsed_count": 0,
+                    "items": [],
+                    "error": str(exc),
+                }
+            )
+
+        if delay_seconds > 0 and index < len(departments) - 1:
+            time_module.sleep(delay_seconds)
+
+    return results
 
 
 def parse_schedule_text(schedule_text: str) -> list[dict]:
@@ -133,7 +266,7 @@ def save_courses(db: Session, parsed_courses: list[dict]) -> int:
                 subject_code=item["subject_code"],
                 department=item.get("department"),
                 credits=item["credits"],
-                course_type=None,
+                course_type=item.get("course_type"),
                 semester=item["semester"],
             )
             db.add(subject)
@@ -142,6 +275,8 @@ def save_courses(db: Session, parsed_courses: list[dict]) -> int:
             subject.name = item["name"]
             subject.department = item.get("department")
             subject.credits = item["credits"]
+            if "course_type" in item:
+                subject.course_type = item.get("course_type")
             subject.semester = item["semester"]
 
         course = (

@@ -1,9 +1,10 @@
 from sqlalchemy.orm import Session, joinedload
 
-from app.crawlers.course_crawler import parse_course_list_html, save_courses
+from app.crawlers.course_crawler import crawl_department_courses, parse_course_list_html, save_courses
 from app.models.course import Course
 from app.models.subject import Subject
 from app.models.course_schedule import CourseSchedule
+from app.schemas.course import DepartmentCourseCrawlRequest
 
 
 def import_courses_from_html(db: Session, html: str, department: str | None = None, save: bool = True) -> dict:
@@ -13,6 +14,58 @@ def import_courses_from_html(db: Session, html: str, department: str | None = No
         "parsed_count": len(parsed_courses),
         "saved_count": saved_count,
         "items": parsed_courses,
+    }
+
+
+def crawl_and_import_department_courses(db: Session, data: DepartmentCourseCrawlRequest) -> dict:
+    if not data.departments:
+        raise ValueError("departments must not be empty")
+
+    departments = [item.model_dump() for item in data.departments]
+    crawl_results = crawl_department_courses(
+        session_cookie=data.session_cookie,
+        year=data.year,
+        semester=data.semester,
+        departments=departments,
+        student_number=data.student_number,
+        student_grade=data.student_grade,
+        student_department_code=data.student_department_code,
+        fact_code=data.fact_code,
+        fact_srch=data.fact_srch,
+        student_dorn=data.student_dorn,
+        grad_srch=data.grad_srch,
+        dept_code2=data.dept_code2,
+        grad_area1=data.grad_area1,
+        grad_area2=data.grad_area2,
+        delay_seconds=data.delay_seconds,
+    )
+
+    response_results = []
+    total_parsed_count = 0
+    total_saved_count = 0
+    for result in crawl_results:
+        saved_count = 0
+        parsed_courses = result["items"]
+        total_parsed_count += result["parsed_count"]
+        if data.save and not result["error"]:
+            saved_count = save_courses(db, parsed_courses)
+            total_saved_count += saved_count
+
+        response_results.append(
+            {
+                "department_code": result["department_code"],
+                "department_name": result["department_name"],
+                "parsed_count": result["parsed_count"],
+                "saved_count": saved_count,
+                "error": result["error"],
+            }
+        )
+
+    return {
+        "department_count": len(data.departments),
+        "parsed_count": total_parsed_count,
+        "saved_count": total_saved_count,
+        "results": response_results,
     }
 
 

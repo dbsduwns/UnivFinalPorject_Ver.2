@@ -8,6 +8,10 @@ class TimetableCreate(BaseModel):
     semester: str
     is_main: bool = False
 
+class TimetableUpdate(BaseModel):
+    name: str | None = None
+    semester: str | None = None
+    is_main: bool |None = None
 
 class TimetableResponse(BaseModel):
     id: int
@@ -21,7 +25,6 @@ class TimetableResponse(BaseModel):
     model_config = {
         "from_attributes": True
     }
-
 
 class TimetableCourseCreate(BaseModel):
     course_id: int
@@ -76,6 +79,13 @@ class CustomScheduleCreate(BaseModel):
     color: str = "#3B82F6"
     memo: str | None = None
 
+class CustomScheduleUpdate(BaseModel):
+    name: str | None = None
+    day_of_week: str | None = None
+    start_time: time | None = None
+    end_time: time | None = None
+    color: str | None = None
+    memo: str | None = None
 
 class CustomScheduleResponse(BaseModel):
     id: int

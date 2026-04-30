@@ -1,0 +1,32 @@
+[
+  {
+    "code": "5446",
+    "name": "소프트웨어전공",
+    "course_type": "MAJOR"
+  },
+  {
+    "code": "5451",
+    "name": "인공지능전공",
+    "course_type": "MAJOR"
+  },
+  {
+    "code": "5474",
+    "name": "컴퓨터공학부",
+    "course_type": "MAJOR"
+  },
+  {
+    "code": "5185",
+    "name": "교양",
+    "course_type": "LIBERAL_ARTS"
+  },
+  {
+    "code": "5183",
+    "name": "원격강좌",
+    "course_type": "REMOTE"
+  },
+  {
+    "code": "5181",
+    "name": "학점교류",
+    "course_type": "EXCHANGE"
+  }
+]

@@ -6,10 +6,12 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.timetable import (
     CustomScheduleCreate,
+    CustomScheduleUpdate,
     CustomScheduleResponse,
     TimetableCourseCreate,
     TimetableCourseResponse,
     TimetableCreate,
+    TimetableUpdate,
     TimetableDetailResponse,
     TimetableResponse,
 )
@@ -26,7 +28,30 @@ def create_timetable(
 ):
     return timetable_service.create_timetable(db, current_user, data)
 
+@router.patch("/{timetable_id}", response_model=TimetableResponse)
+def update_timetable(
+    timetable_id: int,
+    data: TimetableUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        return timetable_service.update_timetable(db, current_user, timetable_id, data)
+    except ValueError as e:
+        raise_timetable_error(e)
 
+@router.delete("/{timetable_id}")
+def delete_timetable(
+    timetable_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        timetable_service.delete_timetable(db, current_user, timetable_id)
+        return {"message": "Timetable deleted"}
+    except ValueError as e:
+        raise_timetable_error(e)
+    
 @router.get("/", response_model=list[TimetableResponse])
 def get_my_timetables(
     db: Session = Depends(get_db),
@@ -57,7 +82,7 @@ def add_course_to_timetable(
     try:
         return timetable_service.add_course_to_timetable(db, current_user, timetable_id, data)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise_timetable_error(e)
 
 
 @router.delete("/{timetable_id}/courses/{course_id}")
@@ -71,7 +96,7 @@ def remove_course_from_timetable(
         timetable_service.remove_course_from_timetable(db, current_user, timetable_id, course_id)
         return {"message": "Course removed from timetable"}
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise_timetable_error(e)
 
 
 @router.post("/{timetable_id}/custom-schedules", response_model=CustomScheduleResponse)
@@ -84,7 +109,7 @@ def create_custom_schedule(
     try:
         return timetable_service.create_custom_schedule(db, current_user, timetable_id, data)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise_timetable_error(e)
 
 
 @router.get("/{timetable_id}/custom-schedules", response_model=list[CustomScheduleResponse])
@@ -96,8 +121,26 @@ def get_custom_schedules(
     try:
         return timetable_service.get_custom_schedules(db, current_user, timetable_id)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
+        raise_timetable_error(e)
+    
+@router.patch("/{timetable_id}/custom-schedules/{schedule_id}", response_model=CustomScheduleResponse)
+def update_custom_schedule(
+    timetable_id: int,
+    schedule_id: int,
+    data: CustomScheduleUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        return timetable_service.update_custom_schedule(
+            db,
+            current_user,
+            timetable_id,
+            schedule_id,
+            data)
+    except ValueError as e:
+        raise_timetable_error(e)
+   
 
 @router.delete("/{timetable_id}/custom-schedules/{schedule_id}")
 def delete_custom_schedule(
@@ -110,4 +153,17 @@ def delete_custom_schedule(
         timetable_service.delete_custom_schedule(db, current_user, timetable_id, schedule_id)
         return {"message": "Custom schedule deleted"}
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise_timetable_error(e)
+    
+def raise_timetable_error(error: ValueError):
+    message = str(error)
+    if "not found" in message.lower():
+        raise HTTPException(status_code=404, detail=message)
+    if "conflict" in message.lower():
+        raise HTTPException(status_code=409, detail=message)
+    if "already" in message.lower():
+        raise HTTPException(status_code=409, detail=message)
+    if "start_time must be before end_time" in message:
+        raise HTTPException(status_code=400, detail=message)
+
+    raise HTTPException(status_code=400, detail=message)

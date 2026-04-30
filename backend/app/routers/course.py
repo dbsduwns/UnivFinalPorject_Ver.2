@@ -2,7 +2,13 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.schemas.course import CourseImportRequest, CourseImportResponse, CourseResponse
+from app.schemas.course import (
+    CourseImportRequest,
+    CourseImportResponse,
+    CourseResponse,
+    DepartmentCourseCrawlRequest,
+    DepartmentCourseCrawlResponse,
+)
 from app.services import course as course_service
 
 router = APIRouter(prefix="/api/courses", tags=["courses"])
@@ -37,6 +43,14 @@ async def import_courses_from_html_file(
         department=department,
         save=save,
     )
+
+
+@router.post("/crawl-departments", response_model=DepartmentCourseCrawlResponse)
+def crawl_department_courses(data: DepartmentCourseCrawlRequest, db: Session = Depends(get_db)):
+    try:
+        return course_service.crawl_and_import_department_courses(db, data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/", response_model=list[CourseResponse])
