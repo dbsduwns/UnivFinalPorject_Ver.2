@@ -10,12 +10,18 @@ from app.schemas.course import (
     DepartmentCourseCrawlResponse,
 )
 from app.services import course as course_service
+from app.core.dependencies import get_current_admin_user
+from app.models.user import User
 
 router = APIRouter(prefix="/api/courses", tags=["courses"])
 
 
 @router.post("/import-html", response_model=CourseImportResponse)
-def import_courses_from_html(data: CourseImportRequest, db: Session = Depends(get_db)):
+def import_courses_from_html(
+    data: CourseImportRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user), # 관리자 검증
+):
     return course_service.import_courses_from_html(
         db,
         html=data.html,
@@ -30,6 +36,7 @@ async def import_courses_from_html_file(
     department: str | None = Form(default=None),
     save: bool = Form(default=True),
     db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user), # 관리자 검증
 ):
     content = await file.read()
     try:
@@ -46,7 +53,11 @@ async def import_courses_from_html_file(
 
 
 @router.post("/crawl-departments", response_model=DepartmentCourseCrawlResponse)
-def crawl_department_courses(data: DepartmentCourseCrawlRequest, db: Session = Depends(get_db)):
+def crawl_department_courses(
+    data: DepartmentCourseCrawlRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user), # 관리자 검증
+):
     try:
         return course_service.crawl_and_import_department_courses(db, data)
     except ValueError as e:

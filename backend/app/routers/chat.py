@@ -19,8 +19,9 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 
 @router.post("/demo", response_model=ChatDemoResponse)
-def demo_chat(data: ChatDemoRequest):
-    return {"reply": chat_service.demo_reply(data.message), "provider": "demo"}
+async def demo_chat(data: ChatDemoRequest):
+    reply = await chat_service.demo_reply(data.message)
+    return {"reply": reply, "provider": "ai_bot"}
 
 
 @router.post("/rooms", response_model=ChatRoomResponse)
@@ -53,14 +54,14 @@ def get_room_messages(
 
 
 @router.post("/rooms/{room_id}/messages", response_model=ChatSendResponse)
-def send_message(
+async def send_message(
     room_id: int,
     data: ChatMessageCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     try:
-        room, user_message, assistant_message = chat_service.send_message(db, current_user, room_id, data)
+        room, user_message, assistant_message = await chat_service.send_message(db, current_user, room_id, data)
         return {
             "room": room,
             "user_message": user_message,

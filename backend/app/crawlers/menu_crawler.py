@@ -2,10 +2,11 @@ from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 from app.database import SessionLocal
 from app.models.daily_menu import DailyMenu
-from app.models.menu_item import MenuItem
+from app.core.ai_bot import campus_ai_bot
+from langchain_core.documents import Document
 from dotenv import load_dotenv
 from pathlib import Path
-import os, json, requests, re, datetime
+import os, json, requests, re, datetime, time
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
@@ -77,25 +78,35 @@ def crawl_menu_list(max_items: int | None = None):
             if max_items is not None and len(menus) >= max_items:
                 break
 
-            title = link.inner_text().strip()
-            data_params = json.loads(link.get_attribute("data-params"))
-            enc_menu_seq = data_params["encMenuSeq"]
-            enc_menu_board_seq = data_params["encMenuBoardSeq"]
-            detail_url = f"https://web.kangnam.ac.kr/menu/board/info/ddc681caea557950be41fc172d7b8142.do?scrtWrtiYn=false&encMenuSeq={enc_menu_seq}&encMenuBoardSeq={enc_menu_board_seq}"
-            
-            print(f"제목: {title}")
-            print(f"encMenuSeq: {enc_menu_seq}")
-            print(f"encMenuBoardSeq: {enc_menu_board_seq}")
-            print(f"상세 URL: {detail_url}")
+            try:
+                title = link.inner_text().strip()
+                data_params = json.loads(link.get_attribute("data-params"))
+                enc_menu_seq = data_params["encMenuSeq"]
+                enc_menu_board_seq = data_params["encMenuBoardSeq"]
+                detail_url = f"https://web.kangnam.ac.kr/menu/board/info/ddc681caea557950be41fc172d7b8142.do?scrtWrtiYn=false&encMenuSeq={enc_menu_seq}&encMenuBoardSeq={enc_menu_board_seq}"
+                
+                print(f"  ▶ 상세 수집 중: {title}")
 
-            detail_page = browser.new_page()
-            image_url = detail_img_url(detail_page, detail_url)
-            detail_page.close()
+                # 별도의 탭을 열지 않고 현재 탭이나 새 탭을 조심스럽게 관리
+                detail_page = browser.new_page()
+                try:
+                    image_url = detail_img_url(detail_page, detail_url)
+                except Exception as e:
+                    print(f"    ⚠️ 상세 이미지 추출 실패: {e}")
+                    image_url = None
+                finally:
+                    detail_page.close()
 
-            menus.append({
-                "title": title,
-                "image_url": image_url
-            })
+                menus.append({
+                    "title": title,
+                    "image_url": image_url
+                })
+                
+                # 서버 부하 방지 및 안정성 확보를 위한 짧은 대기
+                time.sleep(1)
+            except Exception as e:
+                print(f"  ⚠️ 공지 항목 처리 중 에러 발생 (건너뜀): {e}")
+                continue
         browser.close()
         return menus
 
@@ -149,24 +160,46 @@ def extract_dates(title):
 
 def save_menus(menus: list):
     db = SessionLocal()
+    indexed_docs = []
     try:
         for m in menus:
             dates = extract_dates(m["title"])
 
             for menu_date in dates:
+                # 1. DB 저장 (중복 체크 강화)
                 existing = db.query(DailyMenu).filter(
-                    DailyMenu.menu_date == menu_date,
-                    DailyMenu.image_url == m["image_url"]
+                    DailyMenu.menu_date == menu_date
                 ).first()
                 if existing:
                     continue
+                
                 menu = DailyMenu(
                     menu_date=menu_date,
                     image_url=m["image_url"]
                 )
                 db.add(menu)
+                
+                # 2. RAG 인덱싱: AI가 이 정보를 알고 '학식 탭'으로 유도하게 함
+                doc = Document(
+                    page_content=f"{menu_date}의 학식 메뉴(식단표)가 등록되어 있습니다. 상세한 이미지는 앱의 '오늘의 학식' 탭에서 확인하실 수 있습니다.",
+                    metadata={
+                        "source": "학식",
+                        "date": str(menu_date),
+                        "action": "move_to_meal_tab" # 프론트엔드 연동용 마커
+                    }
+                )
+                indexed_docs.append(doc)
+        
         db.commit()
-        print("저장완료")
+        
+        # 벡터 DB에 추가
+        if indexed_docs:
+            campus_ai_bot.add_documents(indexed_docs)
+            
+        print(f"✅ {len(indexed_docs)}일치 학식 데이터 저장 및 인덱싱 완료")
+    except Exception as e:
+        print(f"❌ 학식 저장 중 오류 발생: {e}")
+        db.rollback()
     finally:
         db.close()
 

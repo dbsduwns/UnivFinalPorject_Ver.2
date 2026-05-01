@@ -39,8 +39,9 @@ def update_timetable(
     if update_data.get("is_main") is True:
         db.query(Timetable).filter(
             Timetable.user_id == user.id,
-            Timetable.id == timetable.id,
-        ).update({"is_main":False})
+            Timetable.id != timetable.id,
+        ).update({"is_main": False})
+
 
     for field, value in update_data.items():
         setattr(timetable, field, value)
@@ -76,7 +77,6 @@ def get_my_timetable(db: Session, user: User, timetable_id: int) -> Timetable | 
         .filter(Timetable.id == timetable_id, Timetable.user_id == user.id)
         .first()
     )
-
 
 def get_my_timetable_detail(db: Session, user: User, timetable_id: int) -> dict | None:
     timetable = get_my_timetable(db, user, timetable_id)

@@ -17,6 +17,7 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+    is_admin = Column(Boolean, default=False, nullable=False)
 
     timetables = relationship("Timetable", back_populates="user")
     chat_rooms = relationship("ChatRoom", back_populates="user")

@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.schemas.notice import NoticeResponse, NoticeUpdate
 from app.services import notice as notice_service
+from app.models.user import User
+from app.core.dependencies import get_current_admin_user
 from app.crawlers.notice_crawler import crawl_notice_list, save_notices
 
 router = APIRouter(prefix="/api/notices", tags=["notices"])
@@ -15,15 +17,6 @@ def get_notices(category: str = None, keyword: str = None, db: Session = Depends
 	except ValueError as e:
 		raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/crawl")
-def crawl_notices(max_items: int | None = None):
-	try:
-		notices = crawl_notice_list(max_items=max_items)
-		save_notices(notices)
-		return {"message": "Notice crawling completed", "count": len(notices)}
-	except Exception as e:
-		raise HTTPException(status_code=500, detail=str(e))
-
 @router.get("/{notice_id}", response_model=NoticeResponse)
 def get_notice(notice_id: int, db: Session = Depends(get_db)):
 	try:
@@ -34,8 +27,25 @@ def get_notice(notice_id: int, db: Session = Depends(get_db)):
 	except ValueError as e:
 		raise HTTPException(status_code=400, detail=str(e))
 
+@router.post("/crawl")
+def crawl_notices(
+		max_items: int | None = None,
+		current_admin: User = Depends(get_current_admin_user), # 관리자 검증
+	):
+	try:
+		notices = crawl_notice_list(max_items=max_items)
+		save_notices(notices)
+		return {"message": "Notice crawling completed", "count": len(notices)}
+	except Exception as e:
+		raise HTTPException(status_code=500, detail=str(e))
+
 @router.put("/{notice_id}", response_model=NoticeResponse)
-def update_notice(notice_id: int, data: NoticeUpdate, db: Session = Depends(get_db)):
+def update_notice(
+		notice_id: int,
+		data: NoticeUpdate,
+		db: Session = Depends(get_db),
+		current_admin: User = Depends(get_current_admin_user), # 관리자 검증
+	):
 	try:
 		notice = notice_service.update_notice(db, notice_id, data)
 		return notice
@@ -43,7 +53,11 @@ def update_notice(notice_id: int, data: NoticeUpdate, db: Session = Depends(get_
 		raise HTTPException(status_code=404, detail=str(e))
 
 @router.delete("/{notice_id}")
-def delete_notice(notice_id: int, db: Session = Depends(get_db)):
+def delete_notice(
+		notice_id: int,
+		db: Session = Depends(get_db),
+		current_admin: User = Depends(get_current_admin_user), # 관리자 검증
+	):
 	try:
 		notice = notice_service.delete_notice(db, notice_id)
 		return {"message": "삭제되었습니다"}	

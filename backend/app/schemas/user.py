@@ -19,4 +19,9 @@ class UserResponse(BaseModel):
     name: str
     department: str | None = None
     grade: int | None = None
+    is_admin: bool = False
+
+    model_config = {
+        "from_attributes": True
+    }
 

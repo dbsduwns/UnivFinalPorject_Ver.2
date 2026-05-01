@@ -3,9 +3,9 @@ from bs4 import BeautifulSoup
 from app.database import SessionLocal
 from app.models.notice import Notice
 from sqlalchemy.orm import Session
-import requests as req
+from app.core.ai_bot import campus_ai_bot
+from langchain_core.documents import Document
 import json
-import re
 import time
 
 BASE_URL = "https://web.kangnam.ac.kr"
@@ -108,6 +108,7 @@ def crawl_notice_detail(page, enc_menu_seq, enc_menu_board_seq):
 
 def save_notices(notices: list):
    db = SessionLocal()
+   indexed_docs = []
    try:
         for n in notices:
             existing = db.query(Notice).filter(
@@ -123,13 +124,29 @@ def save_notices(notices: list):
                 attachment_url=n["attachment_url"]
             )
             db.add(notice)
+            
+            # RAG 인덱싱을 위한 문서 객체 생성
+            if n["content"]:
+                doc = Document(
+                    page_content=f"제목: {n['title']}\n카테고리: {n['category']}\n내용: {n['content']}",
+                    metadata={
+                        "source": "공지사항",
+                        "category": n["category"],
+                        "title": n["title"]
+                    }
+                )
+                indexed_docs.append(doc)
+
         db.commit()
-        print("저장 완료!")
+        
+        # 벡터 DB에 추가
+        if indexed_docs:
+            campus_ai_bot.add_documents(indexed_docs)
+            
+        print("저장 및 인덱싱 완료!")
    finally:
       db.close()
    
-
-      
 
 if __name__ == "__main__":
     notices = crawl_notice_list()
