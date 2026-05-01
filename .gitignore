@@ -1,0 +1,22 @@
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+backend/.venv/
+.venv/
+venv/
+
+# Environment
+.env
+
+# Database and Exports
+*.db
+*.sqlite3
+chroma_db/
+backend/chroma_db/
+backend/scripts/chroma_db/
+*.txt
+*.log
