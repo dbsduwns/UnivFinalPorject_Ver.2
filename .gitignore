@@ -19,4 +19,5 @@ chroma_db/
 backend/chroma_db/
 backend/scripts/chroma_db/
 *.txt
+!requirements.txt
 *.log

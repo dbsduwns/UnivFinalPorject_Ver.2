@@ -52,4 +52,5 @@ langchain-community
 langchain-google-genai
 langchain-huggingface
 langchain-chroma
+chromadb
 sentence-transformers
