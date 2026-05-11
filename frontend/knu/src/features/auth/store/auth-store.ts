@@ -39,9 +39,13 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   login: async (body) => {
+    console.log("[AuthStore] Login starting...");
     const tokens = await loginRequest(body);
+    console.log("[AuthStore] Login request success, saving tokens...");
     await tokenStorage.setTokens(tokens.access_token, tokens.refresh_token);
+    console.log("[AuthStore] Tokens saved, fetching user info...");
     const user = await meRequest();
+    console.log("[AuthStore] User info fetched:", user.name);
     set({ user, ready: true });
   },
 

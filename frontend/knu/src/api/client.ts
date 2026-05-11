@@ -6,12 +6,16 @@ import { hrefLogin } from "@/constants/routes";
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 10000, // 10초 타임아웃 추가
   headers: {
     "Content-Type": "application/json",
   },
 });
 
 apiClient.interceptors.request.use(async (config) => {
+  if (__DEV__) {
+    console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`, config.data || "");
+  }
   const token = await tokenStorage.getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -20,8 +24,16 @@ apiClient.interceptors.request.use(async (config) => {
 });
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (__DEV__) {
+      console.log(`[API Response] ${response.status} ${response.config.url}`);
+    }
+    return response;
+  },
   async (error) => {
+    if (__DEV__) {
+      console.warn(`[API Error] ${error.config?.url}`, error.message);
+    }
     const hadAuthHeader = Boolean(
       isAxiosError(error) &&
         error.config?.headers &&

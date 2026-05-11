@@ -25,7 +25,6 @@ export default function LoginScreen() {
   const user = useAuthStore((s) => s.user);
   const ready = useAuthStore((s) => s.ready);
   const login = useAuthStore((s) => s.login);
-  const googleLogin = useAuthStore((s) => s.googleLogin);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -37,21 +36,6 @@ export default function LoginScreen() {
 
   const [isEmail, setIsEmail] = useState<boolean>(false)
   const [isPassword, setIsPassword] = useState<boolean>(false)
-
-  // 구글 로그인 요청 훅
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    webClientId: '433369528179-1ra3pg4pffr7iuupnabdnk588c0q1tga.apps.googleusercontent.com',
-  });
-
-  // 구글 로그인 결과 처리
-  useEffect(() => {
-    if (response?.type === 'success') {
-      const { id_token } = response.params;
-      if (id_token) {
-        void googleLogin(id_token);
-      }
-    }
-  }, [response, googleLogin]);
 
   const onChangeEmail = useCallback((text: string) => {
     const emailRegEx = /^[A-Za-z0-9]([-_.]?[A-Za-z0-9])*@[A-Za-z0-9]([-_.]?[A-Za-z0-9])*\.[A-Za-z]{2,3}$/i
@@ -67,6 +51,7 @@ export default function LoginScreen() {
   }, [])
 
   const onChangePassword = useCallback((text: string) => {
+    /*
     const passwordRegEx = /^(?=.*[a-zA-Z])(?=.*[!@#$%^*+=-])(?=.*[0-9]).{8,25}$/
     setPassword(text)
 
@@ -77,6 +62,10 @@ export default function LoginScreen() {
       setPasswordMessage('안전한 비밀번호입니다')
       setIsPassword(true)
     }
+      */
+    setPassword(text)
+    setPasswordMessage('')
+    setIsPassword(true)
   }, [])
   
   useEffect(() => {
@@ -167,14 +156,6 @@ export default function LoginScreen() {
           ) : (
             <Text className="font-semibold text-white">로그인</Text>
           )}
-        </Pressable>
-
-        <Pressable
-          className="mt-4 items-center rounded-lg border border-neutral-300 py-3 active:opacity-80"
-          onPress={() => promptAsync()}
-          disabled={!request}
-        >
-          <Text className='font-semibold text-neutral-700'>Google로 시작하기</Text>
         </Pressable>
 
         <Link href={hrefSignup} asChild>
