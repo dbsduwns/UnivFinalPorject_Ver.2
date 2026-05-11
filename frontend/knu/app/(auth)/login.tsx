@@ -1,4 +1,3 @@
-import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { Link, router } from "expo-router";
 
@@ -56,11 +55,15 @@ export default function LoginScreen() {
     setPassword(text)
 
     if (!passwordRegEx.test(text)) {
+      /*
       setPasswordMessage('비밀번호 형식을 확인하세요')
       setIsPassword(false)
     } else {
       setPasswordMessage('안전한 비밀번호입니다')
       setIsPassword(true)
+      */
+     setPasswordMessage('올바른 형식입니다')
+     setIsPassword(true)
     }
       */
     setPassword(text)
