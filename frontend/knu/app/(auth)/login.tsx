@@ -61,11 +61,10 @@ export default function LoginScreen() {
     } else {
       setPasswordMessage('안전한 비밀번호입니다')
       setIsPassword(true)
-      */
-     setPasswordMessage('올바른 형식입니다')
-     setIsPassword(true)
-    }
-      */
+      }
+    */
+   
+    setPasswordMessage('올바른 형식입니다')
     setPassword(text)
     setPasswordMessage('')
     setIsPassword(true)

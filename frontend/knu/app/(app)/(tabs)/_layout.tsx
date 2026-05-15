@@ -1,6 +1,6 @@
 import { Tabs } from "expo-router";
 import React from "react";
-import { Home, Calendar, Bot, Bell, Compass, User } from "lucide-react-native";
+import { Home, Calendar, Bot, Bell, Megaphone, User } from "lucide-react-native";
 
 import { HapticTab } from "@/components/haptic-tab";
 import { Colors } from "@/constants/theme";
@@ -57,7 +57,7 @@ export default function TabLayout() {
         options={{
           title: "공지",
           tabBarIcon: ({ color }) => (
-            <Bell size={28} color={color} />
+            <Megaphone size={28} color={color} />
           ),
         }}
       />
