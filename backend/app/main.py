@@ -29,6 +29,13 @@ from app.crawlers.notice_crawler_v2 import crawl_notices_safely
 from app.crawlers.menu_crawler import crawl_menu_list, save_menus
 from app.crawlers.shuttle_crawler import crawl_shuttle_schedule, save_shuttle_schedule
 from app.crawlers.rules_crawler import crawl_rules
+from fastapi.staticfiles import StaticFiles
+
+STATIC_DIR = "static"
+SHUTTLE_DIR = os.path.join(STATIC_DIR, "shuttle")
+os.makedirs(SHUTTLE_DIR, exist_ok=True)
+
+app.mount("static", StaticFiles(directory=STATIC_DIR), name="static")
 
 app = FastAPI(
     title="KNU CAMPUS API",

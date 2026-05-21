@@ -6,6 +6,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.documents import Document
+from datetime import datetime
 from dotenv import load_dotenv
 
 # .env 파일 로드
@@ -57,9 +58,8 @@ class CampusAIBot:
         print("🤖 [AI Bot] Gemini LLM 설정 중...")
         try:
             api_key = os.getenv("GOOGLE_API_KEY")
-            # 프로젝트 내 테스트 스크립트에서 확인된 모델명인 'gemini-flash-latest'로 수정
             self.llm = ChatGoogleGenerativeAI(
-                model="gemini-flash-latest",
+                model="gemini-flash-latest", # gemini flash 최신 모델 사용
                 google_api_key=api_key,
                 temperature=0,
                 max_retries=2,
@@ -69,8 +69,13 @@ class CampusAIBot:
             self.llm = None
 
         template = """당신은 강남대학교 캠퍼스 안내 AI 도우미입니다. 
-주어진 검색 결과(Context)를 바탕으로 사용자의 질문에 친절하고 정확하게 답변하세요.
-답변할 수 있는 내용이 없다면, "죄송합니다. 해당 내용에 대한 정보를 찾을 수 없습니다."라고 답변하세요.
+제공된 정보(Context)만을 바탕으로 사용자의 질문에 친절하고 정확하게 답변하세요.
+
+### 지침(Instructions):
+1. **사실 근거:** 반드시 아래 제공된 # Context의 내용만을 바탕으로 답변하세요. 외부 지식을 활용하지 마세요.
+2. **날짜 기준:** 오늘은 {current_date}입니다. 일정에 대한 질문 시, 오늘 날짜를 기준으로 '진행 중'이거나 '다가올' 가장 빠른 일정을 우선적으로 안내하세요.
+3. **불확실성 처리:** 답변에 필요한 정보가 Context에 없거나 부족한 경우, "죄송합니다. 해당 내용에 대한 정보를 찾을 수 없습니다."라고 답변하세요. 추가로 확인할 수 있는 대학 홈페이지나 부서 연락처가 Context에 있다면 함께 안내하세요.
+4. **스타일:** 학생들에게 답변하듯 친절한 말투를 유지하세요.
 
 # Context:
 {context}
@@ -84,7 +89,11 @@ class CampusAIBot:
 
         if self.retriever and self.llm:
             self.chain = (
-                {"context": self.retriever, "question": RunnablePassthrough()}
+                {
+                    "context": self.retriever, 
+                    "question": RunnablePassthrough(),
+                    "current_date": lambda _: datetime.now().strftime('%Y-%m-%d')
+                }
                 | self.prompt
                 | self.llm
                 | StrOutputParser()

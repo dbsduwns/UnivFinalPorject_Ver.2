@@ -1,7 +1,6 @@
 import { Text, View, Platform } from "react-native";
 import { WebView } from "react-native-webview";
 
-import { AppScrollContent } from "@/components/AppScrollContent";
 import { useQuery } from "@tanstack/react-query";
 import { getShuttles } from "@/features/shuttle/shuttle";
 import { getCurrentSemester } from "@/features/shuttle/utils/semester";

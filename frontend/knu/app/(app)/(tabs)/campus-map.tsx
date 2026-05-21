@@ -1,13 +1,14 @@
 import { Text, View } from "react-native";
 
 import { AppScrollContent } from "@/components/AppScrollContent";
+import { AppScreenLayout } from "@/components/AppScreenLayout";
 
 export default function CampusMapScreen() {
   return (
-    <View className="flex-1 bg-[#F3F4F6]">
-      <AppScrollContent contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}>
-        <Text className="text-2xl font-bold text-center">캠퍼스맵</Text>
+    <AppScreenLayout>
+      <AppScrollContent>
+        <View><Text></Text></View>
       </AppScrollContent>
-    </View>
+    </AppScreenLayout>
   );
 }
