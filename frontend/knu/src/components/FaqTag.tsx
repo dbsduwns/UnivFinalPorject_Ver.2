@@ -1,10 +1,13 @@
-import { Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 
 export const FaqTag = () => {
     return (
         // Faq Recommendation
-        <View 
-            className="FaqWrapper flex-row w-full px-5 mt-2 justify-start items-center">
+        <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            className="FaqWrapper w-full"
+            contentContainerStyle={{ alignItems: "center" }}>
             <View 
                 className="mr-3 bg-white"
                 style={{ 
@@ -43,6 +46,6 @@ export const FaqTag = () => {
                     디자인 인턴 공고 찾아줘
                 </Text>
             </View>
-        </View>
+        </ScrollView>
     )
 }

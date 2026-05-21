@@ -1,4 +1,4 @@
-import { Pressable, Text, View, ScrollView, TextInput, useWindowDimensions } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { Calendar, ChevronRight } from "lucide-react-native";
 
 export const TodaySchedule = () => {
@@ -6,18 +6,19 @@ export const TodaySchedule = () => {
     return (       
         // Today's Schedule Card
         <View 
-            className="TodaySchedule justify-center flex-col mx-5 mt-5"
+            className="TodaySchedule justify-center flex-col"
             style={{ 
                 backgroundColor: 'white',
                 borderWidth: 1,
                 borderRadius: 15,
                 borderColor: '#E5E7EB',
+                width: "100%",
             }}>
             {/* [ Header ] => Icon / Title / See All Button */}
-            <View className="ScheduleTitle flex-row justify-between mx-2 mt-6">
+            <View className="ScheduleTitle flex-row justify-between mx-6 mt-6">
                 {/* Icon */}
                 <View 
-                    className="IconCalendar ml-4 mr-2 mt-1">
+                    className="IconCalendar mr-2 mt-1">
                     <Calendar color={ '#1aaedb' } size={ 28 }/>
                 </View>
                 {/* Title */}
@@ -30,14 +31,13 @@ export const TodaySchedule = () => {
                 </View>
                 {/* See All Icon */}
                 <Pressable 
-                    className="flex-row">
+                    className="flex-row items-center">
                     <Text 
-                        className="mt-1"
                         style={{ 
                             color: '#1aaedb',
                             fontSize: 12
                         }}>전체보기</Text>
-                    <View className="mt-1">
+                    <View>
                         <ChevronRight color={ '#1aaedb' }/>
                     </View>
                 </Pressable>
@@ -66,7 +66,7 @@ export const TodaySchedule = () => {
                         <View><Text>김교수 · 3학점</Text></View>
                     </View>
                 </View>
-                <View className="h-[1px] bg-gray-100 w-full mx-8"></View>
+                <View className="h-[1px] bg-gray-100 mx-8"></View>
                 <View
                     className="flex-row">
                     {/* Time */}

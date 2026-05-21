@@ -1,16 +1,23 @@
-import { router } from "expo-router";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
-import { hrefLogin } from "@/constants/routes";
+import { AppScrollContent } from "@/components/AppScrollContent";
 import { useAuthStore } from "@/features/auth/store/auth-store";
+import { AppScreenLayout } from "@/components/AppScreenLayout";
+import { NoticeCard } from "@/components/NoticeCard";
+import { useNotices } from "@/features/notice/hooks/use_notices";
 
-export default function HomeScreen() {
+export default function NoticeScreen() {
+
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
 
+  const { data: notices = [], isLoading } = useNotices();
+
   return (
-    <View className="flex-1 justify-center items-center bg-blue-500 px-4">
-      <Text className="text-white text-2xl font-bold text-center">This page is for Notice</Text>
-    </View>
+    <AppScreenLayout>
+      <AppScrollContent>
+        <NoticeCard notices={notices} isLoading={isLoading} />
+      </AppScrollContent>
+    </AppScreenLayout>
   );
 }
