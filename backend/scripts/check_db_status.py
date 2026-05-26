@@ -1,38 +1,45 @@
 import sys
 import os
-from pathlib import Path
+from sqlalchemy import func
 
-# Add backend to path
-backend_dir = Path(__file__).resolve().parents[1]
-sys.path.append(str(backend_dir))
+# 백엔드 경로 추가
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_chroma import Chroma
+from app.database import SessionLocal
+from app.models.subject import Subject
+from app.models.course import Course
 
-def main():
-    embeddings = HuggingFaceEmbeddings(
-        model_name="jhgan/ko-sroberta-multitask",
-        model_kwargs={'device': 'cpu'},
-        encode_kwargs={'normalize_embeddings': True}
-    )
-    persist_directory = str(backend_dir / "chroma_db")
-    if not os.path.exists(persist_directory):
-        print(f"Error: {persist_directory} not found")
-        return
+def verify_db_stats():
+    db = SessionLocal()
+    try:
+        # 1. 전체 강의(분반 포함) 수
+        total_courses = db.query(Course).count()
+        # 2. 전체 과목(학수번호 기준) 수
+        total_subjects = db.query(Subject).count()
+        
+        print(f"📊 [DB 통계 요약]")
+        print(f"   - 전체 과목 수: {total_subjects}개")
+        print(f"   - 전체 강의(분반) 수: {total_courses}개")
+        print("-" * 40)
 
-    vectorstore = Chroma(persist_directory=persist_directory, embedding_function=embeddings)
-    data = vectorstore.get()
-    print(f"Total documents: {len(data['ids'])}")
-
-    sources = {}
-    for metadata in data['metadatas']:
-        source = metadata.get('source', 'Unknown')
-        title = metadata.get('title', 'No Title')
-        key = f"{source} - {title}"
-        sources[key] = sources.get(key, 0) + 1
-
-    for key, count in sorted(sources.items()):
-        print(f"{key}: {count} documents")
+        # 3. 학과별 강의 수 (상위 20개)
+        print("📍 [학과별 수집 현황 - 상위 20개]")
+        stats = db.query(Subject.department, func.count(Course.id)) \
+                  .join(Course, Subject.id == Course.subject_id) \
+                  .group_by(Subject.department) \
+                  .order_by(func.count(Course.id).desc()) \
+                  .limit(20).all()
+        
+        for dept, count in stats:
+            print(f"   - {dept or '소속미정'}: {count}개")
+        
+        print("-" * 40)
+        
+        # 4. 수집된 데이터가 0개인 학과 수 확인
+        # (이건 나중에 department_codes_all.json과 비교 필요)
+        
+    finally:
+        db.close()
 
 if __name__ == "__main__":
-    main()
+    verify_db_stats()

@@ -15,4 +15,5 @@ class Timetable(Base):
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     user = relationship("User", back_populates="timetables")
+    courses = relationship("TimetableCourse", back_populates="timetable", cascade="all, delete-orphan")
     custom_schedules = relationship("CustomSchedule", back_populates='timetable')

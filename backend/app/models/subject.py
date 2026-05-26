@@ -16,3 +16,4 @@ class Subject(Base):
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     courses = relationship("Course", back_populates="subject")
+    wizard_selections = relationship("WizardSelection", back_populates="subject")

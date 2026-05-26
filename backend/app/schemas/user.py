@@ -5,6 +5,12 @@ class UserSignup(BaseModel):
     password: str
     name: str
 
+class UserUpdate(BaseModel):
+    name: str | None = None
+    student_id: str | None = None
+    department: str | None = None
+    grade: int | None = None
+
 class UserLogin(BaseModel):
     email: str
     password: str

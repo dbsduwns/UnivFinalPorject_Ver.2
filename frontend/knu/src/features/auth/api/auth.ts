@@ -1,5 +1,5 @@
 import { apiClient } from "@/api/client";
-import type { TokenResponse, User, UserLoginBody, UserSignupBody } from "@/features/auth/api/types";
+import type { TokenResponse, User, UserLoginBody, UserSignupBody, UserUpdateBody } from "@/features/auth/api/types";
 
 export async function loginRequest(body: UserLoginBody): Promise<TokenResponse> {
   const { data } = await apiClient.post<TokenResponse>("/auth/login", body);
@@ -13,6 +13,11 @@ export async function signupRequest(body: UserSignupBody): Promise<User> {
 
 export async function meRequest(): Promise<User> {
   const { data } = await apiClient.get<User>("/auth/me");
+  return data;
+}
+
+export async function updateMeRequest(body: UserUpdateBody): Promise<User> {
+  const { data } = await apiClient.put<User>("/auth/update", body);
   return data;
 }
 

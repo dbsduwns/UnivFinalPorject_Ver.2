@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getNotices } from "@/features/auth/api/notice";
+import { getNotice, getNotices } from "@/features/auth/api/notice";
 
 export const useNotices = () => {
     return useQuery({
@@ -7,3 +7,11 @@ export const useNotices = () => {
         queryFn: getNotices,
     });
 };
+
+export const useNotice = (id: number | null) => {
+    return useQuery({
+        queryKey: ["notice", id],
+        queryFn: () => getNotice(id!),
+        enabled: !!id,
+    })
+}

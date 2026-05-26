@@ -6,14 +6,18 @@ from app.core.ai_bot import campus_ai_bot
 from langchain_core.documents import Document
 import re
 
+import os
 import requests
 from bs4 import BeautifulSoup
 
 #학교 셔틀 페이지
 SHUTTLE_PAGE_URL = "https://web.kangnam.ac.kr/menu/4990be9bdd4defbf92dde49a31ad1a3b.do"
+STATIC_SHUTTLE_DIR = "static/shuttle"
 
 #크롤링 함수 메인
 def crawl_shuttle_schedule() -> dict:
+    os.makedirs(STATIC_SHUTTLE_DIR, exist_ok=True)
+    
     page_response = requests.get(
         SHUTTLE_PAGE_URL,
         headers={"User-Agent": "Mozilla/5.0"},
@@ -34,17 +38,30 @@ def crawl_shuttle_schedule() -> dict:
         stream=True,
     )
     file_response.raise_for_status()
-    file_response.close()
 
     original_filename = _extract_filename(
         file_response.headers.get("Content-Disposition")
     )
+    
+    # 로컬에 파일 저장 (한글 파일명으로 인한 인코딩 이슈 방지를 위해 안전한 이름 사용)
+    import time
+    timestamp = int(time.time())
+    safe_filename = f"shuttle_schedule_{timestamp}.pdf"
+        
+    local_file_path = os.path.join(STATIC_SHUTTLE_DIR, safe_filename)
+    
+    with open(local_file_path, "wb") as f:
+        for chunk in file_response.iter_content(chunk_size=8192):
+            f.write(chunk)
+    
+    file_response.close()
+
     semester = _extract_semester(original_filename)
 
     return {
         "title": _make_title(original_filename),
         "semester": semester,
-        "file_url": download_url,
+        "file_url": f"/static/shuttle/{safe_filename}", # 로컬 상대 경로로 저장
         "source_url": SHUTTLE_PAGE_URL,
         "original_filename": original_filename,
     }

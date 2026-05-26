@@ -122,49 +122,52 @@ export default function AIChatScreen() {
   };
 
   return (
-    <AppScreenLayout>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-      >
-        <View className="py-4 border-b border-gray-200 items-center">
-            <Text className="font-bold text-lg text-white">AI 비서</Text>
-        </View>
+    
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={{ flex: 1 }}
+      keyboardVerticalOffset={0}
+    >
+      <AppScreenLayout>
+        <View style={{ flex: 1, backgroundColor: 'white' }}>
+          <View className="py-3 border-b border-gray-100 items-center bg-white">
+            <Text className="font-bold text-base text-gray-800">AI 비서</Text>
+          </View>
 
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={renderMessage}
-          contentContainerStyle={{ paddingVertical: 10 }}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-        />
-
-        <View className="p-4 bg-transparent flex-row items-center border-t border-gray-700">
-          <TextInput
-            className="flex-1 bg-gray-800 text-white rounded-full px-4 py-2 mr-2"
-            placeholder="궁금한 것을 물어보세요..."
-            placeholderTextColor="#9ca3af"
-            value={inputText}
-            onChangeText={setInputText}
-            multiline
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={renderMessage}
+            contentContainerStyle={{ paddingVertical: 10, paddingBottom: 20 }}
+            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           />
-          <TouchableOpacity
-            onPress={() => onSend(inputText)}
-            disabled={isLoading || !inputText.trim()}
-            className={`w-10 h-10 rounded-full items-center justify-center ${
-              isLoading || !inputText.trim() ? "bg-gray-600" : "bg-blue-600"
-            }`}
-          >
-            {isLoading ? (
-              <ActivityIndicator size="small" color="white" />
-            ) : (
-              <Send size={20} color="white" />
-            )}
-          </TouchableOpacity>
+
+          <View className="p-4 bg-white border-t border-gray-100 flex-row items-center">
+            <TextInput
+              className="flex-1 bg-gray-50 text-gray-900 rounded-2xl px-4 py-3 mr-2 border border-gray-200"
+              style={{ maxHeight: 100 }}
+              placeholder="궁금한 것을 물어보세요..."
+              placeholderTextColor="#9ca3af"
+              value={inputText}
+              onChangeText={setInputText}
+              multiline
+            />
+            <TouchableOpacity
+              onPress={() => onSend(inputText)}
+              disabled={isLoading || !inputText.trim()}
+              className="w-12 h-12 rounded-full items-center justify-center bg-blue-600 shadow-sm"
+              style={{ opacity: (isLoading || !inputText.trim()) ? 0.5 : 1 }}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Send size={20} color="white" />
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
-      </KeyboardAvoidingView>
-    </AppScreenLayout>
+      </AppScreenLayout>
+    </KeyboardAvoidingView>
   );
 }

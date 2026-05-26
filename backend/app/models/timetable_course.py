@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, TIMESTAMP
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.database import Base
 
 COLOR_PALETTE = [
@@ -16,3 +17,6 @@ class TimetableCourse(Base):
     course_id = Column(Integer, ForeignKey("courses.id"))
     color = Column(String(20), default="#3B82F6")
     created_at = Column(TIMESTAMP, server_default=func.now())
+
+    timetable = relationship("Timetable", back_populates="courses")
+    course = relationship("Course", back_populates="timetable_courses")

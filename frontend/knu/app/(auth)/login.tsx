@@ -97,8 +97,9 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       className="flex-1 bg-white dark:bg-neutral-950"
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={insets.top}
+      style={{ paddingBottom: insets.bottom }}
     >
       <View className="flex-1 justify-center px-6">
         <Text className="text-2xl font-bold text-neutral-900 dark:text-white">로그인</Text>

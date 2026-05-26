@@ -21,3 +21,6 @@ class User(Base):
 
     timetables = relationship("Timetable", back_populates="user")
     chat_rooms = relationship("ChatRoom", back_populates="user")
+    notice_reads = relationship("NoticeRead", back_populates="user")
+    notification_setting = relationship("NotificationSetting", back_populates="user", uselist=False)
+    wizard_selections = relationship("WizardSelection", back_populates="user")

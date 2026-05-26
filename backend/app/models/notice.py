@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean, Text, TIMESTAMP
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.database import Base
 
 class Notice(Base):
@@ -14,3 +15,5 @@ class Notice(Base):
     is_important = Column(Boolean, default=False)
     published_at = Column(TIMESTAMP)
     crawled_at = Column(TIMESTAMP, server_default=func.now())
+
+    notice_reads = relationship("NoticeRead", back_populates="notice")

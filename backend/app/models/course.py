@@ -19,3 +19,4 @@ class Course(Base):
     subject = relationship("Subject", back_populates="courses")
     room = relationship("Room", back_populates="courses")
     schedules = relationship("CourseSchedule", back_populates="course")
+    timetable_courses = relationship("TimetableCourse", back_populates="course")

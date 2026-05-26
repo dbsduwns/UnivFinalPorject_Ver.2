@@ -101,19 +101,20 @@ def crawl_course_list_html(
     student_department_code: str,
     fact_code: str,
     fact_srch: str,
+    srch_gubn: str = "41",
     student_dorn: str = "1",
     grad_srch: str | None = None,
     dept_code2: str = "5100",
     grad_area1: str = "H4",
     grad_area2: str = "H4",
     timeout: int = 20,
-) -> str:
+    ) -> str:
     form_data = {
         "schl_year": year,
         "schl_smst": semester,
         "stnt_numb": student_number,
         "dept_srch": department_code,
-        "srch_gubn": "41",
+        "srch_gubn": srch_gubn,
         "stnt_grad": student_grade,
         "stnt_dept": student_department_code,
         "fact_code": fact_code,
@@ -127,12 +128,13 @@ def crawl_course_list_html(
         "dept_code2": dept_code2,
         "grad_area2": grad_area2,
     }
+
     headers = {
         "Content-Type": "application/x-www-form-urlencoded",
         "Cookie": session_cookie,
         "Origin": "https://app.kangnam.ac.kr",
         "Referer": "https://app.kangnam.ac.kr/knumis/sbr/sbr3070T.jsp",
-        "User-Agent": "Mozilla/5.0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     }
 
     response = requests.post(

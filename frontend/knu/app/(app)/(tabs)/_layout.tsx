@@ -52,6 +52,7 @@ export default function TabLayout() {
         name="ai_chat"
         options={{
           title: "챗봇",
+          tabBarHideOnKeyboard: true,
           tabBarIcon: ({ color }) => (
             <Bot size={40} color={color} style={{marginBottom:20}} />
           ),

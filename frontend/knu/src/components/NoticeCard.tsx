@@ -77,6 +77,11 @@ export const NoticeCard = ({ notices, isLoading }: NoticeCardProps) => {
                 
                     return (
                         <View key={notice.id}>
+                            <Pressable
+                                onPress={() => router.push({
+                                    pathname: "/notice/[id]",
+                                    params: { id: notice.id.toString() },
+                                })}>
                                 <View
                                     className="NoticeContentsWrapper flex-row my-6">
                                     <Text
@@ -99,6 +104,7 @@ export const NoticeCard = ({ notices, isLoading }: NoticeCardProps) => {
                                     </View>
                                 </View>
                                 <View className="h-[1px] bg-gray-100 mx-8"></View>
+                            </Pressable>
                         </View>
                     )
                 })

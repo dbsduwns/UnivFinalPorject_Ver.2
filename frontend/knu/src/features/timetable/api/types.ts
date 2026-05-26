@@ -53,7 +53,22 @@ export type TimetableCreateBody = {
   is_main?: boolean;
 };
 
+export type TimetableUpdateBody = {
+  name?: string;
+  semester?: string;
+  is_main?: boolean;
+};
+
 export type TimetableCourseCreateBody = {
   course_id: number;
   color?: string;
+};
+
+export type CustomScheduleCreateBody = {
+  name: string;
+  day_of_week: string;
+  start_time: string;
+  end_time: string;
+  color?: string;
+  memo?: string;
 };

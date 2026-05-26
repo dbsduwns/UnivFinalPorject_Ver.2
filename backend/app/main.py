@@ -23,9 +23,10 @@ from app.routers import shuttle as shuttle_router
 from app.core.ai_bot import campus_ai_bot
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
+import os
 
 # 새롭게 개선된 크롤러들 임포트
-from app.crawlers.notice_crawler_v2 import crawl_notices_safely
+from app.crawlers.notice_crawler_v3 import crawl_notices_safely
 from app.crawlers.menu_crawler import crawl_menu_list, save_menus
 from app.crawlers.shuttle_crawler import crawl_shuttle_schedule, save_shuttle_schedule
 from app.crawlers.rules_crawler import crawl_rules
@@ -35,13 +36,13 @@ STATIC_DIR = "static"
 SHUTTLE_DIR = os.path.join(STATIC_DIR, "shuttle")
 os.makedirs(SHUTTLE_DIR, exist_ok=True)
 
-app.mount("static", StaticFiles(directory=STATIC_DIR), name="static")
-
 app = FastAPI(
     title="KNU CAMPUS API",
     description="강남대학교 통합 앱 API",
     version="1.0.0",
 )
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 app.add_middleware(
     CORSMiddleware,

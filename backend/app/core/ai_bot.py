@@ -87,7 +87,20 @@ class CampusAIBot:
 
         self.prompt = PromptTemplate.from_template(template)
 
+        # Query Rewrite를 위한 전처리 프롬프트
+        rewrite_template = """당신은 사용자의 질문을 검색에 최적화된 형태로 재작성하는 전문가입니다.
+사용자의 질문이 모호하거나 문맥이 부족한 경우, '강남대학교 학사일정'과 관련된 구체적인 질문으로 확장하세요.
+특히 날짜만 있는 경우 해당 날짜의 일정을 묻는 질문으로 바꾸세요.
+
+사용자 질문: {question}
+재작성된 질문 (Korean):"""
+        self.rewrite_prompt = PromptTemplate.from_template(rewrite_template)
+
         if self.retriever and self.llm:
+            # 1. 쿼리 재작성 체인
+            self.rewrite_chain = self.rewrite_prompt | self.llm | StrOutputParser()
+
+            # 2. 메인 RAG 체인
             self.chain = (
                 {
                     "context": self.retriever, 
@@ -116,7 +129,13 @@ class CampusAIBot:
             if not self.is_initialized:
                 return "AI 엔진이 아직 준비되지 않았습니다."
         try:
-            response = await self.chain.ainvoke(question)
+            # Step 1: Query Rewrite (질문 재작성)
+            print(f"🔍 [AI Bot] 원본 질문: {question}")
+            rewritten_question = await self.rewrite_chain.ainvoke({"question": question})
+            print(f"🔄 [AI Bot] 재작성된 질문: {rewritten_question}")
+
+            # Step 2: RAG 실행
+            response = await self.chain.ainvoke(rewritten_question)
             return response
         except Exception as e:
             print(f"❌ [AI Bot] 질문 처리 중 오류 발생: {e}")

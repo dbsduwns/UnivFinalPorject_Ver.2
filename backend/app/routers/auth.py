@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.schemas.user import UserSignup, UserLogin, TokenResponse, UserResponse
+from app.schemas.user import UserSignup, UserLogin, TokenResponse, UserResponse, UserUpdate
 from app.services import auth as auth_service
 from app.models.user import User
 from app.core.dependencies import get_current_user
@@ -58,3 +58,29 @@ def login(data: UserLogin, db: Session = Depends(get_db)):
 @router.get("/me", response_model=UserResponse)
 def me(current_user: User= Depends(get_current_user)):
     return current_user
+
+@router.put("/update", response_model=UserResponse)
+def update_profile(
+    data: UserUpdate, 
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        if data.name: current_user.name = data.name
+        if data.department: current_user.department = data.department
+        if data.grade is not None: current_user.grade = data.grade
+        
+        if data.student_id:
+            # 중복 체크
+            existing = db.query(User).filter(User.student_id == data.student_id, User.id != current_user.id).first()
+            if existing:
+                raise HTTPException(status_code=400, detail="이미 등록된 학번입니다.")
+            current_user.student_id = data.student_id
+            
+        db.commit()
+        db.refresh(current_user)
+        return current_user
+    except Exception as e:
+        db.rollback()
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=str(e))
