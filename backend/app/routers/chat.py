@@ -60,12 +60,20 @@ async def send_message(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    print(f"DEBUG: [chat_router] Received request - room_id: {room_id}, user: {current_user.email}")
     try:
         room, user_message, assistant_message = await chat_service.send_message(db, current_user, room_id, data)
+        print(f"DEBUG: [chat_router] Message processed successfully")
         return {
             "room": room,
             "user_message": user_message,
             "assistant_message": assistant_message,
         }
     except ValueError as e:
+        print(f"DEBUG: [chat_router] ValueError: {str(e)}")
         raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        print(f"DEBUG: [chat_router] Unexpected Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Internal Server Error")

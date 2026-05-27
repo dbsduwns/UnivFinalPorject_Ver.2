@@ -50,9 +50,15 @@ export default function AIChatScreen() {
         const filtered = prev.filter(m => m.id !== tempUserMsg.id);
         return [...filtered, response.data.user_message, response.data.assistant_message];
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to send message:", error);
-      alert("메시지 전송에 실패했습니다.");
+      if (error.code === 'ECONNABORTED') {
+        alert("요청 시간이 초과되었습니다. (서버 응답 지연)");
+      } else if (error.message === 'Network Error') {
+        alert("네트워크 연결이 원활하지 않습니다. Wi-Fi 상태를 확인해 주세요.");
+      } else {
+        alert("메시지 전송에 실패했습니다.");
+      }
     } finally {
       setIsLoading(false);
     }

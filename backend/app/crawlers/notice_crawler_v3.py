@@ -42,76 +42,104 @@ def crawl_notices_safely(max_pages: int = 1000):
     학교 서버 부하를 최소화하면서 모든 공지사항을 수집하는 개선된 크롤러입니다 (V3).
     본문 내 포함된 이미지 URL도 함께 추출합니다.
     """
-    saved_titles = get_saved_titles()
-    print(f"이미 저장된 공지 수: {len(saved_titles)}개")
+    db = SessionLocal()
+    try:
+        # DB에 이미 저장된 모든 공지사항 제목을 가져옵니다.
+        titles = db.query(Notice.title).all()
+        saved_titles = {t[0] for t in titles}
+        print(f"이미 저장된 공지 수: {len(saved_titles)}개")
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-        page = context.new_page()
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            page = context.new_page()
 
-        for category_name, menu_seq in CATEGORIES.items():
-            print(f"\n🚀 [{category_name}] 카테고리 수집 시작 (V3)...")
-            
-            for page_no in range(1, max_pages + 1):
-                url = f"{NOTICE_URL}?searchMenuSeq={menu_seq}&paginationInfo.currentPageNo={page_no}"
-                print(f"  📄 페이지 {page_no} 분석 중: {url}")
+            for category_name, menu_seq in CATEGORIES.items():
+                print(f"\n🚀 [{category_name}] 카테고리 수집 시작 (V3)...")
                 
-                try:
-                    page.goto(url, timeout=60000)
-                    page.wait_for_selector("a.detailLink", timeout=10000)
-                except Exception as e:
-                    print(f"  ⚠️ 페이지 로드 실패 또는 공지 없음 (종료): {e}")
-                    break
-
-                links = page.query_selector_all("a.detailLink")
-                if not links:
-                    print("  ⚠️ 더 이상 공지사항이 없습니다.")
-                    break
-
-                new_items = []
-                for link in links:
-                    title = link.inner_text().strip()
-                    # V3 테스트를 위해 이미 있는 제목도 일부 다시 수집할 수 있도록 하거나,
-                    # 새로운 제목만 수집하도록 유지합니다.
-                    if title in saved_titles:
-                        continue
+                for page_no in range(1, max_pages + 1):
+                    url = f"{NOTICE_URL}?searchMenuSeq={menu_seq}&paginationInfo.currentPageNo={page_no}"
+                    print(f"  📄 페이지 {page_no} 분석 중: {url}")
                     
-                    data_params = json.loads(link.get_attribute("data-params"))
-                    new_items.append({
-                        "title": title,
-                        "encMenuSeq": data_params["encMenuSeq"],
-                        "encMenuBoardSeq": data_params["encMenuBoardSeq"]
-                    })
+                    try:
+                        page.goto(url, timeout=60000)
+                        page.wait_for_selector("a.detailLink", timeout=10000)
+                    except Exception as e:
+                        print(f"  ⚠️ 페이지 로드 실패 또는 공지 없음 (종료): {e}")
+                        break
 
-                if not new_items:
-                    print("  ✨ 이 페이지의 모든 공지가 이미 DB에 있습니다.")
-                    continue
+                    links = page.query_selector_all("a.detailLink")
+                    if not links:
+                        print("  ⚠️ 더 이상 공지사항이 없습니다.")
+                        break
 
-                print(f"  🆕 {len(new_items)}개의 새로운 공지 발견. 상세 내용 수집 중...")
-                
-                notices_to_save = []
-                for item in new_items:
-                    content, attachment_url, published_at = crawl_detail(page, item["encMenuSeq"], item["encMenuBoardSeq"])
-                    
-                    if content:
-                        notices_to_save.append({
-                            "title": item["title"],
-                            "content": content,
-                            "category": category_name,
-                            "attachment_url": attachment_url,
-                            "published_at": published_at
+                    new_items = []
+                    for link in links:
+                        title = link.inner_text().strip()
+                        # 이미 저장된 제목이거나 이번 실행에서 방금 저장한 제목이면 건너뜁니다.
+                        if title in saved_titles:
+                            continue
+                        
+                        data_params = json.loads(link.get_attribute("data-params"))
+                        new_items.append({
+                            "title": title,
+                            "encMenuSeq": data_params["encMenuSeq"],
+                            "encMenuBoardSeq": data_params["encMenuBoardSeq"]
                         })
-                        print(f"    ✅ 수집 완료: {item['title'][:30]}... ({published_at})")
+
+                    if not new_items:
+                        print("  ✨ 이 페이지의 모든 공지가 이미 DB에 있습니다.")
+                        # 한 페이지 전체가 이미 있다면 다음 카테고리로 넘어가거나 종료할 수도 있지만,
+                        # 공지사항 순서가 섞일 수 있으므로 continue로 다음 페이지를 확인합니다.
+                        continue
+
+                    print(f"  🆕 {len(new_items)}개의 새로운 공지 발견. 상세 내용 수집 중...")
                     
-                    time.sleep(random.uniform(1.0, 2.5))
+                    for item in new_items:
+                        # 한 번 더 개별적으로 중복 체크 (세션 내 중복 방지)
+                        if item["title"] in saved_titles:
+                            continue
 
-                if notices_to_save:
-                    save_to_db_and_rag(notices_to_save)
-                
-                time.sleep(random.uniform(2.0, 4.0))
+                        content, attachment_url, published_at = crawl_detail(page, item["encMenuSeq"], item["encMenuBoardSeq"])
+                        
+                        if content:
+                            try:
+                                # 즉시 DB 저장 및 RAG 인덱싱
+                                notice = Notice(
+                                    title=item["title"],
+                                    content=content,
+                                    category=category_name,
+                                    attachment_url=attachment_url,
+                                    published_at=published_at
+                                )
+                                db.add(notice)
+                                db.commit()
+                                
+                                # RAG 인덱싱
+                                doc = Document(
+                                    page_content=f"제목: {item['title']}\n카테고리: {category_name}\n내용: {content}",
+                                    metadata={
+                                        "source": "공지사항",
+                                        "category": category_name,
+                                        "title": item["title"]
+                                    }
+                                )
+                                campus_ai_bot.add_documents([doc])
+                                
+                                # 캐시 업데이트
+                                saved_titles.add(item["title"])
+                                print(f"    ✅ 수집 및 저장 완료: {item['title'][:30]}... ({published_at})")
+                            except Exception as e:
+                                print(f"    ❌ DB 저장 중 오류 발생 ({item['title'][:20]}): {e}")
+                                db.rollback()
+                        
+                        time.sleep(random.uniform(1.0, 2.5))
 
-        browser.close()
+                    time.sleep(random.uniform(2.0, 4.0))
+
+            browser.close()
+    finally:
+        db.close()
 
 def crawl_detail(page, enc_menu_seq, enc_menu_board_seq):
     """상세 페이지에서 본문(텍스트+이미지), 첨부파일 링크, 작성일을 추출합니다."""

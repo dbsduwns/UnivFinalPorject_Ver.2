@@ -1,11 +1,14 @@
 from app.models.notice import Notice
 
 def get_notices(db, category=None, keyword=None):
+    query = db.query(Notice)
     if category:
-        return db.query(Notice).filter(Notice.category == category).all()
+        query = query.filter(Notice.category == category)
     if keyword:
-        return db.query(Notice).filter(Notice.title.contains(keyword)).all()
-    return db.query(Notice).all()
+        query = query.filter(Notice.title.contains(keyword))
+    
+    # 최신 공지가 먼저 오도록 정렬 (작성일 기준, 없으면 ID 기준)
+    return query.order_by(Notice.published_at.desc(), Notice.id.desc()).all()
 
 def get_notice(db, notice_id: int):
     return db.query(Notice).filter(Notice.id == notice_id).first()

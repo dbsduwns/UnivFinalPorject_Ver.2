@@ -38,9 +38,8 @@ class CampusAIBot:
 
         print("🤖 [AI Bot] 벡터 DB(Chroma) 연결 중...")
         from pathlib import Path
-        # backend/app/core/ai_bot.py -> backend 디렉토리를 찾음
         current_file = Path(__file__).resolve()
-        backend_dir = current_file.parents[2] # core -> app -> backend
+        backend_dir = current_file.parents[2] 
         persist_directory = str(backend_dir / "chroma_db")
         
         print(f"🤖 [AI Bot] 벡터 DB 경로: {persist_directory}")
@@ -50,7 +49,8 @@ class CampusAIBot:
                 persist_directory=persist_directory,
                 embedding_function=self.embeddings
             )
-            self.retriever = self.vectorstore.as_retriever(search_kwargs={"k": 3})
+            # 검색 결과 개수(k)를 3에서 5로 늘려 더 많은 문맥을 참고하게 함
+            self.retriever = self.vectorstore.as_retriever(search_kwargs={"k": 5})
         except Exception as e:
             print(f"❌ [AI Bot] 벡터 DB 로드 실패: {e}")
             self.retriever = None
@@ -59,9 +59,10 @@ class CampusAIBot:
         try:
             api_key = os.getenv("GOOGLE_API_KEY")
             self.llm = ChatGoogleGenerativeAI(
-                model="gemini-flash-latest", # gemini flash 최신 모델 사용
+                model="gemini-flash-latest",
                 google_api_key=api_key,
-                temperature=0,
+                # temperature를 0.7로 높여 더 자연스럽고 풍부한 답변을 유도
+                temperature=0.7,
                 max_retries=2,
             )
         except Exception as e:
@@ -69,13 +70,14 @@ class CampusAIBot:
             self.llm = None
 
         template = """당신은 강남대학교 캠퍼스 안내 AI 도우미입니다. 
-제공된 정보(Context)만을 바탕으로 사용자의 질문에 친절하고 정확하게 답변하세요.
+제공된 정보(Context)를 바탕으로 사용자의 질문에 친절하고 상세하게 답변하세요.
 
 ### 지침(Instructions):
-1. **사실 근거:** 반드시 아래 제공된 # Context의 내용만을 바탕으로 답변하세요. 외부 지식을 활용하지 마세요.
-2. **날짜 기준:** 오늘은 {current_date}입니다. 일정에 대한 질문 시, 오늘 날짜를 기준으로 '진행 중'이거나 '다가올' 가장 빠른 일정을 우선적으로 안내하세요.
-3. **불확실성 처리:** 답변에 필요한 정보가 Context에 없거나 부족한 경우, "죄송합니다. 해당 내용에 대한 정보를 찾을 수 없습니다."라고 답변하세요. 추가로 확인할 수 있는 대학 홈페이지나 부서 연락처가 Context에 있다면 함께 안내하세요.
-4. **스타일:** 학생들에게 답변하듯 친절한 말투를 유지하세요.
+1. **상세한 안내:** 단순히 사실만 나열하지 말고, 질문과 관련된 유용한 정보가 있다면 함께 포함하여 친절하게 설명해 주세요.
+2. **사실 근거:** 답변은 반드시 제공된 # Context의 내용을 기반으로 해야 합니다. 만약 Context의 내용이 질문과 직접적인 연관이 적더라도, 최대한 관련 있는 정보를 찾아 안내해 주세요.
+3. **날짜 기준:** 오늘은 {current_date}입니다. 일정에 대한 질문 시, 오늘 날짜를 기준으로 '진행 중'이거나 '다가올' 가장 빠른 일정을 우선적으로 안내하세요.
+4. **불확실성 처리:** 답변에 필요한 정보가 Context에 전혀 없는 경우에만 "죄송합니다. 해당 내용에 대한 정보를 찾을 수 없습니다."라고 답변하세요. 이때 대학 홈페이지나 관련 부서의 일반적인 안내가 있다면 덧붙여 주세요.
+5. **말투:** 학생들에게 이야기하듯 "해요"체를 사용하며 따뜻하고 친절한 느낌을 유지하세요.
 
 # Context:
 {context}
@@ -125,20 +127,25 @@ class CampusAIBot:
 
     async def ask(self, question: str) -> str:
         if not self.is_initialized:
+            print("🤖 [AI Bot] Not initialized. Initializing now...", flush=True)
             self.initialize()
             if not self.is_initialized:
                 return "AI 엔진이 아직 준비되지 않았습니다."
         try:
             # Step 1: Query Rewrite (질문 재작성)
-            print(f"🔍 [AI Bot] 원본 질문: {question}")
+            print(f"🔍 [AI Bot] 원본 질문: {question}", flush=True)
             rewritten_question = await self.rewrite_chain.ainvoke({"question": question})
-            print(f"🔄 [AI Bot] 재작성된 질문: {rewritten_question}")
+            print(f"🔄 [AI Bot] 재작성된 질문: {rewritten_question}", flush=True)
 
             # Step 2: RAG 실행
+            print(f"🚀 [AI Bot] Gemini LLM 호출 중...", flush=True)
             response = await self.chain.ainvoke(rewritten_question)
+            print(f"✅ [AI Bot] 답변 생성 완료", flush=True)
             return response
         except Exception as e:
-            print(f"❌ [AI Bot] 질문 처리 중 오류 발생: {e}")
+            print(f"❌ [AI Bot] 질문 처리 중 오류 발생: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
             return "상담 도중 오류가 발생했습니다."
 
 campus_ai_bot = CampusAIBot()

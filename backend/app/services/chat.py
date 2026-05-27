@@ -38,16 +38,20 @@ async def send_message(db: Session, user: User, room_id: int, data: ChatMessageC
 
     user_message = Message(chat_room_id=room.id, role="user", content=data.content)
     db.add(user_message)
-    db.flush()
+    # AI 응답을 기다리는 동안 DB 세션을 점유하지 않도록 먼저 커밋
+    db.commit()
+    db.refresh(user_message)
 
     # AI 봇에게 RAG 기반 질문 답변 요청
+    print(f"DEBUG: [chat_service] Calling AI bot for room {room_id}...")
     reply = await campus_ai_bot.ask(data.content)
+    print(f"DEBUG: [chat_service] AI bot replied. Saving assistant message...")
+
     assistant_message = Message(chat_room_id=room.id, role="assistant", content=reply)
     db.add(assistant_message)
 
     db.commit()
     db.refresh(room)
-    db.refresh(user_message)
     db.refresh(assistant_message)
     return room, user_message, assistant_message
 

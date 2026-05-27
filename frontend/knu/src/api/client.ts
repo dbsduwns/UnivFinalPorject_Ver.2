@@ -6,7 +6,7 @@ import { hrefLogin } from "@/constants/routes";
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000, // 10초 타임아웃 추가
+  timeout: 60000, // 60초 타임아웃으로 증가 (AI 응답 대기 시간 고려)
   headers: {
     "Content-Type": "application/json",
   },

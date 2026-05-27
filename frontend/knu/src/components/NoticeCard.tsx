@@ -83,23 +83,27 @@ export const NoticeCard = ({ notices, isLoading }: NoticeCardProps) => {
                                     params: { id: notice.id.toString() },
                                 })}>
                                 <View
-                                    className="NoticeContentsWrapper flex-row my-6">
+                                    className="NoticeContentsWrapper flex-row items-center my-4">
                                     <Text
-                                        className="m-3 ml-6 px-5"
+                                        className="m-3 ml-6 px-3 py-1 text-xs"
                                         style={{
                                             fontWeight: 'bold' ,
                                             backgroundColor: badgeStyle.backgroundColor,
                                             color: badgeStyle.color,
-                                            borderRadius: 4}}>
+                                            borderRadius: 4,
+                                            overflow: 'hidden'}}>
                                         {notice.category}
                                     </Text>
                                     <View
-                                        className="ContentsTitle mx-5">
-                                        <Text numberOfLines={1}>
+                                        className="ContentsTitle flex-1 ml-2 mr-6">
+                                        <Text 
+                                            numberOfLines={1} 
+                                            ellipsizeMode="tail"
+                                            style={{ fontWeight: '600', fontSize: 14 }}>
                                             {notice.title}
                                         </Text>
-                                        <Text>
-                                            {notice.published_at ?? notice.crawled_at ?? ""}
+                                        <Text className="text-gray-400 text-xs mt-1">
+                                            {notice.published_at ? new Date(notice.published_at).toLocaleDateString('ko-KR') : "날짜 정보 없음"}
                                         </Text>
                                     </View>
                                 </View>
