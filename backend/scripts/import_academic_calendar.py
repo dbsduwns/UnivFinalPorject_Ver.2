@@ -73,7 +73,15 @@ def import_calendar():
     
     indexed_docs = []
     for item in calendar_data:
-        content = f"날짜: {item['date']}\n행사: {item['event']}"
+        # 검색 품질을 높이기 위해 키워드 추가
+        content = f"학사일정: {item['event']}\n날짜: {item['date']}"
+        
+        # '방학' 관련 키워드 보강
+        if "하계방학" in item['event']:
+            content += " (여름방학)"
+        if "동계방학" in item['event']:
+            content += " (겨울방학)"
+            
         if item['description']:
             content += f"\n설명: {item['description']}"
             

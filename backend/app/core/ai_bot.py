@@ -59,7 +59,7 @@ class CampusAIBot:
         try:
             api_key = os.getenv("GOOGLE_API_KEY")
             self.llm = ChatGoogleGenerativeAI(
-                model="gemini-flash-latest",
+                model="gemini-2.0-flash",
                 google_api_key=api_key,
                 # temperature를 0.7로 높여 더 자연스럽고 풍부한 답변을 유도
                 temperature=0.7,
