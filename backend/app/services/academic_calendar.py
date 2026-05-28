@@ -32,7 +32,7 @@ ACADEMIC_CALENDAR: list[AcademicCalendarEvent] = [
     AcademicCalendarEvent(date(2026, 4, 21), date(2026, 4, 27), "1학기 중간시험기간"),
     AcademicCalendarEvent(date(2026, 5, 1), date(2026, 5, 1), "근로자의 날", "공휴일"),
     AcademicCalendarEvent(date(2026, 5, 5), date(2026, 5, 5), "어린이날", "공휴일"),
-    AcademicCalendarEvent(date(2026, 5, 12), date(2026, 5, 14), "모양축전", "강남대학교 축제 기간"),
+    AcademicCalendarEvent(date(2026, 5, 12), date(2026, 5, 14), "목양축전", "강남대학교 축제 기간"),
     AcademicCalendarEvent(date(2026, 5, 18), date(2026, 5, 22), "전공이수 신청기간"),
     AcademicCalendarEvent(date(2026, 5, 19), date(2026, 5, 20), "전공박람회 기간"),
     AcademicCalendarEvent(date(2026, 5, 18), date(2026, 5, 29), "조기졸업 신청기간"),
@@ -78,8 +78,8 @@ ACADEMIC_CALENDAR: list[AcademicCalendarEvent] = [
 
 ACADEMIC_QUERY_KEYWORDS = (
     "학사", "일정", "개강", "방학", "시험", "중간", "기말", "수강",
-    "등록", "휴학", "복학", "졸업", "학위", "축제", "모양축전",
-    "공휴일", "휴일", "채플", "성적", "전공", "입학식",
+    "등록", "휴학", "복학", "졸업", "학위", "축제", "목양", "모양", "축전",
+    "공휴일", "휴일", "채플", "성적", "전공", "입학식", "언제", "날짜", "달력", "뭐", "행사"
 )
 
 
@@ -96,8 +96,8 @@ def _topic_keywords(question: str) -> list[str]:
         topics.append("중간시험")
     if "개강" in question:
         topics.append("개강")
-    if "축제" in question or "모양" in question:
-        topics.append("모양축전")
+    if "축제" in question or "모양" in question or "목양" in question:
+        topics.append("목양축전")
     if "수강" in question:
         topics.append("수강")
     if "등록" in question:
@@ -120,6 +120,17 @@ def _topic_keywords(question: str) -> list[str]:
             topics.append("방학")
 
     return topics
+
+
+def _semester_keywords(question: str) -> list[str]:
+    semesters: list[str] = []
+
+    if "1학기" in question or "1 학기" in question:
+        semesters.append("1학기")
+    if "2학기" in question or "2 학기" in question:
+        semesters.append("2학기")
+
+    return semesters
 
 
 def _month_end(year: int, month: int) -> date:
@@ -150,6 +161,15 @@ def _infer_query_range(question: str, today: date) -> tuple[date, date, bool]:
         start, end = _current_week(today)
         return start, end, False
 
+    year_match = re.search(r"(20\d{2})\s*년", question)
+    if year_match:
+        year = int(year_match.group(1))
+        if "1학기" in question or "1 학기" in question:
+            return date(year, 3, 1), date(year, 8, 31), False
+        if "2학기" in question or "2 학기" in question:
+            return date(year, 9, 1), date(year + 1, 2, 28), False
+        return date(year, 1, 1), date(year, 12, 31), False
+
     iso_match = re.search(r"(20\d{2})[-./년 ]\s*(\d{1,2})[-./월 ]\s*(\d{1,2})", question)
     if iso_match:
         target = date(int(iso_match.group(1)), int(iso_match.group(2)), int(iso_match.group(3)))
@@ -160,11 +180,33 @@ def _infer_query_range(question: str, today: date) -> tuple[date, date, bool]:
         target = date(today.year, int(month_day_match.group(1)), int(month_day_match.group(2)))
         return target, target, False
 
+    # 월 단위 검색 (6월, 12월 등)
     month_match = re.search(r"(\d{1,2})\s*월", question)
     if month_match:
         month = int(month_match.group(1))
         if 1 <= month <= 12:
-            return date(today.year, month, 1), _month_end(today.year, month), False
+            year = today.year
+            # 만약 요청한 월이 현재 월보다 많이 앞서고(예: 현재 12월인데 1월 요청), 
+            # 올해 해당 월 일정이 없다면 내년으로 가정
+            if month < today.month - 1 and today.month >= 10:
+                year += 1
+            return date(year, month, 1), _month_end(year, month), False
+
+    if "다음 달" in question or "다음달" in question:
+        year = today.year
+        month = today.month + 1
+        if month > 12:
+            month = 1
+            year += 1
+        return date(year, month, 1), _month_end(year, month), False
+
+    if "저번 달" in question or "저번달" in question:
+        year = today.year
+        month = today.month - 1
+        if month < 1:
+            month = 12
+            year -= 1
+        return date(year, month, 1), _month_end(year, month), False
 
     if "이번 달" in question or "이번달" in question:
         return date(today.year, today.month, 1), _month_end(today.year, today.month), False
@@ -176,12 +218,13 @@ def _overlaps(event: AcademicCalendarEvent, start: date, end: date) -> bool:
     return event.start <= end and event.end >= start
 
 
-def find_academic_events(question: str, today: date | None = None, limit: int = 8) -> list[AcademicCalendarEvent]:
+def find_academic_events(question: str, today: date | None = None, limit: int = 15) -> list[AcademicCalendarEvent]:
     if today is None:
         today = datetime.now().date()
 
     start, end, upcoming_only = _infer_query_range(question, today)
     topics = _topic_keywords(question)
+    semesters = _semester_keywords(question)
 
     if upcoming_only:
         events = [event for event in ACADEMIC_CALENDAR if event.end >= today]
@@ -196,6 +239,15 @@ def find_academic_events(question: str, today: date | None = None, limit: int = 
         ]
         if topic_events:
             events = topic_events
+
+    if semesters:
+        semester_events = [
+            event
+            for event in events
+            if any(semester in event.title or semester in event.description for semester in semesters)
+        ]
+        if semester_events:
+            events = semester_events
 
     return sorted(events, key=lambda event: (event.start, event.end, event.title))[:limit]
 

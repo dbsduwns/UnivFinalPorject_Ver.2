@@ -4,9 +4,9 @@ from app.database import get_db
 from app.schemas.user import UserSignup, UserLogin, TokenResponse, UserResponse, UserUpdate
 from app.services import auth as auth_service
 from app.models.user import User
+from schemas.user import PushTokenUpdate
+from app.models.notification_setting import NotificationSetting
 from app.core.dependencies import get_current_user
-from google.oauth2 import id_token
-from google.auth.transport import requests
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -84,3 +84,21 @@ def update_profile(
         db.rollback()
         if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
+    
+@router.put("/notification-token")
+async def update_notification_token(
+    data: PushTokenUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    
+    setting = db.query(NotificationSetting).filter(NotificationSetting.user_id == current_user.id).first()
+
+    if not setting:
+        setting = NotificationSetting(user_id=current_user.id, expo_push_token=data.expo_push_token)
+        db.add(setting)
+    else:
+        setting.expo_push_token = data.expo_push_token
+    
+    db.commit()
+    return {"message": "푸시 토큰이 성공적으로 업데이트 되었습니다."}

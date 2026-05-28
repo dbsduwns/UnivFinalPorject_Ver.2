@@ -8,6 +8,10 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_core.documents import Document
 from datetime import datetime
 from dotenv import load_dotenv
+from app.services.academic_calendar import (
+    build_academic_calendar_answer,
+    build_academic_calendar_context,
+)
 
 # .env 파일 로드
 load_dotenv()
@@ -59,7 +63,7 @@ class CampusAIBot:
         try:
             api_key = os.getenv("GOOGLE_API_KEY")
             self.llm = ChatGoogleGenerativeAI(
-                model="gemini-2.0-flash",
+                model="gemini-flash-latest",
                 google_api_key=api_key,
                 # temperature를 0.7로 높여 더 자연스럽고 풍부한 답변을 유도
                 temperature=0.7,
@@ -101,6 +105,7 @@ class CampusAIBot:
         if self.retriever and self.llm:
             # 1. 쿼리 재작성 체인
             self.rewrite_chain = self.rewrite_prompt | self.llm | StrOutputParser()
+            self.answer_chain = self.prompt | self.llm | StrOutputParser()
 
             # 2. 메인 RAG 체인
             self.chain = (
@@ -125,6 +130,41 @@ class CampusAIBot:
             self.vectorstore.add_documents(documents)
             print(f"✅ [AI Bot] {len(documents)}개의 문서가 벡터 DB에 추가되었습니다.")
 
+    def _format_documents(self, documents: list[Document]) -> str:
+        if not documents:
+            return ""
+
+        lines = ["[검색된 문서]"]
+        for idx, doc in enumerate(documents, start=1):
+            source = doc.metadata.get("source", "unknown")
+            title = doc.metadata.get("title") or doc.metadata.get("event") or ""
+            lines.append(f"{idx}. 출처: {source}")
+            if title:
+                lines.append(f"   제목/행사: {title}")
+            lines.append(doc.page_content)
+        return "\n".join(lines)
+
+    async def build_context(self, question: str, rewritten_question: str | None = None) -> str:
+        context_sections: list[str] = []
+
+        academic_context = build_academic_calendar_context(question)
+        # 만약 원본 질문에서 일정을 찾지 못했거나 키워드 매칭이 안 된 경우, 재작성된 질문으로 다시 시도
+        if (not academic_context or "찾지 못했습니다" in academic_context) and rewritten_question:
+            alt_context = build_academic_calendar_context(rewritten_question)
+            if alt_context and "찾지 못했습니다" not in alt_context:
+                academic_context = alt_context
+        
+        if academic_context:
+            context_sections.append(academic_context)
+
+        if self.retriever:
+            retrieved_docs = await self.retriever.ainvoke(rewritten_question or question)
+            retrieved_context = self._format_documents(retrieved_docs)
+            if retrieved_context:
+                context_sections.append(retrieved_context)
+
+        return "\n\n".join(context_sections) if context_sections else "검색된 정보가 없습니다."
+
     async def ask(self, question: str) -> str:
         if not self.is_initialized:
             print("🤖 [AI Bot] Not initialized. Initializing now...", flush=True)
@@ -137,15 +177,26 @@ class CampusAIBot:
             rewritten_question = await self.rewrite_chain.ainvoke({"question": question})
             print(f"🔄 [AI Bot] 재작성된 질문: {rewritten_question}", flush=True)
 
-            # Step 2: RAG 실행
+            # Step 2: 구조화 학사일정 + 검색 문서 Context 구성
+            context = await self.build_context(question, rewritten_question)
+            print(f"📚 [AI Bot] Context 구성 완료:\n{context}", flush=True)
+
+            # Step 3: RAG 실행
             print(f"🚀 [AI Bot] Gemini LLM 호출 중...", flush=True)
-            response = await self.chain.ainvoke(rewritten_question)
+            response = await self.answer_chain.ainvoke({
+                "context": context,
+                "question": question,
+                "current_date": datetime.now().strftime('%Y-%m-%d'),
+            })
             print(f"✅ [AI Bot] 답변 생성 완료", flush=True)
             return response
         except Exception as e:
             print(f"❌ [AI Bot] 질문 처리 중 오류 발생: {e}", flush=True)
             import traceback
             traceback.print_exc()
+            academic_calendar_answer = build_academic_calendar_answer(question)
+            if academic_calendar_answer:
+                return academic_calendar_answer
             return "상담 도중 오류가 발생했습니다."
 
 campus_ai_bot = CampusAIBot()

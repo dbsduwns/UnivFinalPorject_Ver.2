@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
-from app.database import Base, SessionLocal, engin
+from app.database import Base, SessionLocal, engine
 from app.models import (
     building,
     chat_room,
@@ -64,7 +64,7 @@ app.include_router(shuttle_router.router)
 @app.on_event("startup")
 def startup_event():
     # 1. DB 테이블 생성
-    Base.metadata.create_all(bind=engin)
+    Base.metadata.create_all(bind=engine)
     
     # 2. AI 봇 초기화
     campus_ai_bot.initialize()
@@ -81,7 +81,7 @@ def startup_event():
     scheduler.add_job(run_notice_crawler, 'date', run_date=datetime.now() + timedelta(minutes=2))
 
 def run_notice_crawler():
-    print("🕷️ [Scheduler] 공지사항 크롤링 시작 (V2)...")
+    print("🕷️ [Scheduler] 공지사항 크롤링 시작 (V3)...")
     try:
         # 최근 5페이지 정도만 주기적으로 확인 (서버 부하 방지)
         crawl_notices_safely(max_pages=5)

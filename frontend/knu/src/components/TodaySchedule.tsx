@@ -1,4 +1,4 @@
-import { Pressable, Text, View, ActivityIndicator } from "react-native";
+import { Pressable, Text, View, ActivityIndicator, TouchableOpacity } from "react-native";
 import { Calendar, ChevronRight } from "lucide-react-native";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
@@ -147,54 +147,58 @@ export const TodaySchedule = () => {
                         const active = isCurrentLecture(lecture.startTime, lecture.endTime);
                         
                         return (
-                            <View key={`${lecture.id}-${index}`}>
-                                <View 
-                                    className={`flex-row items-center px-6 py-4 ${active ? 'bg-blue-50/50' : ''}`}
-                                >
-                                    {/* 시작 시간 */}
-                                    <View className="w-16">
-                                        <Text style={{ 
-                                            color: active ? '#2563eb' : '#1aaedb', 
-                                            fontWeight: 'bold', 
-                                            fontSize: 16 
-                                        }}>
-                                            {lecture.startTime}
-                                        </Text>
-                                        <Text style={{ color: '#9CA3AF', fontSize: 10, marginTop: 2 }}>
-                                            ~ {lecture.endTime}
-                                        </Text>
-                                    </View>
-                                    
-                                    {/* 구분선 */}
-                                    <View className={`w-[1px] h-10 mx-4 ${active ? 'bg-blue-200' : 'bg-gray-100'}`} />
-
-                                    {/* 강의 정보 */}
-                                    <View className="flex-1">
-                                        <View className="flex-row items-center">
+                            <TouchableOpacity
+                                onPress={() => router.push("/(app)/(tabs)/schedule")}
+                            >
+                                <View key={`${lecture.id}-${index}`}>
+                                    <View 
+                                        className={`flex-row items-center px-6 py-4 ${active ? 'bg-blue-50/50' : ''}`}
+                                    >
+                                        {/* 시작 시간 */}
+                                        <View className="w-16">
                                             <Text style={{ 
+                                                color: active ? '#2563eb' : '#1aaedb', 
                                                 fontWeight: 'bold', 
-                                                fontSize: 14, 
-                                                color: active ? '#1E40AF' : '#1F2937' 
-                                            }} numberOfLines={1}>
-                                                {lecture.name}
+                                                fontSize: 16 
+                                            }}>
+                                                {lecture.startTime}
                                             </Text>
-                                            {active && (
-                                                <View className="ml-2 bg-blue-600 px-1.5 py-0.5 rounded">
-                                                    <Text className="text-[10px] text-white font-bold">진행 중</Text>
-                                                </View>
-                                            )}
+                                            <Text style={{ color: '#9CA3AF', fontSize: 10, marginTop: 2 }}>
+                                                ~ {lecture.endTime}
+                                            </Text>
                                         </View>
-                                        <Text style={{ color: active ? '#60A5FA' : '#6B7280', fontSize: 12, marginTop: 1 }}>
-                                            {lecture.type === 'course' 
-                                                ? `${lecture.professor} · ${lecture.credits}학점` 
-                                                : (lecture.memo || "메모 없음")}
-                                        </Text>
+                                        
+                                        {/* 구분선 */}
+                                        <View className={`w-[1px] h-10 mx-4 ${active ? 'bg-blue-200' : 'bg-gray-100'}`} />
+
+                                        {/* 강의 정보 */}
+                                        <View className="flex-1">
+                                            <View className="flex-row items-center">
+                                                <Text style={{ 
+                                                    fontWeight: 'bold', 
+                                                    fontSize: 14, 
+                                                    color: active ? '#1E40AF' : '#1F2937' 
+                                                }} numberOfLines={1}>
+                                                    {lecture.name}
+                                                </Text>
+                                                {active && (
+                                                    <View className="ml-2 bg-blue-600 px-1.5 py-0.5 rounded">
+                                                        <Text className="text-[10px] text-white font-bold">진행 중</Text>
+                                                    </View>
+                                                )}
+                                            </View>
+                                            <Text style={{ color: active ? '#60A5FA' : '#6B7280', fontSize: 12, marginTop: 1 }}>
+                                                {lecture.type === 'course' 
+                                                    ? `${lecture.professor} · ${lecture.credits}학점` 
+                                                    : (lecture.memo || "메모 없음")}
+                                            </Text>
+                                        </View>
                                     </View>
+                                    {index < todayLectures.length - 1 && (
+                                        <View className="h-[1px] bg-gray-50 mx-8" />
+                                    )}
                                 </View>
-                                {index < todayLectures.length - 1 && (
-                                    <View className="h-[1px] bg-gray-50 mx-8" />
-                                )}
-                            </View>
+                            </TouchableOpacity>
                         );
                     })
                 ) : (

@@ -28,6 +28,8 @@ export default function AIChatScreen() {
   const flatListRef = useRef<FlatList>(null);
   const hasProcessedQuery = useRef(false);
 
+  const shouldScrollRef = useRef(false);
+
   const onSend = async (content: string) => {
     if (!content.trim() || !currentRoom || isLoading) return;
 
@@ -42,10 +44,13 @@ export default function AIChatScreen() {
       content: userContent,
       created_at: new Date().toISOString(),
     };
+
+    shouldScrollRef.current = true;
     setMessages((prev) => [...prev, tempUserMsg]);
 
     try {
       const response = await chatApi.sendMessage(currentRoom.id, userContent);
+      shouldScrollRef.current = true;
       setMessages((prev) => {
         const filtered = prev.filter(m => m.id !== tempUserMsg.id);
         return [...filtered, response.data.user_message, response.data.assistant_message];
@@ -77,6 +82,7 @@ export default function AIChatScreen() {
 
         setCurrentRoom(room);
         const messagesResponse = await chatApi.getMessages(room.id);
+        shouldScrollRef.current = true;
         setMessages(messagesResponse.data);
       } catch (error) {
         console.error("Failed to initialize chat:", error);
@@ -85,6 +91,15 @@ export default function AIChatScreen() {
 
     initChat();
   }, []);
+
+  useEffect(() => {
+    if (messages.length > 0 && shouldScrollRef.current) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+        shouldScrollRef.current = false;
+      }, 100);
+    }
+  }, [messages]);
 
   useEffect(() => {
     if (q && currentRoom && !hasProcessedQuery.current) {
@@ -132,7 +147,7 @@ export default function AIChatScreen() {
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={{ flex: 1 }}
-      keyboardVerticalOffset={0}
+      keyboardVerticalOffset={Platform.OS === "ios"? 90 : 0}
     >
       <AppScreenLayout>
         <View style={{ flex: 1, backgroundColor: 'white' }}>
@@ -146,7 +161,6 @@ export default function AIChatScreen() {
             keyExtractor={(item) => item.id.toString()}
             renderItem={renderMessage}
             contentContainerStyle={{ paddingVertical: 10, paddingBottom: 20 }}
-            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           />
 
           <View className="p-4 bg-white border-t border-gray-100 flex-row items-center">

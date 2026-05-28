@@ -31,3 +31,5 @@ class UserResponse(BaseModel):
         "from_attributes": True
     }
 
+class PushTokenUpdate(BaseModel):
+    expo_push_token: str
