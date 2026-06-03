@@ -1,9 +1,0 @@
-{
-  "dependencies": {
-    "expo-checkbox": "^56.0.1",
-    "expo-file-system": "^56.0.7",
-    "expo-sharing": "^56.0.13",
-    "react-native-check-box": "^2.1.7",
-    "react-native-dropdown-picker": "^5.4.6"
-  }
-}

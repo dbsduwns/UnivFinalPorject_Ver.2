@@ -4,6 +4,7 @@ import { meRequest, loginRequest, signupRequest, updateMeRequest } from "@/featu
 import * as tokenStorage from "@/features/auth/services/token-storage";
 import type { User, UserLoginBody, UserSignupBody, UserUpdateBody } from "@/features/auth/api/types";
 import { googleLoginRequest } from "@/features/auth/api/auth";
+import { API_BASE_URL } from "@/constants/config";
 
 type AuthState = {
   user: User | null;

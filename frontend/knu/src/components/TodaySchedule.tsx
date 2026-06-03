@@ -148,9 +148,13 @@ export const TodaySchedule = () => {
                         
                         return (
                             <TouchableOpacity
-                                onPress={() => router.push("/(app)/(tabs)/schedule")}
+                                key={`${lecture.id}-${index}`}
+                                onPress={() => router.push({
+                                    pathname: "/(app)/(tabs)/schedule",
+                                    params: { eventId: lecture.id }
+                                })}
                             >
-                                <View key={`${lecture.id}-${index}`}>
+                                <View>
                                     <View 
                                         className={`flex-row items-center px-6 py-4 ${active ? 'bg-blue-50/50' : ''}`}
                                     >

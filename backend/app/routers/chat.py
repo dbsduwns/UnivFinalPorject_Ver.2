@@ -77,3 +77,29 @@ async def send_message(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@router.patch("/rooms/{room_id}", response_model=ChatRoomResponse)
+def update_room(
+    room_id: int,
+    data: ChatRoomCreate,  # title만 사용
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        return chat_service.update_room_title(db, current_user, room_id, data.title)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/rooms/{room_id}")
+def delete_room(
+    room_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        chat_service.delete_room(db, current_user, room_id)
+        return {"message": "Chat room deleted successfully"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))

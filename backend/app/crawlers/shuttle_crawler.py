@@ -3,6 +3,7 @@ from urllib.parse import urljoin, unquote
 from app.database import SessionLocal
 from app.models.shuttle import Shuttle
 from app.core.ai_bot import campus_ai_bot
+from app.core.notification import notify_users_by_type_sync
 from langchain_core.documents import Document
 import re
 
@@ -166,6 +167,14 @@ def save_shuttle_schedule(schedule):
         # 벡터 DB에 리스트 형태로 추가
         campus_ai_bot.add_documents([doc])
         
+        # 푸시 알림 전송
+        notify_users_by_type_sync(
+            db, 
+            "shuttle_alert", 
+            "🚌 셔틀버스 시간표 업데이트", 
+            f"[{schedule['semester']}] 새로운 셔틀버스 시간표가 등록되었습니다."
+        )
+
         print(f"✅ [{schedule['semester']}] {schedule['title']} 저장 및 인덱싱 완료!")
     except Exception as e:
         print(f"❌ 저장 중 오류 발생: {e}")

@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.schemas.user import UserSignup, UserLogin, TokenResponse, UserResponse, UserUpdate
+from app.schemas.user import (
+    UserSignup, UserLogin, TokenResponse, UserResponse, UserUpdate, 
+    PushTokenUpdate, NotificationSettingResponse, NotificationSettingUpdate
+)
 from app.services import auth as auth_service
 from app.models.user import User
-from schemas.user import PushTokenUpdate
 from app.models.notification_setting import NotificationSetting
 from app.core.dependencies import get_current_user
 from app.core.security import (
@@ -102,3 +104,35 @@ async def update_notification_token(
     
     db.commit()
     return {"message": "푸시 토큰이 성공적으로 업데이트 되었습니다."}
+
+@router.get("/notification-settings", response_model=NotificationSettingResponse)
+def get_notification_settings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    setting = db.query(NotificationSetting).filter(NotificationSetting.user_id == current_user.id).first()
+    if not setting:
+        setting = NotificationSetting(user_id=current_user.id)
+        db.add(setting)
+        db.commit()
+        db.refresh(setting)
+    return setting
+
+@router.put("/notification-settings", response_model=NotificationSettingResponse)
+def update_notification_settings(
+    data: NotificationSettingUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    setting = db.query(NotificationSetting).filter(NotificationSetting.user_id == current_user.id).first()
+    if not setting:
+        setting = NotificationSetting(user_id=current_user.id)
+        db.add(setting)
+    
+    if data.notice_alert is not None: setting.notice_alert = data.notice_alert
+    if data.cafeteria_alert is not None: setting.cafeteria_alert = data.cafeteria_alert
+    if data.shuttle_alert is not None: setting.shuttle_alert = data.shuttle_alert
+    
+    db.commit()
+    db.refresh(setting)
+    return setting

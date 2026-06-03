@@ -14,7 +14,6 @@ export default function HomeScreen() {
     <AppScreenLayout>
       <AppScrollContent>
         <AIAskBar/>
-        <FaqTag/>
         <TodaySchedule/>
         <QuickMenu/>
         <NoticeCard notices={notices.slice(0, 3)} isLoading={isLoading}/>

@@ -3,7 +3,7 @@ import type { Menu } from "./api/types";
 import { MenuCrawlResponse } from "./api/types";
 
 export const getDailyMenu = async (date: string) => {
-    const { data } = await apiClient.get<Menu[]>("/api/daily-menus", {
+    const { data } = await apiClient.get<Menu[]>("/api/daily-menus/", {
         params: { date },
     });
     return data;

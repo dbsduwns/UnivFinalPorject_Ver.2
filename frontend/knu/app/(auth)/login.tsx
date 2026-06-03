@@ -19,8 +19,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { getAxiosErrorMessage, logDevAxiosError } from "@/api/errors";
 import { useAuthStore } from "@/features/auth/store/auth-store";
+import { API_BASE_URL } from '@/constants/config';
 
 WebBrowser.maybeCompleteAuthSession();
+
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -39,6 +41,15 @@ export default function LoginScreen() {
   const [isEmail, setIsEmail] = useState<boolean>(false)
   const [isPassword, setIsPassword] = useState<boolean>(false)
 
+
+  useEffect(() => {
+    console.log("EXPO_PUBLIC_API_URL");
+    console.log(process.env.EXPO_PUBLIC_API_URL);
+
+    console.log("API_BASE_URL");
+    console.log(API_BASE_URL);
+  }, []);
+
   const onChangeEmail = useCallback((text: string) => {
     const emailRegEx = /^[A-Za-z0-9]([-_.]?[A-Za-z0-9])*@[A-Za-z0-9]([-_.]?[A-Za-z0-9])*\.[A-Za-z]{2,3}$/i
     setEmail(text)
@@ -54,6 +65,8 @@ export default function LoginScreen() {
 
   const onChangePassword = useCallback((text: string) => {
     setPassword(text)
+    console.log("API URL =", process.env.EXPO_PUBLIC_API_URL);
+    console.log("API_BASE_URL =", API_BASE_URL);
     setPasswordMessage('')
     setIsPassword(true)
   }, [])
@@ -76,7 +89,9 @@ export default function LoginScreen() {
       router.replace(hrefAppHome);
     } catch (e) {
       logDevAxiosError("login", e);
-      setError(getAxiosErrorMessage(e, "로그인에 실패했습니다."));
+        setError(getAxiosErrorMessage(e, "로그인에 실패했습니다."));
+        console.log("LOGIN ERROR", e);
+        logDevAxiosError("login", e);
     } finally {
       setSubmitting(false);
     }
@@ -134,6 +149,7 @@ export default function LoginScreen() {
               <Text className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
                 비밀번호 (숫자+영문자+특수문자 (8자리 이상))
               </Text>
+              <Text>{API_BASE_URL}</Text>
               <TextInput
                 className="mt-1 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-3 text-base text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
                 secureTextEntry

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocalSearchParams } from "expo-router";
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -10,7 +12,7 @@ import {
   Modal,
 } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Check, ChevronDown, ChevronUp, Plus, Search, Trash2, Wand2 } from "lucide-react-native";
+import { CalendarClock, Check, ChevronDown, ChevronUp, Plus, Search, Trash2, Wand2, ChevronLeft, ChevronRight, X } from "lucide-react-native";
 
 import { getAxiosErrorMessage } from "@/api/errors";
 import { AppScreenLayout } from "@/components/AppScreenLayout";
@@ -420,7 +422,7 @@ const EditTimetableModal = ({
       setIs_main(initialData.is_main);
       setSemester(initialData.semester);
     } else {
-      {/* 현재 학기 구하기 */}
+      // 현재 학기 구하기
       const today = new Date();
       const year = today.getFullYear();
       const month = today.getMonth() + 1;
@@ -548,12 +550,296 @@ const EditTimetableModal = ({
 }
 
 
+// --- 시간표 마법사 로직 ---
+const doSchedulesOverlap = (sched1: CourseSchedule, sched2: CourseSchedule) => {
+  if (sched1.day_of_week !== sched2.day_of_week) return false;
+  const start1 = toMinutes(sched1.start_time);
+  const end1 = toMinutes(sched1.end_time);
+  const start2 = toMinutes(sched2.start_time);
+  const end2 = toMinutes(sched2.end_time);
+  return Math.max(start1, start2) < Math.min(end1, end2); // 겹치면 true
+};
+
+const isCourseOverlapping = (course: Course, currentSelection: Course[]) => {
+  for (const selected of currentSelection) {
+    for (const s1 of course.schedules) {
+      for (const s2 of selected.schedules) {
+        if (doSchedulesOverlap(s1, s2)) return true;
+      }
+    }
+  }
+  return false;
+};
+
+const generateCombinations = (groups: Course[][], currentIdx: number, currentSelection: Course[], validCombinations: Course[][]) => {
+  if (currentIdx === groups.length) {
+    validCombinations.push([...currentSelection]);
+    return;
+  }
+
+  const currentGroup = groups[currentIdx];
+  for (const course of currentGroup) {
+    if (!isCourseOverlapping(course, currentSelection)) {
+      currentSelection.push(course);
+      generateCombinations(groups, currentIdx + 1, currentSelection, validCombinations);
+      currentSelection.pop();
+    }
+  }
+};
+
+const TimetableWizardModal = ({
+  visible,
+  onClose,
+  currentTimetableId,
+  onSaveCombination,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  currentTimetableId: number | null | undefined;
+  onSaveCombination: (courses: Course[]) => void;
+}) => {
+  const [keyword, setKeyword] = useState("");
+  const [submittedKeyword, setSubmittedKeyword] = useState("");
+  
+  // 과목명 기준으로 그룹화된 선택된 강의들
+  const [selectedGroups, setSelectedGroups] = useState<Record<string, Course[]>>({});
+  
+  // 생성된 조합들
+  const [combinations, setCombinations] = useState<Course[][]>([]);
+  const [currentComboIdx, setCurrentComboIdx] = useState(0);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const coursesQuery = useQuery({
+    queryKey: ["courses", submittedKeyword],
+    queryFn: () => getCourses({ keyword: submittedKeyword || undefined }),
+    enabled: submittedKeyword.trim().length > 0,
+  });
+
+  // 모달 열릴 때 초기화
+  useEffect(() => {
+    if (visible) {
+      setSelectedGroups({});
+      setCombinations([]);
+      setCurrentComboIdx(0);
+      setKeyword("");
+      setSubmittedKeyword("");
+    }
+  }, [visible]);
+
+  const handleSearch = () => setSubmittedKeyword(keyword.trim());
+
+  const handleAddCourse = (course: Course) => {
+    const subjectName = course.subject?.name ?? "이름 없는 과목";
+    setSelectedGroups(prev => {
+      const group = prev[subjectName] || [];
+      if (group.find(c => c.id === course.id)) return prev; // 이미 추가됨
+      return { ...prev, [subjectName]: [...group, course] };
+    });
+  };
+
+  const handleRemoveCourse = (subjectName: string, courseId: number) => {
+    setSelectedGroups(prev => {
+      const group = prev[subjectName].filter(c => c.id !== courseId);
+      const newGroups = { ...prev };
+      if (group.length === 0) {
+        delete newGroups[subjectName];
+      } else {
+        newGroups[subjectName] = group;
+      }
+      return newGroups;
+    });
+  };
+
+  const handleGenerate = () => {
+    setIsGenerating(true);
+    setTimeout(() => { // UI block 방지
+      const groupsArray = Object.values(selectedGroups);
+      if (groupsArray.length === 0) {
+        Alert.alert("알림", "최소 1개 이상의 과목을 선택해주세요.");
+        setIsGenerating(false);
+        return;
+      }
+
+      const results: Course[][] = [];
+      generateCombinations(groupsArray, 0, [], results);
+      
+      setCombinations(results);
+      setCurrentComboIdx(0);
+      setIsGenerating(false);
+      
+      if (results.length === 0) {
+        Alert.alert("결과 없음", "선택한 과목들로 만들 수 있는 겹치지 않는 시간표 조합이 없습니다.");
+      }
+    }, 100);
+  };
+
+  // 현재 보여줄 조합을 TimetableEvent 형식으로 변환
+  const comboEvents = useMemo(() => {
+    if (combinations.length === 0) return [];
+    const combo = combinations[currentComboIdx];
+    return combo.flatMap((course, idx) => 
+      course.schedules.map(schedule => ({
+        color: COLORS[idx % COLORS.length],
+        day: schedule.day_of_week,
+        endTime: schedule.end_time,
+        id: `combo-${course.id}-${schedule.id}`,
+        startTime: schedule.start_time,
+        title: course.subject?.name ?? "이름 없음",
+        meta: course.professor
+      }))
+    );
+  }, [combinations, currentComboIdx]);
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <View className="flex-1 bg-gray-50 pt-12">
+        <View className="px-5 pb-4 flex-row justify-between items-center border-b border-gray-200 bg-white">
+          <Text style={{ fontSize: 20, fontWeight: "900", color: "#111827" }}>
+            시간표 마법사 🧙
+          </Text>
+          <Pressable onPress={onClose} className="p-2">
+            <X size={24} color="#6B7280" />
+          </Pressable>
+        </View>
+
+        {combinations.length > 0 ? (
+          // 결과 화면
+          <View className="flex-1 p-5 gap-4">
+            <View className="flex-row justify-between items-center">
+              <Text style={{ fontSize: 18, fontWeight: "800", color: "#111827" }}>
+                총 {combinations.length}개의 조합 중 {currentComboIdx + 1}번째
+              </Text>
+              <Pressable onPress={() => setCombinations([])} className="bg-gray-200 px-3 py-1.5 rounded-lg">
+                <Text style={{ fontWeight: "700", color: "#4B5563" }}>다시 선택</Text>
+              </Pressable>
+            </View>
+
+            <View className="flex-row justify-between items-center bg-white p-3 rounded-2xl border border-gray-200">
+              <Pressable 
+                disabled={currentComboIdx === 0}
+                onPress={() => setCurrentComboIdx(prev => prev - 1)}
+                className={`p-2 rounded-full ${currentComboIdx === 0 ? 'opacity-30' : 'bg-gray-100'}`}
+              >
+                <ChevronLeft size={24} color="#374151" />
+              </Pressable>
+              
+              <Text style={{ fontWeight: "800", color: "#374151" }}>
+                조합 {currentComboIdx + 1} / {combinations.length}
+              </Text>
+              
+              <Pressable 
+                disabled={currentComboIdx === combinations.length - 1}
+                onPress={() => setCurrentComboIdx(prev => prev + 1)}
+                className={`p-2 rounded-full ${currentComboIdx === combinations.length - 1 ? 'opacity-30' : 'bg-gray-100'}`}
+              >
+                <ChevronRight size={24} color="#374151" />
+              </Pressable>
+            </View>
+
+            <View className="flex-1">
+               <TimetableGrid events={comboEvents} onEventPress={() => {}} />
+            </View>
+
+            <Pressable
+              onPress={() => onSaveCombination(combinations[currentComboIdx])}
+              className="bg-indigo-600 rounded-2xl py-4 mt-2 mb-6 shadow-sm active:opacity-90"
+            >
+              <Text className="text-white text-center font-black text-lg">
+                현재 시간표에 적용하기
+              </Text>
+            </Pressable>
+          </View>
+        ) : (
+          // 과목 선택 화면
+          <ScrollView className="flex-1 p-5" showsVerticalScrollIndicator={false}>
+            {/* 선택된 과목 그룹 */}
+            {Object.keys(selectedGroups).length > 0 && (
+              <View className="mb-6 bg-white p-4 rounded-2xl border border-gray-200">
+                <Text style={{ fontSize: 16, fontWeight: "800", color: "#111827", marginBottom: 12 }}>
+                  선택된 과목 (총 {Object.keys(selectedGroups).length}과목)
+                </Text>
+                {Object.entries(selectedGroups).map(([subjectName, courses]) => (
+                  <View key={subjectName} className="mb-4 last:mb-0">
+                    <Text style={{ fontWeight: "700", color: "#374151", marginBottom: 6 }}>
+                      {subjectName} <Text style={{ color: "#1aaedb" }}>({courses.length}개 후보)</Text>
+                    </Text>
+                    <View className="flex-row flex-wrap gap-2">
+                      {courses.map(c => (
+                        <View key={c.id} className="flex-row items-center bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5">
+                          <Text style={{ fontSize: 12, color: "#4B5563" }}>{c.professor || '미정'} ({c.section}분반)</Text>
+                          <Pressable onPress={() => handleRemoveCourse(subjectName, c.id)} className="ml-1.5">
+                            <X size={14} color="#EF4444" />
+                          </Pressable>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                ))}
+                
+                <Pressable
+                  onPress={handleGenerate}
+                  disabled={isGenerating}
+                  className="bg-indigo-600 rounded-xl py-3 mt-4 active:opacity-90"
+                >
+                  <Text className="text-white text-center font-bold text-base">
+                    {isGenerating ? "계산 중..." : "가능한 조합 생성하기"}
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+
+            <View className="flex-row gap-2 mb-4">
+              <TextInput
+                value={keyword}
+                onChangeText={setKeyword}
+                placeholder="마법사에 추가할 과목 검색"
+                className="flex-1 bg-white border border-gray-200 rounded-xl px-4"
+                style={{ height: 48 }}
+                onSubmitEditing={handleSearch}
+              />
+              <Pressable
+                onPress={handleSearch}
+                className="items-center justify-center rounded-xl"
+                style={{ backgroundColor: "#13708d", height: 48, width: 48 }}
+              >
+                <Search color="white" size={20}/>
+              </Pressable>
+            </View>
+
+            {coursesQuery.isLoading ? (
+              <ActivityIndicator size="large" color="#13708d" style={{ marginTop: 20 }} />
+            ) : coursesQuery.data && coursesQuery.data.length > 0 ? (
+              <View className="gap-3 pb-10">
+                {coursesQuery.data.map((course) => {
+                  const subjectName = course.subject?.name ?? "이름 없음";
+                  const isSelected = selectedGroups[subjectName]?.some(c => c.id === course.id);
+                  return (
+                    <CourseSearchItem
+                      key={course.id}
+                      course={course}
+                      isDisabled={isSelected}
+                      onAdd={() => handleAddCourse(course)}
+                    />
+                  );
+                })}
+              </View>
+            ) : submittedKeyword ? (
+              <Text style={{ color: "#6B7280", textAlign: "center", marginTop: 20 }}>검색 결과가 없습니다.</Text>
+            ) : null}
+          </ScrollView>
+        )}
+      </View>
+    </Modal>
+  );
+};
+
 export default function ScheduleScreen() {
   const queryClient = useQueryClient();
   const [selectedTimetableId, setSelectedTimetableId] = useState<number | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<TimetableEvent | null>(null);
   const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [timetableToEdit, setTimetableToEdit] = useState<Timetable | undefined>(undefined);
   
   const [newName, setNewName] = useState("나의 시간표");
@@ -707,7 +993,28 @@ export default function ScheduleScreen() {
   };
 
   const handleWizard = () => {
-    Alert.alert("준비 중", "시간표 마법사 기능은 곧 추가될 예정입니다! 🧙");
+    setIsWizardOpen(true);
+  };
+
+  const handleSaveWizardCombination = (courses: Course[]) => {
+    if (!currentTimetableId) {
+      Alert.alert("알림", "먼저 시간표를 선택해주세요.");
+      return;
+    }
+
+    courses.forEach((course, index) => {
+      addCourseMutation.mutate({
+        courseId: course.id,
+        color: COLORS[index % COLORS.length],
+      });
+    });
+
+    setIsWizardOpen(false);
+
+    Alert.alert(
+      "완료",
+      `${courses.length}개 과목이 시간표에 추가되었습니다.`
+    );
   };
 
   return (
@@ -925,6 +1232,14 @@ export default function ScheduleScreen() {
             initialData={timetableToEdit}
             onSubmit={handleCreateOrUpdate}
             onDelete={handleDeleteTimetable}
+          />
+
+          {/* 시간표 마법사 모달 */}
+          <TimetableWizardModal
+            visible={isWizardOpen}
+            onClose={() => setIsWizardOpen(false)}
+            currentTimetableId={currentTimetableId}
+            onSaveCombination={handleSaveWizardCombination}
           />
 
           <View className="bg-white border border-gray-200 rounded-2xl p-5 gap-3">

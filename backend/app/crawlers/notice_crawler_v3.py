@@ -15,6 +15,7 @@ sys.path.append(str(backend_dir))
 from app.database import SessionLocal
 from app.models.notice import Notice
 from app.core.ai_bot import campus_ai_bot
+from app.core.notification import notify_users_by_type_sync
 from langchain_core.documents import Document
 
 BASE_URL = "https://web.kangnam.ac.kr"
@@ -125,6 +126,15 @@ def crawl_notices_safely(max_pages: int = 1000):
                                     }
                                 )
                                 campus_ai_bot.add_documents([doc])
+                                
+                                # 푸시 알림 전송
+                                notify_users_by_type_sync(
+                                    db, 
+                                    "notice_alert", 
+                                    f"[{category_name}] 새로운 공지", 
+                                    item["title"],
+                                    {"notice_id": notice.id}
+                                )
                                 
                                 # 캐시 업데이트
                                 saved_titles.add(item["title"])

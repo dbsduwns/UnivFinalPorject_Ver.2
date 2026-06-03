@@ -1,16 +1,29 @@
+import "react-native-gesture-handler";
 import "../global.css";
 
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import * as Notifications from "expo-notifications";
 import "react-native-reanimated";
 
 import { QueryProvider } from "@/components/providers/query-provider";
 import { useAuthBootstrap } from "@/hooks/use-auth-bootstrap";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
+// 앱 최상단에서 포그라운드 알림 핸들러 등록
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
 export const unstable_settings = {
-  anchor: "(app)/(tabs)",
+  initialRouteName: "(app)/(tabs)",
 };
 
 function NavigationTree() {

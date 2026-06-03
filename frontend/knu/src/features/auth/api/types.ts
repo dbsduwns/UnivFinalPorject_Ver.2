@@ -31,6 +31,14 @@ export type UserSignupBody = {
   name: string;
 };
 
+export type NotificationSettings = {
+  notice_alert: boolean;
+  shuttle_alert: boolean;
+  cafeteria_alert: boolean;
+};
+
+export type NotificationSettingsUpdateBody = Partial<NotificationSettings>;
+
 export type Notice = {
   id: number;
   title: string;

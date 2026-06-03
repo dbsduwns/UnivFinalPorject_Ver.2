@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 from app.database import SessionLocal
 from app.models.daily_menu import DailyMenu
 from app.core.ai_bot import campus_ai_bot
+from app.core.notification import notify_users_by_type_sync
 from langchain_core.documents import Document
 from dotenv import load_dotenv
 from pathlib import Path
@@ -195,6 +196,14 @@ def save_menus(menus: list):
         # 벡터 DB에 추가
         if indexed_docs:
             campus_ai_bot.add_documents(indexed_docs)
+            
+            # 푸시 알림 전송 (새로운 식단이 추가된 경우에만)
+            notify_users_by_type_sync(
+                db, 
+                "cafeteria_alert", 
+                "🍱 새로운 식단표 업데이트", 
+                "이번 주 새로운 식단표가 등록되었습니다. 지금 확인해보세요!"
+            )
             
         print(f"✅ {len(indexed_docs)}일치 학식 데이터 저장 및 인덱싱 완료")
     except Exception as e:

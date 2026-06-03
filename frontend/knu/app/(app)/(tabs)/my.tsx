@@ -1,5 +1,5 @@
-import { Text, View, TouchableOpacity, Switch, Alert, ScrollView, Modal } from "react-native";
-import { useState } from "react";
+import { Text, View, TouchableOpacity, Switch, Alert, ScrollView, Modal, ActivityIndicator } from "react-native";
+import { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
 import { 
   User as UserIcon, 
@@ -17,6 +17,8 @@ import {
 import { useAuthStore } from "@/features/auth/store/auth-store";
 import { AppScreenLayout } from "@/components/AppScreenLayout";
 import ChangeUserInfo from "@/components/changeUserInfo";
+import { getNotificationSettingsRequest, updateNotificationSettingsRequest } from "@/features/auth/api/auth";
+import { NotificationSettings } from "@/features/auth/api/types";
 
 export default function MyScreen() {
   const router = useRouter();
@@ -26,9 +28,43 @@ export default function MyScreen() {
   // 모달 상태
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
 
-  // 알림 설정 상태 (실제 구현 시에는 API나 로컬 저장을 통해 관리)
-  const [shuttleNotif, setShuttleNotif] = useState(true);
-  const [mealNotif, setMealNotif] = useState(true);
+  // 알림 설정 상태
+  const [notifSettings, setNotifSettings] = useState<NotificationSettings | null>(null);
+  const [isSettingsLoading, setIsSettingsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    try {
+      setIsSettingsLoading(true);
+      const settings = await getNotificationSettingsRequest();
+      setNotifSettings(settings);
+    } catch (error) {
+      console.error("Failed to fetch notification settings:", error);
+    } finally {
+      setIsSettingsLoading(false);
+    }
+  };
+
+  const toggleSetting = async (key: keyof NotificationSettings) => {
+    if (!notifSettings) return;
+
+    const newValue = !notifSettings[key];
+    
+    // UI 즉시 반영 (Optimistic UI)
+    setNotifSettings({ ...notifSettings, [key]: newValue });
+
+    try {
+      await updateNotificationSettingsRequest({ [key]: newValue });
+    } catch (error) {
+      console.error(`Failed to update ${key}:`, error);
+      // 에러 시 롤백
+      setNotifSettings({ ...notifSettings, [key]: !newValue });
+      Alert.alert("오류", "설정 변경에 실패했습니다.");
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -83,19 +119,34 @@ export default function MyScreen() {
           {/* 알림 설정 */}
           <SectionTitle title="알림 설정" />
           <View className="bg-white rounded-3xl overflow-hidden shadow-sm border border-gray-100 mb-6">
-            <SettingToggle
-              icon={<Bell size={20} color="#4B5563" />}
-              title="셔틀버스 업데이트 알림"
-              value={shuttleNotif}
-              onValueChange={setShuttleNotif}
-            />
-            <View className="h-[1px] bg-gray-50 mx-4" />
-            <SettingToggle
-              icon={<Bell size={20} color="#4B5563" />}
-              title="오늘의 식단 업데이트 알림"
-              value={mealNotif}
-              onValueChange={setMealNotif}
-            />
+            {isSettingsLoading ? (
+              <View className="py-10 items-center justify-center">
+                <ActivityIndicator color="#2563eb" />
+              </View>
+            ) : notifSettings && (
+              <>
+                <SettingToggle
+                  icon={<Bell size={20} color="#4B5563" />}
+                  title="셔틀버스 업데이트 알림"
+                  value={notifSettings.shuttle_alert}
+                  onValueChange={() => toggleSetting("shuttle_alert")}
+                />
+                <View className="h-[1px] bg-gray-50 mx-4" />
+                <SettingToggle
+                  icon={<Bell size={20} color="#4B5563" />}
+                  title="오늘의 식단 업데이트 알림"
+                  value={notifSettings.cafeteria_alert}
+                  onValueChange={() => toggleSetting("cafeteria_alert")}
+                />
+                <View className="h-[1px] bg-gray-50 mx-4" />
+                <SettingToggle
+                  icon={<Bell size={20} color="#4B5563" />}
+                  title="공지사항 업데이트 알림"
+                  value={notifSettings.notice_alert}
+                  onValueChange={() => toggleSetting("notice_alert")}
+                />
+              </>
+            )}
           </View>
 
           {/* 계정 관리 */}

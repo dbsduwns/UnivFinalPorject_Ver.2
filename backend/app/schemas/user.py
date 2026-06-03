@@ -33,3 +33,17 @@ class UserResponse(BaseModel):
 
 class PushTokenUpdate(BaseModel):
     expo_push_token: str
+
+class NotificationSettingResponse(BaseModel):
+    notice_alert: bool
+    shuttle_alert: bool
+    cafeteria_alert: bool
+
+    model_config = {
+        "from_attributes": True
+    }
+
+class NotificationSettingUpdate(BaseModel):
+    notice_alert: bool | None = None
+    shuttle_alert: bool | None = None
+    cafeteria_alert: bool | None = None

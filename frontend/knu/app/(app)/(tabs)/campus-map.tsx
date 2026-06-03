@@ -207,9 +207,17 @@ export default function CampusMapScreen() {
     setIsRouting(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return setIsRouting(false);
+      if (status !== 'granted') {
+        Alert.alert("권한 필요", "위치 정보 권한이 필요합니다.");
+        return setIsRouting(false);
+      }
 
-      let startX = 127.1264; let startY = 37.2708; // 구갈동 주민센터 고정
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Platform.OS === 'android' ? Location.Accuracy.Low : Location.Accuracy.Balanced,
+      });
+      
+      let startX = location.coords.longitude;
+      let startY = location.coords.latitude;
 
       const features = await fetchPedestrianRoute(startX, startY, selectedLoc.lng, selectedLoc.lat);
       const points: { lat: number; lng: number }[] = [];
