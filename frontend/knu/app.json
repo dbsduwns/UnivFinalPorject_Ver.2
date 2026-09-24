@@ -17,7 +17,6 @@
     },
     "android": {
       "googleServicesFile": "./google-services.json",
-      "usesCleartextTraffic": true,
       "package": "com.yeojun.knu",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -50,6 +49,7 @@
       ],
       "expo-web-browser",
       "expo-secure-store",
+      "expo-notifications",
       [
         "expo-av",
         {}
