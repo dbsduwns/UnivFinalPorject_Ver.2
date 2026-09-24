@@ -43,9 +43,159 @@ DAY_MAP = {
 }
 
 KNU_COURSE_LIST_URL = "https://app.kangnam.ac.kr/knumis/sbr/sbr3070L.jsp"
+KNU_COURSE_SEARCH_PAGE_URL = "https://app.kangnam.ac.kr/knumis/sbr/sbr3070T.jsp"
 
 
-def parse_course_list_html(html: str, department: str | None = None) -> list[dict]:
+def _normalize_session_cookie(session_cookie: str) -> str:
+    """종합정보 시스템 요청에 사용할 JSESSIONID 쿠키를 정규화합니다."""
+    cookie = session_cookie.strip()
+    if not cookie:
+        raise ValueError("JSESSIONID가 비어 있습니다.")
+    if "=" not in cookie:
+        cookie = f"JSESSIONID={cookie}"
+    return cookie
+
+
+def _decode_knumis_response(response: requests.Response) -> str:
+    """KNUMIS의 EUC-KR/CP949 응답을 안전하게 문자열로 변환합니다."""
+    for encoding in ("euc-kr", "cp949", "utf-8"):
+        try:
+            return response.content.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return response.text
+
+
+def _selected_value(soup: BeautifulSoup, field_name: str) -> str:
+    """hidden/input/select에서 종합정보 시스템의 기본 검색값을 읽습니다."""
+    element = soup.select_one(f"input[name='{field_name}']")
+    if element:
+        return str(element.get("value") or "").strip()
+
+    select = soup.select_one(f"select[name='{field_name}']")
+    if select:
+        selected = select.select_one("option[selected]") or select.select_one("option")
+        if selected:
+            return str(selected.get("value") or "").strip()
+
+    return ""
+
+
+def _load_knumis_search_defaults(
+    session_cookie: str,
+    *,
+    timeout: int = 20,
+) -> dict[str, str]:
+    """JSESSIONID로 종합정보 시스템 검색 화면의 기본값을 가져옵니다."""
+    cookie = _normalize_session_cookie(session_cookie)
+    response = requests.get(
+        KNU_COURSE_SEARCH_PAGE_URL,
+        headers={
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "ko,en-US;q=0.9,en;q=0.8",
+            "Cookie": cookie,
+            "Referer": "https://app.kangnam.ac.kr/knumis/main/main.jsp",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153.0.0.0 Safari/537.36",
+        },
+        timeout=timeout,
+    )
+    response.raise_for_status()
+    html = _decode_knumis_response(response)
+
+    # 정상적인 종합정보 화면에도 '로그인/로그아웃' 문자열이 포함될 수 있으므로
+    # 세션 만료 안내 문구만 실패 신호로 사용합니다.
+    if any(token in html for token in ("세션이 만료", "시간이 만료", "로그인 후 이용")):
+        raise ValueError("종합정보 시스템 세션이 만료되었거나 JSESSIONID가 유효하지 않습니다.")
+
+    soup = BeautifulSoup(html, "html.parser")
+    return {
+        "student_number": _selected_value(soup, "stnt_numb"),
+        "student_grade": _selected_value(soup, "stnt_grad"),
+        "student_department_code": _selected_value(soup, "stnt_dept"),
+        "fact_code": _selected_value(soup, "fact_code"),
+        "fact_srch": _selected_value(soup, "fact_srch"),
+        "student_dorn": _selected_value(soup, "stnt_dorn") or "1",
+        "dept_code2": _selected_value(soup, "dept_code2") or "5100",
+        "grad_area1": _selected_value(soup, "grad_area1") or "H4",
+        "grad_area2": _selected_value(soup, "grad_area2") or "H4",
+    }
+
+
+def crawl_knumis_course_list(
+    *,
+    session_cookie: str,
+    year: str,
+    semester: str,
+    department_code: str,
+    department: str | None = None,
+    student_number: str | None = None,
+    student_grade: str | None = None,
+    student_department_code: str | None = None,
+    fact_code: str | None = None,
+    fact_srch: str | None = None,
+    srch_gubn: str = "41",
+    grad_srch: str | None = None,
+    grad_area1: str = "H4",
+    grad_area2: str = "H4",
+    timeout: int = 20,
+) -> list[dict]:
+    """JSESSIONID만으로 종합정보 시스템의 한 학과 과목을 조회합니다."""
+    # 브라우저의 전체 Cookie와 검색 폼 값을 전달하면 초기 화면 자동 추출을
+    # 건너뛸 수 있습니다. 종합정보 시스템이 초기 화면에서 빈 프레임을 반환하는
+    # 경우(현재 확인된 상황)를 위한 명시적 요청 경로입니다.
+    needs_defaults = any(
+        value is None
+        for value in (
+            student_number,
+            student_grade,
+            student_department_code,
+            fact_code,
+            fact_srch,
+        )
+    )
+    defaults = _load_knumis_search_defaults(session_cookie, timeout=timeout) if needs_defaults else {}
+    html = crawl_course_list_html(
+        session_cookie=_normalize_session_cookie(session_cookie),
+        year=year,
+        semester=semester,
+        department_code=department_code,
+        student_number=student_number if student_number is not None else defaults["student_number"],
+        student_grade=student_grade if student_grade is not None else defaults["student_grade"],
+        student_department_code=(
+            student_department_code
+            if student_department_code is not None
+            else defaults["student_department_code"]
+        ),
+        fact_code=fact_code if fact_code is not None else defaults["fact_code"],
+        fact_srch=(
+            fact_srch
+            if fact_srch is not None
+            else defaults["fact_srch"] or department_code
+        ),
+        srch_gubn=srch_gubn,
+        student_dorn=defaults.get("student_dorn", "1"),
+        grad_srch=(
+            grad_srch
+            if grad_srch is not None
+            else (student_grade if student_grade is not None else defaults.get("student_grade", ""))
+        ),
+        dept_code2=defaults.get("dept_code2", "5100"),
+        grad_area1=grad_area1,
+        grad_area2=grad_area2,
+        timeout=timeout,
+    )
+    return parse_course_list_html(
+        html,
+        department=department,
+        semester_override=f"{year}-{semester}",
+    )
+
+
+def parse_course_list_html(
+    html: str,
+    department: str | None = None,
+    semester_override: str | None = None,
+) -> list[dict]:
     soup = BeautifulSoup(html, "html.parser")
     rows = soup.select("table.grid_list tr")
     courses = []
@@ -54,7 +204,7 @@ def parse_course_list_html(html: str, department: str | None = None) -> list[dic
     semester_el = soup.select_one("input[name='schl_smst']")
     year = year_el.get("value") if year_el else None
     semester_number = semester_el.get("value") if semester_el else None
-    semester = f"{year}-{semester_number}" if year and semester_number else ""
+    semester = semester_override or (f"{year}-{semester_number}" if year and semester_number else "")
 
     for row in rows:
         cells = row.select("td")
@@ -122,7 +272,9 @@ def crawl_course_list_html(
         "subj_knam": "",
         "subj_knam2": "",
         "fact_srch": fact_srch,
-        "grad_srch": grad_srch or student_grade,
+        # None이면 학생 학년을 기본값으로 사용하고,
+        # 빈 문자열이면 전체 학년 검색 조건을 그대로 전송합니다.
+        "grad_srch": student_grade if grad_srch is None else grad_srch,
         "dept_code1": department_code,
         "grad_area1": grad_area1,
         "dept_code2": dept_code2,

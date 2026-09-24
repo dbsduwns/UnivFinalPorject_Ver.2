@@ -17,8 +17,6 @@ STATIC_SHUTTLE_DIR = "static/shuttle"
 
 #크롤링 함수 메인
 def crawl_shuttle_schedule() -> dict:
-    os.makedirs(STATIC_SHUTTLE_DIR, exist_ok=True)
-    
     page_response = requests.get(
         SHUTTLE_PAGE_URL,
         headers={"User-Agent": "Mozilla/5.0"},
@@ -44,17 +42,8 @@ def crawl_shuttle_schedule() -> dict:
         file_response.headers.get("Content-Disposition")
     )
     
-    # 로컬에 파일 저장 (한글 파일명으로 인한 인코딩 이슈 방지를 위해 안전한 이름 사용)
-    import time
-    timestamp = int(time.time())
-    safe_filename = f"shuttle_schedule_{timestamp}.pdf"
-        
-    local_file_path = os.path.join(STATIC_SHUTTLE_DIR, safe_filename)
-    
-    with open(local_file_path, "wb") as f:
-        for chunk in file_response.iter_content(chunk_size=8192):
-            f.write(chunk)
-    
+    # PDF 본문은 로컬 디스크에 저장하지 않습니다.
+    # 학교 서버의 실제 다운로드 URL을 DB에 저장하고 앱이 직접 표시합니다.
     file_response.close()
 
     semester = _extract_semester(original_filename)
@@ -62,7 +51,7 @@ def crawl_shuttle_schedule() -> dict:
     return {
         "title": _make_title(original_filename),
         "semester": semester,
-        "file_url": f"/static/shuttle/{safe_filename}", # 로컬 상대 경로로 저장
+        "file_url": download_url,
         "source_url": SHUTTLE_PAGE_URL,
         "original_filename": original_filename,
     }
@@ -126,7 +115,15 @@ def save_shuttle_schedule(schedule):
         ).first()
         
         if existing:
-            print(f"이미 존재하는 시간표입니다: {schedule['title']}")
+            # 같은 학기 시간표가 있어도 원본 PDF URL은 최신 값으로 갱신합니다.
+            existing.title = schedule["title"]
+            existing.semester = schedule["semester"]
+            existing.file_url = schedule["file_url"]
+            existing.source_url = schedule["source_url"]
+            existing.original_filename = schedule["original_filename"]
+            existing.is_active = 1
+            db.commit()
+            print(f"기존 시간표 URL 갱신 완료: {schedule['title']}")
             return
 
         # 2. 기존의 활성화된 시간표들을 비활성(0)으로 변경 (버전 관리)
@@ -175,9 +172,9 @@ def save_shuttle_schedule(schedule):
             f"[{schedule['semester']}] 새로운 셔틀버스 시간표가 등록되었습니다."
         )
 
-        print(f"✅ [{schedule['semester']}] {schedule['title']} 저장 및 인덱싱 완료!")
+        print(f"[{schedule['semester']}] {schedule['title']} 저장 및 인덱싱 완료!")
     except Exception as e:
-        print(f"❌ 저장 중 오류 발생: {e}")
+        print(f"저장 중 오류 발생: {e}")
         db.rollback()
     finally:
         db.close()

@@ -3,7 +3,7 @@ import type { Shuttle } from "@/features/shuttle/api/types";
 import { ShuttleCrawlResponse, ShuttleSearchParams } from "./types";
 
 export const getShuttles = async (params: ShuttleSearchParams = {}) => {
-    const { data } = await apiClient.get<Shuttle[]>("/api/shuttles", {
+    const { data } = await apiClient.get<Shuttle[]>("/api/shuttles/", {
         params,
     });
     return data;

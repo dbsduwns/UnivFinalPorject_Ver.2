@@ -12,7 +12,110 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 interface ImageItem {
     url: string;
     height: number;
+    isAttachment?: boolean;
 }
+
+// 학교 홈페이지 크롤링시 상대 경로 
+// 절대 URL 시 변환해서 상대 경로로
+const NOTICE_BASE_URL = "https://web.kangnam.ac.kr/";
+
+const trimImageUrl = (value: string) =>
+    value
+        .trim()
+        .replace(/^['"`<]+|['"`>]+$/g, "")
+        // 본문 문장에 붙은 괄호·문장부호는 URL에서 제외합니다.
+        .replace(/[),.;!?]+$/g, "");
+
+const normalizeImageUrl = (value: string): string | null => {
+    const raw = trimImageUrl(value);
+    if (!raw) return null;
+
+    try {
+        // http(s)는 그대로, /comm/...·../comm/...·comm/...은 기준 주소로 변환합니다.
+        return new URL(raw, NOTICE_BASE_URL).toString();
+    } catch {
+        return null;
+    }
+};
+
+const isLikelyImageUrl = (url: string) => {
+    try {
+        const parsed = new URL(url);
+        return (
+            /\/comm\/cmnFile\//i.test(parsed.pathname) ||
+            /\.(?:png|jpe?g|gif|webp|svg|bmp|heic)(?:$|[?#])/i.test(
+                `${parsed.pathname}${parsed.search}`
+            )
+        );
+    } catch {
+        return false;
+    }
+};
+
+/**
+ * 크롤러 버전별로 저장된 이미지 표현을 모두 URL 배열로 변환합니다.
+ * - [이미지] https://...
+ * - [이미지 공지] /comm/cmnFile/image.do?...
+ * - <img src="...">
+ * - ![설명](...)
+ * - 본문에 단독으로 저장된 http(s) 또는 /comm/cmnFile URL
+ */
+const extractImageUrls = (content: string): string[] => {
+    const urls: string[] = [];
+    const add = (value: string | undefined) => {
+        if (!value) return;
+        const normalized = normalizeImageUrl(value);
+        if (normalized && !urls.includes(normalized)) urls.push(normalized);
+    };
+
+    // HTML img 태그
+    const htmlImagePattern = /<img\b[^>]*\bsrc\s*=\s*(["'])(.*?)\1[^>]*>/gi;
+    for (const match of content.matchAll(htmlImagePattern)) add(match[2]);
+
+    // 마크다운 이미지: ![설명](주소)
+    const markdownImagePattern = /!\[[^\]]*\]\(\s*([^\s)]+(?:\([^)]*\)[^)]*)?)\s*\)/gi;
+    for (const match of content.matchAll(markdownImagePattern)) add(match[1]);
+
+    // 현재 크롤러가 저장하는 [이미지], [이미지 공지] 형식
+    const markedImagePattern = /\[(?:이미지 공지|이미지)\]\s*([^\s<>'"`]+)/gi;
+    for (const match of content.matchAll(markedImagePattern)) add(match[1]);
+
+    // 마커가 사라졌거나 예전 데이터가 단독 URL만 저장한 경우
+    const absoluteUrlPattern = /https?:\/\/[^\s<>'"`\])}]+/gi;
+    for (const match of content.matchAll(absoluteUrlPattern)) {
+        const normalized = normalizeImageUrl(match[0]);
+        // 본문에 포함된 일반 원문 링크를 이미지로 오인하지 않습니다.
+        if (normalized && isLikelyImageUrl(normalized)) add(match[0]);
+    }
+
+    // 강남대 이미지 엔드포인트의 루트 상대 경로
+    const relativeImagePattern = /(?:^|[\s"'(])((?:\/|\.\.\/|\.\/)?comm\/cmnFile\/[^\s<>'"`\])}]+)/gi;
+    for (const match of content.matchAll(relativeImagePattern)) add(match[1]);
+
+    return urls;
+};
+
+const removeImageReferences = (content: string, imageUrls: string[]) => {
+    let result = content
+        .replace(/<img\b[^>]*\bsrc\s*=\s*(["']).*?\1[^>]*>/gis, "")
+        .replace(/!\[[^\]]*\]\(\s*[^)]+\s*\)/g, "")
+        .replace(/\[(?:이미지 공지|이미지)\]\s*[^\s<>'"`]+/gi, "");
+
+    // 추출에 성공한 URL은 본문 텍스트에서 제거합니다.
+    for (const url of imageUrls) {
+        result = result.replaceAll(url, "");
+
+        // 상대 경로 원문도 함께 제거합니다. (정규화 전 DB 값 대응)
+        try {
+            const parsed = new URL(url);
+            result = result.replaceAll(`${parsed.pathname}${parsed.search}`, "");
+        } catch {
+            // 잘못된 URL은 위의 정규식 제거 결과만 사용합니다.
+        }
+    }
+
+    return result.replace(/\n\s*\n\s*\n/g, "\n\n").trim();
+};
 
 export default function NoticeDetail() {
     const { id } = useLocalSearchParams();
@@ -40,47 +143,66 @@ export default function NoticeDetail() {
     };
 
     useEffect(() => {
-        if (notice?.content) {
-            // [이미지 공지] 또는 [이미지] 패턴 모두 추출
-            const imagePattern = /\[(?:이미지 공지|이미지)\]\s+(https?:\/\/\S+)/g;
-            const matches = Array.from(notice.content.matchAll(imagePattern));
-            const urls = matches.map(match => match[1]);
+        if (!notice) {
+            setImageItems([]);
+            return;
+        }
 
-            if (urls.length > 0) {
+        const urls = notice.content ? extractImageUrls(notice.content) : [];
+        const attachmentUrl = notice.attachment_url
+            ? normalizeImageUrl(notice.attachment_url)
+            : null;
+        // 첨부 이미지도 본문 이미지처럼 즉시 표시합니다.
+        // 본문에서 이미 추출된 URL과 중복되는 경우에는 한 번만 표시합니다.
+        const displayItems = [
+            ...urls.map((url) => ({ url, isAttachment: false })),
+            ...(attachmentUrl && !urls.includes(attachmentUrl)
+                ? [{ url: attachmentUrl, isAttachment: true }]
+                : []),
+        ];
+
+        if (displayItems.length > 0) {
                 // 모든 이미지의 크기를 가져와서 상태 업데이트
                 const newItems: ImageItem[] = [];
                 let loadedCount = 0;
 
-                urls.forEach((url, index) => {
+                displayItems.forEach(({ url, isAttachment }, index) => {
                     Image.getSize(url, (width, height) => {
                         const ratio = height / width;
                         newItems[index] = { 
                             url, 
-                            height: (SCREEN_WIDTH - 32) * ratio 
+                            height: (SCREEN_WIDTH - 32) * ratio,
+                            isAttachment,
                         };
                         loadedCount++;
                         
-                        if (loadedCount === urls.length) {
+                        if (loadedCount === displayItems.length) {
                             setImageItems(newItems.filter(item => item !== undefined));
                         }
                     }, (error) => {
                         console.warn(`이미지 크기 가져오기 실패 (${url}):`, error);
+                        // 서버가 크기 조회를 차단하더라도 실제 Image 렌더링은 시도합니다.
+                        newItems[index] = {
+                            url,
+                            height: Math.max(240, SCREEN_WIDTH * 0.75),
+                            isAttachment,
+                        };
                         loadedCount++;
-                        if (loadedCount === urls.length) {
+                        if (loadedCount === displayItems.length) {
                             setImageItems(newItems.filter(item => item !== undefined));
                         }
                     });
                 });
-            } else {
-                setImageItems([]);
-            }
+        } else {
+            setImageItems([]);
         }
-    }, [notice?.content]);
+    }, [notice?.content, notice?.attachment_url]);
 
     // 이미지 태그들을 제외한 순수 텍스트 내용
+    const imageUrls = notice?.content ? extractImageUrls(notice.content) : [];
     const cleanContent = notice?.content
-        ?.replace(/\[(?:이미지 공지|이미지)\]\s+https?:\/\/\S+/g, "")
-        .trim();
+        ? removeImageReferences(notice.content, imageUrls)
+        : "";
 
     if (isLoading) {
         return (
@@ -147,7 +269,13 @@ export default function NoticeDetail() {
                                     backgroundColor: '#F9FAFB'
                                 }}
                                 resizeMode="contain"
+                                onError={(error) => {
+                                    console.warn("공지 이미지 표시 실패:", item.url, error.nativeEvent.error);
+                                }}
                             />
+                            {item.isAttachment && (
+                                <Text className="mt-2 text-xs text-gray-400 italic">첨부파일</Text>
+                            )}
                             {index === 0 && imageItems.length === 1 && (
                                 <Text className="mt-2 text-xs text-gray-400 italic">이미지 공지사항입니다.</Text>
                             )}

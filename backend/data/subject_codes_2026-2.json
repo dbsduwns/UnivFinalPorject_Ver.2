@@ -1,0 +1,5084 @@
+[
+  {
+    "subject_code": "AA01601",
+    "name": "신입생세미나II",
+    "department": "자유전공학부 (부총장직속)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "AA02401",
+    "name": "KNU전공탐색II",
+    "department": "자유전공학부 (부총장직속)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "AA04101",
+    "name": "코너스톤II",
+    "department": "자유전공학부 (부총장직속)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BA01601",
+    "name": "신입생세미나II",
+    "department": "복지융합대학 (대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB01601",
+    "name": "인성과학문II",
+    "department": "사회복지학부 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB04101",
+    "name": "인간행동과사회환경",
+    "department": "사회복지학부 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB04102",
+    "name": "사회복지현장의이해",
+    "department": "사회복지학부 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB04103",
+    "name": "사회복지조사론",
+    "department": "사회복지학부 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB12401",
+    "name": "전공세미나II",
+    "department": "사회복지학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB14201",
+    "name": "노인복지론",
+    "department": "사회복지학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB14202",
+    "name": "사회복지실천기술론",
+    "department": "사회복지학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB14203",
+    "name": "사회복지행정론",
+    "department": "사회복지학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB14204",
+    "name": "정신건강론",
+    "department": "사회복지학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB14205",
+    "name": "지역사회복지론",
+    "department": "사회복지학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB22401",
+    "name": "전공세미나II",
+    "department": "사회서비스학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB24201",
+    "name": "가족복지론",
+    "department": "사회서비스학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB24202",
+    "name": "사회문제론",
+    "department": "사회서비스학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB24203",
+    "name": "사회보장론",
+    "department": "사회서비스학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB24204",
+    "name": "장애인복지론",
+    "department": "사회서비스학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB24205",
+    "name": "청소년복지론",
+    "department": "사회서비스학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB41601",
+    "name": "인성과학문IV",
+    "department": "사회사업학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB44201",
+    "name": "장애인복지론",
+    "department": "사회사업학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB44202",
+    "name": "진로지도상담II",
+    "department": "사회사업학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB44204",
+    "name": "가족상담및가족치료",
+    "department": "사회사업학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB44205",
+    "name": "사회복지와문화다양성",
+    "department": "사회사업학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB44206",
+    "name": "학교사회복지론",
+    "department": "사회사업학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB44207",
+    "name": "진로지도상담IV",
+    "department": "사회사업학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB44213",
+    "name": "위기개입론",
+    "department": "사회사업학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB44214",
+    "name": "호스피스와죽음학",
+    "department": "사회사업학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB44215",
+    "name": "임상사회복지실천과평가",
+    "department": "사회사업학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB51601",
+    "name": "인성과학문IV",
+    "department": "사회서비스정책학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB54201",
+    "name": "사회복지현장실습",
+    "department": "사회서비스정책학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB54202",
+    "name": "진로지도상담II",
+    "department": "사회서비스정책학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB54203",
+    "name": "사회복지경제론",
+    "department": "사회서비스정책학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB54204",
+    "name": "NGO&NPO",
+    "department": "사회서비스정책학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB54205",
+    "name": "지역사회복지실천기술론",
+    "department": "사회서비스정책학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB54206",
+    "name": "사회서비스조직경영",
+    "department": "사회서비스정책학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB54207",
+    "name": "사회복지법제와실천",
+    "department": "사회서비스정책학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB54208",
+    "name": "진로지도상담IV",
+    "department": "사회서비스정책학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB54214",
+    "name": "통일과사회복지",
+    "department": "사회서비스정책학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB54215",
+    "name": "사회적기업과협동조합",
+    "department": "사회서비스정책학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BB54216",
+    "name": "사회복지동향과이슈세미나",
+    "department": "사회서비스정책학전공 (사회복지학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BC12401",
+    "name": "전공세미나II",
+    "department": "시니어비즈니스학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BC14101",
+    "name": "노년학개론",
+    "department": "시니어비즈니스학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BC14201",
+    "name": "시니어산업마케팅",
+    "department": "시니어비즈니스학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BC14203",
+    "name": "시니어소비자행동론",
+    "department": "시니어비즈니스학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BC14205",
+    "name": "시니어비즈니스현장의이해",
+    "department": "시니어비즈니스학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BC14206",
+    "name": "시니어비즈니스회계원리",
+    "department": "시니어비즈니스학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BC14207",
+    "name": "시니어요양산업의이해",
+    "department": "시니어비즈니스학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BD14101",
+    "name": "VR메이커스페이스",
+    "department": "Wel-Tech융합전공 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BD14201",
+    "name": "디지털복지기술",
+    "department": "Wel-Tech융합전공 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BE11601",
+    "name": "인성과학문II",
+    "department": "실버산업학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BE11602",
+    "name": "인성과학문IV",
+    "department": "실버산업학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BE14201",
+    "name": "통계학개론",
+    "department": "실버산업학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BE14202",
+    "name": "진로지도상담II",
+    "department": "실버산업학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BE14203",
+    "name": "금융자산관리론",
+    "department": "실버산업학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BE14204",
+    "name": "연구조사방법론",
+    "department": "실버산업학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BE14205",
+    "name": "시니어연금보험관리론",
+    "department": "실버산업학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BE14206",
+    "name": "실버산업과국가정책의이해",
+    "department": "실버산업학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BE14208",
+    "name": "치매와노인",
+    "department": "실버산업학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BE14209",
+    "name": "비교실버산업의이해",
+    "department": "실버산업학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BE14210",
+    "name": "진로지도상담IV",
+    "department": "실버산업학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BE14216",
+    "name": "시니어산업창업및경영",
+    "department": "실버산업학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BE14218",
+    "name": "ICT실버산업동향",
+    "department": "실버산업학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BE14219",
+    "name": "시니어금융기관론",
+    "department": "실버산업학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "BE14301",
+    "name": "졸업종합평가",
+    "department": "실버산업학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA01601",
+    "name": "신입생세미나II",
+    "department": "상경학부 (경영관리대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA04101",
+    "name": "경제학개론",
+    "department": "상경학부 (경영관리대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA04102",
+    "name": "경제학원론II",
+    "department": "상경학부 (경영관리대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA04103",
+    "name": "회계학개론",
+    "department": "상경학부 (경영관리대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA04104",
+    "name": "경영학개론",
+    "department": "상경학부 (경영관리대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA12401",
+    "name": "전공세미나II",
+    "department": "경영학전공 (상경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA14201",
+    "name": "소비자행동론",
+    "department": "경영학전공 (상경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA14202",
+    "name": "인적자원관리",
+    "department": "경영학전공 (상경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA14203",
+    "name": "경영정보의이해",
+    "department": "경영학전공 (상경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA14204",
+    "name": "재무회계II",
+    "department": "경영학전공 (상경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA14205",
+    "name": "오퍼레이션스경영",
+    "department": "경영학전공 (상경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA22401",
+    "name": "전공세미나II",
+    "department": "경제금융학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA24201",
+    "name": "기초통계학",
+    "department": "경제금융학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA24202",
+    "name": "아시아경제론",
+    "department": "경제금융학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA24203",
+    "name": "후생경제학",
+    "department": "경제금융학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA24204",
+    "name": "경제성장과발전",
+    "department": "경제금융학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA24205",
+    "name": "세계와한국경제",
+    "department": "경제금융학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA32401",
+    "name": "전공세미나II",
+    "department": "국제무역학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA34201",
+    "name": "국제마케팅론",
+    "department": "국제무역학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA34202",
+    "name": "외환론",
+    "department": "국제무역학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA34203",
+    "name": "비즈니스무역영어",
+    "department": "국제무역학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CA34204",
+    "name": "글로벌창업론",
+    "department": "국제무역학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CB01602",
+    "name": "신입생세미나II",
+    "department": "법행정세무학부 (경영관리대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CB04101",
+    "name": "법학입문",
+    "department": "법행정세무학부 (경영관리대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CB04102",
+    "name": "세법학개론",
+    "department": "법행정세무학부 (경영관리대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CB12401",
+    "name": "전공세미나II",
+    "department": "세무학전공 (법행정세무학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CB14201",
+    "name": "원가관리회계",
+    "department": "세무학전공 (법행정세무학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CB14202",
+    "name": "중급회계II",
+    "department": "세무학전공 (법행정세무학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CB14203",
+    "name": "소득세법II",
+    "department": "세무학전공 (법행정세무학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CB14204",
+    "name": "조세법총론II",
+    "department": "세무학전공 (법행정세무학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CB22401",
+    "name": "전공세미나II",
+    "department": "법행정학전공 (법행정세무학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CB24201",
+    "name": "물권법",
+    "department": "법행정학전공 (법행정세무학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CB24202",
+    "name": "연구방법론",
+    "department": "법행정학전공 (법행정세무학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CB24203",
+    "name": "정책학원론",
+    "department": "법행정학전공 (법행정세무학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CB24204",
+    "name": "지방행정론",
+    "department": "법행정학전공 (법행정세무학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CB24205",
+    "name": "행정학원론II",
+    "department": "법행정학전공 (법행정세무학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CB24206",
+    "name": "헌법II",
+    "department": "법행정학전공 (법행정세무학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CB24207",
+    "name": "형법각론",
+    "department": "법행정학전공 (법행정세무학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CB24208",
+    "name": "공공인재론II",
+    "department": "법행정학전공 (법행정세무학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC01601",
+    "name": "인성과학문II",
+    "department": "글로벌경영학부 (경영관리대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC11601",
+    "name": "인성과학문IV",
+    "department": "경영학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC14201",
+    "name": "e-비즈니스",
+    "department": "경영학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC14202",
+    "name": "경영전략",
+    "department": "경영학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC14203",
+    "name": "품질경영",
+    "department": "경영학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC14204",
+    "name": "경영의사결정게임",
+    "department": "경영학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC14205",
+    "name": "진로지도상담II",
+    "department": "경영학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC14206",
+    "name": "투자의실제",
+    "department": "경영학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC14207",
+    "name": "재무제표분석",
+    "department": "경영학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC14208",
+    "name": "리더십과커뮤니케이션",
+    "department": "경영학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC14209",
+    "name": "진로지도상담IV",
+    "department": "경영학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC14210",
+    "name": "현장실습(장기)I",
+    "department": "경영학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC14211",
+    "name": "현장실습(장기)II",
+    "department": "경영학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC14212",
+    "name": "현장실습(장기)III",
+    "department": "경영학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC14213",
+    "name": "현장실습(장기)IV",
+    "department": "경영학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC14215",
+    "name": "마케팅전략",
+    "department": "경영학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC14216",
+    "name": "조직이론",
+    "department": "경영학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC14217",
+    "name": "비교경영",
+    "department": "경영학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC21601",
+    "name": "인성과학문IV",
+    "department": "국제통상학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC24201",
+    "name": "국제경영전략론",
+    "department": "국제통상학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC24202",
+    "name": "국제무역론",
+    "department": "국제통상학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC24203",
+    "name": "진로지도상담II",
+    "department": "국제통상학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC24204",
+    "name": "국제운송보험론",
+    "department": "국제통상학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC24205",
+    "name": "국제무역법규론",
+    "department": "국제통상학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC24206",
+    "name": "디지털무역마케팅",
+    "department": "국제통상학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC24209",
+    "name": "진로지도상담IV",
+    "department": "국제통상학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC24210",
+    "name": "Corporate Finance",
+    "department": "국제통상학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC24216",
+    "name": "국제통상정책세미나",
+    "department": "국제통상학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CC24217",
+    "name": "무역전시마케팅",
+    "department": "국제통상학전공 (글로벌경영학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD01601",
+    "name": "인성과학문II",
+    "department": "정경학부 (경영관리대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD11601",
+    "name": "인성과학문IV",
+    "department": "경제금융전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD14201",
+    "name": "금융시장론",
+    "department": "경제금융전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD14202",
+    "name": "산업조직론",
+    "department": "경제금융전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD14203",
+    "name": "증권경제론",
+    "department": "경제금융전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD14204",
+    "name": "진로지도상담II",
+    "department": "경제금융전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD14205",
+    "name": "경제지표해설",
+    "department": "경제금융전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD14206",
+    "name": "재무경제학의기초",
+    "department": "경제금융전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD14207",
+    "name": "IT파이낸스",
+    "department": "경제금융전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD14208",
+    "name": "진로지도상담IV",
+    "department": "경제금융전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD14214",
+    "name": "경제세미나",
+    "department": "경제금융전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD14215",
+    "name": "금융정책론",
+    "department": "경제금융전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD21601",
+    "name": "인성과학문IV",
+    "department": "세무학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD24201",
+    "name": "법인세법II",
+    "department": "세무학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD24202",
+    "name": "재정학II",
+    "department": "세무학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD24203",
+    "name": "조세법연습",
+    "department": "세무학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD24204",
+    "name": "진로지도상담II",
+    "department": "세무학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD24205",
+    "name": "국제조세법",
+    "department": "세무학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD24206",
+    "name": "재무회계연습",
+    "department": "세무학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD24207",
+    "name": "세무정보처리실습",
+    "department": "세무학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD24208",
+    "name": "세무조정실무",
+    "department": "세무학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD24209",
+    "name": "지방세법",
+    "department": "세무학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD24210",
+    "name": "진로지도상담IV",
+    "department": "세무학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD24211",
+    "name": "현장실습(장기)I",
+    "department": "세무학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD24212",
+    "name": "현장실습(장기)II",
+    "department": "세무학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD24213",
+    "name": "현장실습(장기)III",
+    "department": "세무학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD24214",
+    "name": "현장실습(장기)IV",
+    "department": "세무학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD24216",
+    "name": "시사경제와세금",
+    "department": "세무학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD31601",
+    "name": "인성과학문IV",
+    "department": "공공인재학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD34201",
+    "name": "재무행정론",
+    "department": "공공인재학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD34202",
+    "name": "행정법각론",
+    "department": "공공인재학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD34203",
+    "name": "행정행태론",
+    "department": "공공인재학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD34204",
+    "name": "형사소송법",
+    "department": "공공인재학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD34205",
+    "name": "회사법",
+    "department": "공공인재학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD34206",
+    "name": "진로지도상담II",
+    "department": "공공인재학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD34207",
+    "name": "계약법",
+    "department": "공공인재학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD34208",
+    "name": "보험법",
+    "department": "공공인재학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD34209",
+    "name": "정부규제론",
+    "department": "공공인재학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD34210",
+    "name": "진로지도상담IV",
+    "department": "공공인재학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD34212",
+    "name": "디지털정부와사회혁신",
+    "department": "공공인재학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "CD34213",
+    "name": "지속가능사회와행정",
+    "department": "공공인재학전공 (정경학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA01601",
+    "name": "신입생세미나II",
+    "department": "글로벌문화콘텐츠대학 (대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA12401",
+    "name": "전공세미나II",
+    "department": "문화콘텐츠학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA14101",
+    "name": "문화콘텐츠학입문",
+    "department": "문화콘텐츠학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA14201",
+    "name": "시창작워크숍",
+    "department": "문화콘텐츠학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA14202",
+    "name": "영상영화콘텐츠의이해",
+    "department": "문화콘텐츠학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA14203",
+    "name": "스토리텔링의이론과실제",
+    "department": "문화콘텐츠학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA14204",
+    "name": "문화콘텐츠저널리즘",
+    "department": "문화콘텐츠학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA14205",
+    "name": "문화콘텐츠기획과발표",
+    "department": "문화콘텐츠학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA14206",
+    "name": "플랫폼서비스기획",
+    "department": "문화콘텐츠학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA14207",
+    "name": "비주얼커뮤니케이션의이해",
+    "department": "문화콘텐츠학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA22401",
+    "name": "전공세미나II",
+    "department": "국제지역학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA24101",
+    "name": "글로벌커뮤니케이션",
+    "department": "국제지역학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA24202",
+    "name": "국제정치경제론",
+    "department": "국제지역학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA24203",
+    "name": "초급러시아어",
+    "department": "국제지역학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA24204",
+    "name": "글로벌문화",
+    "department": "국제지역학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA32401",
+    "name": "전공세미나II",
+    "department": "중국콘텐츠비즈니스학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA34101",
+    "name": "콘텐츠중국어입문II",
+    "department": "중국콘텐츠비즈니스학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA34201",
+    "name": "기초중국어어법",
+    "department": "중국콘텐츠비즈니스학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA34202",
+    "name": "콘텐츠초급중국어듣기II",
+    "department": "중국콘텐츠비즈니스학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA34203",
+    "name": "중국시장콘텐츠의이해",
+    "department": "중국콘텐츠비즈니스학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA44101",
+    "name": "예수와스토리텔링",
+    "department": "기독교커뮤니케이션학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA44202",
+    "name": "예언자와종교사회",
+    "department": "기독교커뮤니케이션학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DA44204",
+    "name": "사회변동과기독교커뮤니케이션",
+    "department": "기독교커뮤니케이션학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB01601",
+    "name": "인성과학문II",
+    "department": "글로벌문화학부 (글로벌인재대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB11601",
+    "name": "인성과학문IV",
+    "department": "문화콘텐츠전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB14201",
+    "name": "진로지도상담II",
+    "department": "문화콘텐츠전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB14202",
+    "name": "내러티브의실제와감상",
+    "department": "문화콘텐츠전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB14203",
+    "name": "디지털미디어와문화",
+    "department": "문화콘텐츠전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB14204",
+    "name": "게임메이킹워크숍",
+    "department": "문화콘텐츠전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB14205",
+    "name": "전략적브랜드관리",
+    "department": "문화콘텐츠전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB14206",
+    "name": "영상제작심화워크숍",
+    "department": "문화콘텐츠전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB14207",
+    "name": "콘텐츠조사분석",
+    "department": "문화콘텐츠전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB14208",
+    "name": "현대소설과서사콘텐츠",
+    "department": "문화콘텐츠전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB21601",
+    "name": "인성과학문IV",
+    "department": "국제지역학전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB24201",
+    "name": "진로지도상담II",
+    "department": "국제지역학전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB24202",
+    "name": "비교정치체제론",
+    "department": "국제지역학전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB24206",
+    "name": "슬라브문학과시네마",
+    "department": "국제지역학전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB24207",
+    "name": "대전략과국제질서",
+    "department": "국제지역학전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB24208",
+    "name": "진로지도상담IV",
+    "department": "국제지역학전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB24209",
+    "name": "미디어영어",
+    "department": "국제지역학전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB24211",
+    "name": "국제개발론",
+    "department": "국제지역학전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB31601",
+    "name": "인성과학문IV",
+    "department": "중국지역학전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB34201",
+    "name": "진로지도상담II",
+    "department": "중국지역학전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB34202",
+    "name": "중국기업과경영",
+    "department": "중국지역학전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB34204",
+    "name": "실전중국어말하기II",
+    "department": "중국지역학전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB34207",
+    "name": "한중통번역연습",
+    "department": "중국지역학전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB34210",
+    "name": "중국영화속인문학",
+    "department": "중국지역학전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB41601",
+    "name": "인성과학문IV",
+    "department": "기독교학전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB44203",
+    "name": "진로지도상담II",
+    "department": "기독교학전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB44204",
+    "name": "미래교회와선교",
+    "department": "기독교학전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB44206",
+    "name": "도시·마을·교회의공존프로젝트",
+    "department": "기독교학전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB44213",
+    "name": "종교철학과한국기독교사상사",
+    "department": "기독교학전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB44301",
+    "name": "졸업종합평가",
+    "department": "기독교학전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB64201",
+    "name": "진로지도상담IV",
+    "department": "한영문화콘텐츠전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB64202",
+    "name": "현장실습(장기)I",
+    "department": "한영문화콘텐츠전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB64203",
+    "name": "현장실습(장기)II",
+    "department": "한영문화콘텐츠전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB64204",
+    "name": "현장실습(장기)III",
+    "department": "한영문화콘텐츠전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB64205",
+    "name": "현장실습(장기)IV",
+    "department": "한영문화콘텐츠전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB64207",
+    "name": "대중문화와비평적글쓰기",
+    "department": "한영문화콘텐츠전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB64208",
+    "name": "동화와스토리텔링",
+    "department": "한영문화콘텐츠전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB64209",
+    "name": "문화산업과트랜스미디어전략",
+    "department": "한영문화콘텐츠전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB64210",
+    "name": "한류연구",
+    "department": "한영문화콘텐츠전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB64211",
+    "name": "도시.국가브랜드전략",
+    "department": "한영문화콘텐츠전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB64212",
+    "name": "캡스톤디자인(CC)II",
+    "department": "한영문화콘텐츠전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "DB64301",
+    "name": "졸업종합평가",
+    "department": "한영문화콘텐츠전공 (글로벌문화학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EA01601",
+    "name": "신입생세미나II",
+    "department": "컴퓨터공학부 (공과대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EA04101",
+    "name": "C프로그래밍",
+    "department": "컴퓨터공학부 (공과대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EA04102",
+    "name": "파이썬응용",
+    "department": "컴퓨터공학부 (공과대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EA12401",
+    "name": "전공세미나II",
+    "department": "소프트웨어전공 (컴퓨터공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EA14201",
+    "name": "객체지향프로그래밍",
+    "department": "소프트웨어전공 (컴퓨터공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EA14202",
+    "name": "웹프로그래밍",
+    "department": "소프트웨어전공 (컴퓨터공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EA14203",
+    "name": "정보통신개론",
+    "department": "소프트웨어전공 (컴퓨터공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EA14204",
+    "name": "임베디드기초",
+    "department": "소프트웨어전공 (컴퓨터공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EA14205",
+    "name": "모바일프로그래밍",
+    "department": "소프트웨어전공 (컴퓨터공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EA14206",
+    "name": "통계응용",
+    "department": "소프트웨어전공 (컴퓨터공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EA22401",
+    "name": "전공세미나II",
+    "department": "메타버스게임전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EA24201",
+    "name": "3D모델링",
+    "department": "메타버스게임전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EA24202",
+    "name": "게임엔진기초",
+    "department": "메타버스게임전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EA24203",
+    "name": "웹개발응용",
+    "department": "메타버스게임전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EA24204",
+    "name": "자료구조및알고리즘",
+    "department": "메타버스게임전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EA24205",
+    "name": "멀티미디어콘텐츠",
+    "department": "메타버스게임전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB01601",
+    "name": "인성과학문II",
+    "department": "인공지능융합공학부 (공과대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB01602",
+    "name": "신입생세미나II",
+    "department": "인공지능융합공학부 (공과대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB04101",
+    "name": "파이썬응용",
+    "department": "인공지능융합공학부 (공과대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB04102",
+    "name": "데이터사이언스통계",
+    "department": "인공지능융합공학부 (공과대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB11601",
+    "name": "인성과학문IV",
+    "department": "인공지능전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB12401",
+    "name": "전공세미나II",
+    "department": "인공지능전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB14201",
+    "name": "인공지능서비스기획",
+    "department": "인공지능전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB14202",
+    "name": "머신러닝",
+    "department": "인공지능전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB14203",
+    "name": "인공지능알고리즘",
+    "department": "인공지능전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB14204",
+    "name": "신경망",
+    "department": "인공지능전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB14205",
+    "name": "인공지능앱개발",
+    "department": "인공지능전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB14206",
+    "name": "진로지도상담II",
+    "department": "인공지능전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB14208",
+    "name": "인공지능서비스개발II",
+    "department": "인공지능전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB14210",
+    "name": "컴퓨터비전응용",
+    "department": "인공지능전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB14211",
+    "name": "네트워크서비스",
+    "department": "인공지능전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB14212",
+    "name": "진로지도상담IV",
+    "department": "인공지능전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB14218",
+    "name": "캡스톤디자인(AI)II",
+    "department": "인공지능전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB14301",
+    "name": "졸업종합평가",
+    "department": "인공지능전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB21601",
+    "name": "인성과학문IV",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB22401",
+    "name": "전공세미나II",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB24201",
+    "name": "데이터시각화",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB24202",
+    "name": "파이썬자료구조와알고리즘",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB24203",
+    "name": "데이터분석기획론",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB24204",
+    "name": "정보검색과인공지능",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB24205",
+    "name": "응용머신러닝",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB24206",
+    "name": "진로지도상담II",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB24207",
+    "name": "사용자경험과인공지능",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB24208",
+    "name": "데이터활용벤처창업론",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB24209",
+    "name": "고급데이터시각화",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB24210",
+    "name": "영상데이터분석",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB24211",
+    "name": "텍스트데이터분석",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB24212",
+    "name": "진로지도상담IV",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB24218",
+    "name": "캡스톤디자인(DS)II",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB24219",
+    "name": "데이터마이닝시스템실습",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB24220",
+    "name": "파이썬머신러닝",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB24221",
+    "name": "기업실무인턴십(장기)I",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB24222",
+    "name": "기업실무인턴십(장기)II",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB24223",
+    "name": "기업실무인턴십(장기)III",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB24224",
+    "name": "기업실무인턴십(장기)IV",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EB24301",
+    "name": "졸업종합평가",
+    "department": "데이터사이언스전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EC01601",
+    "name": "신입생세미나II",
+    "department": "전자반도체공학부 (공과대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EC04101",
+    "name": "공학프로그래밍언어",
+    "department": "전자반도체공학부 (공과대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EC04102",
+    "name": "반도체활용과응용",
+    "department": "전자반도체공학부 (공과대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EC04103",
+    "name": "창의설계입문",
+    "department": "전자반도체공학부 (공과대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EC12401",
+    "name": "전공세미나II",
+    "department": "전자공학전공 (전자반도체공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EC14201",
+    "name": "임베디드시스템",
+    "department": "전자공학전공 (전자반도체공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EC14202",
+    "name": "전자기학I",
+    "department": "전자공학전공 (전자반도체공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EC14203",
+    "name": "회로이론II",
+    "department": "전자공학전공 (전자반도체공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EC14204",
+    "name": "소자및센서공학",
+    "department": "전자공학전공 (전자반도체공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EC22401",
+    "name": "전공세미나II",
+    "department": "반도체공학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EC24201",
+    "name": "반도체박막공학",
+    "department": "반도체공학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EC24202",
+    "name": "대학일반물리II",
+    "department": "반도체공학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EC24203",
+    "name": "반도체소자기초",
+    "department": "반도체공학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EC24204",
+    "name": "반도체공정응용",
+    "department": "반도체공학전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EC32401",
+    "name": "전공세미나II",
+    "department": "스마트모빌리티전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EC34201",
+    "name": "동역학",
+    "department": "스마트모빌리티전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EC34202",
+    "name": "생산시스템운영",
+    "department": "스마트모빌리티전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EC34204",
+    "name": "모빌리티전기회로",
+    "department": "스마트모빌리티전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED01601",
+    "name": "인성과학문II",
+    "department": "부동산건설학부 (ICT건설공과대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED01602",
+    "name": "신입생세미나II",
+    "department": "부동산건설학부 (ICT건설공과대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED04101",
+    "name": "건축공학개론",
+    "department": "부동산건설학부 (ICT건설공과대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED04102",
+    "name": "스마트도시의세계",
+    "department": "부동산건설학부 (ICT건설공과대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED04103",
+    "name": "부동산법입문",
+    "department": "부동산건설학부 (ICT건설공과대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED11601",
+    "name": "인성과학문IV",
+    "department": "부동산학전공 (ICT건설공과대학>부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED12401",
+    "name": "전공세미나II",
+    "department": "부동산학전공 (ICT건설공과대학>부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED14201",
+    "name": "부동산개발론",
+    "department": "부동산학전공 (ICT건설공과대학>부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED14202",
+    "name": "부동산계량론",
+    "department": "부동산학전공 (ICT건설공과대학>부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED14203",
+    "name": "부동산관리론",
+    "department": "부동산학전공 (ICT건설공과대학>부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED14204",
+    "name": "부동산시장분석론",
+    "department": "부동산학전공 (ICT건설공과대학>부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED14205",
+    "name": "부동산중개론",
+    "department": "부동산학전공 (ICT건설공과대학>부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED14206",
+    "name": "부동산감정평가론",
+    "department": "부동산학전공 (ICT건설공과대학>부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED14207",
+    "name": "진로지도상담II",
+    "department": "부동산학전공 (ICT건설공과대학>부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED14208",
+    "name": "부동산마케팅론",
+    "department": "부동산학전공 (ICT건설공과대학>부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED14209",
+    "name": "자본시장과부동산",
+    "department": "부동산학전공 (ICT건설공과대학>부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED14210",
+    "name": "민간자본유치사업론",
+    "department": "부동산학전공 (ICT건설공과대학>부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED14211",
+    "name": "부동산정책론",
+    "department": "부동산학전공 (ICT건설공과대학>부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED14212",
+    "name": "부동산투자론",
+    "department": "부동산학전공 (ICT건설공과대학>부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED14213",
+    "name": "진로지도상담IV",
+    "department": "부동산학전공 (ICT건설공과대학>부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED14219",
+    "name": "부동산계약법실무",
+    "department": "부동산학전공 (ICT건설공과대학>부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED14301",
+    "name": "졸업종합평가",
+    "department": "부동산학전공 (ICT건설공과대학>부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED21601",
+    "name": "인성과학문IV",
+    "department": "스마트도시공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED22401",
+    "name": "전공세미나II",
+    "department": "스마트도시공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED24201",
+    "name": "토지이용계획론",
+    "department": "스마트도시공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED24202",
+    "name": "단지계획및설계",
+    "department": "스마트도시공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED24203",
+    "name": "스마트도시정보분석",
+    "department": "스마트도시공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED24204",
+    "name": "스마트도시관리론",
+    "department": "스마트도시공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED24205",
+    "name": "도시관련법규",
+    "department": "스마트도시공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED24206",
+    "name": "진로지도상담II",
+    "department": "스마트도시공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED24207",
+    "name": "스마트도시설계",
+    "department": "스마트도시공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED24209",
+    "name": "스마트도시시설계획론",
+    "department": "스마트도시공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED24210",
+    "name": "진로지도상담IV",
+    "department": "스마트도시공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED24212",
+    "name": "스마트도시실무와인프라",
+    "department": "스마트도시공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED24213",
+    "name": "스마트도시와환경",
+    "department": "스마트도시공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED24214",
+    "name": "도시의정비와재생",
+    "department": "스마트도시공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED24301",
+    "name": "졸업종합평가",
+    "department": "스마트도시공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED31601",
+    "name": "인성과학문IV",
+    "department": "건축공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED32401",
+    "name": "전공세미나II",
+    "department": "건축공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED34201",
+    "name": "건축적산학",
+    "department": "건축공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED34202",
+    "name": "건축환경디자인",
+    "department": "건축공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED34203",
+    "name": "건축조형",
+    "department": "건축공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED34204",
+    "name": "건축설계스튜디오II",
+    "department": "건축공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED34205",
+    "name": "건축구조역학",
+    "department": "건축공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED34206",
+    "name": "건축법규",
+    "department": "건축공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED34208",
+    "name": "철골구조",
+    "department": "건축공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED34209",
+    "name": "진로지도상담II",
+    "department": "건축공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED34210",
+    "name": "건축설계스튜디오IV",
+    "department": "건축공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED34211",
+    "name": "건축계획",
+    "department": "건축공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED34213",
+    "name": "진로지도상담IV",
+    "department": "건축공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED34219",
+    "name": "건축종합설계II",
+    "department": "건축공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ED34220",
+    "name": "건축음향설계",
+    "department": "건축공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EE14205",
+    "name": "반도체재료공학",
+    "department": "반도체시스템융합전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EE14207",
+    "name": "현장실습(장기)I",
+    "department": "반도체시스템융합전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EE14208",
+    "name": "현장실습(장기)II",
+    "department": "반도체시스템융합전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EE14209",
+    "name": "현장실습(장기)III",
+    "department": "반도체시스템융합전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EE14210",
+    "name": "현장실습(장기)IV",
+    "department": "반도체시스템융합전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EE14212",
+    "name": "디스플레이공학",
+    "department": "반도체시스템융합전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EE14213",
+    "name": "반도체패키징공학",
+    "department": "반도체시스템융합전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EE14214",
+    "name": "반도체캡스톤디자인II",
+    "department": "반도체시스템융합전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EE14215",
+    "name": "기업실무인턴십(단기)",
+    "department": "반도체시스템융합전공",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF01601",
+    "name": "인성과학문II",
+    "department": "ICT융합공학부 (공과대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF11601",
+    "name": "인성과학문IV",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF14201",
+    "name": "데이터베이스",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF14202",
+    "name": "운영체제",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF14203",
+    "name": "정보보호",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF14204",
+    "name": "컴파일러구성론",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF14205",
+    "name": "진로지도상담II",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF14206",
+    "name": "기계학습",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF14208",
+    "name": "크로스플랫폼프로그래밍",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF14209",
+    "name": "소프트웨어공학",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF14210",
+    "name": "진로지도상담IV",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF14211",
+    "name": "컴퓨터비전",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF14212",
+    "name": "현장실습(장기)I",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF14213",
+    "name": "현장실습(장기)II",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF14214",
+    "name": "현장실습(장기)III",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF14215",
+    "name": "현장실습(장기)IV",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF14217",
+    "name": "캡스톤디자인(SW)II",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF14218",
+    "name": "기업실무인턴십(단기)",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF14219",
+    "name": "기업실무인턴십(장기)I",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF14220",
+    "name": "기업실무인턴십(장기)II",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF14221",
+    "name": "기업실무인턴십(장기)III",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF14222",
+    "name": "기업실무인턴십(장기)IV",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF14301",
+    "name": "졸업종합평가",
+    "department": "소프트웨어전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF21601",
+    "name": "인성과학문IV",
+    "department": "가상현실전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF24202",
+    "name": "진로지도상담II",
+    "department": "가상현실전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF24203",
+    "name": "게임프로그래밍",
+    "department": "가상현실전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF24204",
+    "name": "디지털트윈프로그래밍",
+    "department": "가상현실전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF24205",
+    "name": "실감디지털콘텐츠기획",
+    "department": "가상현실전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF24206",
+    "name": "인터랙티브미디어개발",
+    "department": "가상현실전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF24207",
+    "name": "진로지도상담IV",
+    "department": "가상현실전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF24208",
+    "name": "현장실습(장기)I",
+    "department": "가상현실전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF24209",
+    "name": "현장실습(장기)II",
+    "department": "가상현실전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF24210",
+    "name": "현장실습(장기)III",
+    "department": "가상현실전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF24211",
+    "name": "현장실습(장기)IV",
+    "department": "가상현실전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF24213",
+    "name": "캡스톤디자인(VR)II",
+    "department": "가상현실전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF24215",
+    "name": "기업실무인턴십(단기)",
+    "department": "가상현실전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF24216",
+    "name": "기업실무인턴십(장기)I",
+    "department": "가상현실전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF24217",
+    "name": "기업실무인턴십(장기)II",
+    "department": "가상현실전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF24218",
+    "name": "기업실무인턴십(장기)III",
+    "department": "가상현실전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF24219",
+    "name": "기업실무인턴십(장기)IV",
+    "department": "가상현실전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF24301",
+    "name": "졸업종합평가",
+    "department": "가상현실전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF31601",
+    "name": "인성과학문IV",
+    "department": "전자공학전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF34201",
+    "name": "마이크로파공학",
+    "department": "전자공학전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF34202",
+    "name": "전자회로및실험II",
+    "department": "전자공학전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF34203",
+    "name": "진로지도상담II",
+    "department": "전자공학전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF34204",
+    "name": "현대제어공학",
+    "department": "전자공학전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF34205",
+    "name": "디지털영상처리이론과실습",
+    "department": "전자공학전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF34206",
+    "name": "집적회로공학",
+    "department": "전자공학전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF34207",
+    "name": "진로지도상담IV",
+    "department": "전자공학전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF34208",
+    "name": "현장실습(장기)I",
+    "department": "전자공학전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF34209",
+    "name": "현장실습(장기)II",
+    "department": "전자공학전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF34210",
+    "name": "현장실습(장기)III",
+    "department": "전자공학전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF34211",
+    "name": "현장실습(장기)IV",
+    "department": "전자공학전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF34213",
+    "name": "전자시스템설계",
+    "department": "전자공학전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF34214",
+    "name": "이동통신및네트워크",
+    "department": "전자공학전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF34215",
+    "name": "창의종합설계II",
+    "department": "전자공학전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EF34301",
+    "name": "졸업종합평가",
+    "department": "전자공학전공 (ICT융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EG11601",
+    "name": "인성과학문IV",
+    "department": "산업공학전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EG14201",
+    "name": "데이터베이스설계",
+    "department": "산업공학전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EG14204",
+    "name": "경영과학및실습II",
+    "department": "산업공학전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EG14206",
+    "name": "품질및신뢰성공학II",
+    "department": "산업공학전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "EG14214",
+    "name": "산업공학캡스톤디자인프로젝트",
+    "department": "산업공학전공 (인공지능융합공학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA11602",
+    "name": "신입생세미나II",
+    "department": "디자인학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA12401",
+    "name": "전공세미나II",
+    "department": "디자인학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA14101",
+    "name": "디지털이미징디자인",
+    "department": "디자인학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA14102",
+    "name": "디자인비주얼라이제이션",
+    "department": "디자인학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA14201",
+    "name": "커뮤니케이션디자인",
+    "department": "디자인학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA14202",
+    "name": "머티리얼아트랩",
+    "department": "디자인학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA14203",
+    "name": "비디오에디팅디자인",
+    "department": "디자인학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA14204",
+    "name": "3D프린팅디자인",
+    "department": "디자인학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA14205",
+    "name": "머티리얼디자인",
+    "department": "디자인학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA14206",
+    "name": "AI디자인",
+    "department": "디자인학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA21602",
+    "name": "신입생세미나II",
+    "department": "체육학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA22401",
+    "name": "전공세미나II",
+    "department": "체육학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA24101",
+    "name": "인체기능해부학",
+    "department": "체육학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA24102",
+    "name": "육상기초",
+    "department": "체육학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA24201",
+    "name": "스포츠마케팅",
+    "department": "체육학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA24202",
+    "name": "트레이닝방법론",
+    "department": "체육학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA24203",
+    "name": "특수체육론",
+    "department": "체육학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA24204",
+    "name": "스포츠시설운영론",
+    "department": "체육학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA24205",
+    "name": "수영실기II",
+    "department": "체육학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA24206",
+    "name": "스포츠심리학",
+    "department": "체육학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA24207",
+    "name": "운동생리학",
+    "department": "체육학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA31601",
+    "name": "인성과학문II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA31602",
+    "name": "신입생세미나II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA31603",
+    "name": "인성과학문IV",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA32401",
+    "name": "전공세미나II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34101",
+    "name": "음악기초이론II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34102",
+    "name": "전공실기II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34103",
+    "name": "시창청음II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34201",
+    "name": "W.R II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34202",
+    "name": "합창.합주II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34203",
+    "name": "피아노 연주수업II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34204",
+    "name": "이태리예술가곡II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34205",
+    "name": "W.R IV",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34206",
+    "name": "실내악II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34208",
+    "name": "음악사II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34209",
+    "name": "전공실기IV",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34210",
+    "name": "합창.합주IV",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34211",
+    "name": "클래스피아노II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34212",
+    "name": "피아노 연주수업IV",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34213",
+    "name": "피아노 앙상블II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34214",
+    "name": "독일예술가곡II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34215",
+    "name": "뮤직&테크놀로지",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34216",
+    "name": "오페라/가곡코칭II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34217",
+    "name": "W.R VI",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34218",
+    "name": "반주법II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34219",
+    "name": "실내악IV",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34220",
+    "name": "악기론",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34221",
+    "name": "전공실기VI",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34222",
+    "name": "합창VI",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34223",
+    "name": "화성학II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34224",
+    "name": "진로지도상담II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34225",
+    "name": "음악교육론",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34226",
+    "name": "피아노 연주수업VI",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34227",
+    "name": "피아노문헌II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34228",
+    "name": "음악교수학습방법",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34229",
+    "name": "피아노 앙상블IV",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34230",
+    "name": "프랑스예술가곡II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34231",
+    "name": "오페라뮤지컬트레이닝II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34232",
+    "name": "현.관 앙상블II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34233",
+    "name": "실내악 문헌II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34234",
+    "name": "전공실기VIII",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34235",
+    "name": "지휘법",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34238",
+    "name": "반주법IV",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34239",
+    "name": "진로지도상담IV",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34241",
+    "name": "피아노 교수법II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34243",
+    "name": "오페라뮤지컬트레이닝IV",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34244",
+    "name": "문화예술교육현장의이해와실습",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34245",
+    "name": "오케스트라 엑섭II",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34246",
+    "name": "현.관 앙상블IV",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FA34301",
+    "name": "졸업종합평가",
+    "department": "음악학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB11601",
+    "name": "인성과학문II",
+    "department": "유니버설아트디자인학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB11602",
+    "name": "인성과학문IV",
+    "department": "유니버설아트디자인학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB14201",
+    "name": "진로지도상담II",
+    "department": "유니버설아트디자인학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB14202",
+    "name": "브랜드아이덴티티디자인",
+    "department": "유니버설아트디자인학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB14203",
+    "name": "웹디자인",
+    "department": "유니버설아트디자인학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB14204",
+    "name": "유니버설제품디자인",
+    "department": "유니버설아트디자인학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB14205",
+    "name": "서피스인테리어디자인",
+    "department": "유니버설아트디자인학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB14206",
+    "name": "스테이지앤디스플레이",
+    "department": "유니버설아트디자인학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB14207",
+    "name": "비주얼이펙트디자인",
+    "department": "유니버설아트디자인학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB14208",
+    "name": "진로지도상담IV",
+    "department": "유니버설아트디자인학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB14214",
+    "name": "비주얼디자인스튜디오",
+    "department": "유니버설아트디자인학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB14215",
+    "name": "패브리케이션스튜디오",
+    "department": "유니버설아트디자인학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB14217",
+    "name": "문화상품브랜딩",
+    "department": "유니버설아트디자인학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB14218",
+    "name": "엔터테인먼트디자인스튜디오",
+    "department": "유니버설아트디자인학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB14219",
+    "name": "디지털프로덕트디자인",
+    "department": "유니버설아트디자인학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB21601",
+    "name": "인성과학문II",
+    "department": "스포츠복지학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB21602",
+    "name": "인성과학문IV",
+    "department": "스포츠복지학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB24201",
+    "name": "스포츠영양학",
+    "department": "스포츠복지학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB24202",
+    "name": "진로지도상담II",
+    "department": "스포츠복지학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB24203",
+    "name": "스포츠컨디셔닝",
+    "department": "스포츠복지학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB24205",
+    "name": "골프실기II",
+    "department": "스포츠복지학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB24206",
+    "name": "스키실기",
+    "department": "스포츠복지학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB24207",
+    "name": "진로지도상담IV",
+    "department": "스포츠복지학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB24208",
+    "name": "응급처치지도",
+    "department": "스포츠복지학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB24209",
+    "name": "뉴스포츠지도",
+    "department": "스포츠복지학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB24215",
+    "name": "구기지도Ⅱ",
+    "department": "스포츠복지학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB24216",
+    "name": "요가필라테스실기",
+    "department": "스포츠복지학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "FB24217",
+    "name": "스포츠미디어",
+    "department": "스포츠복지학과 (복지융합대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA11601",
+    "name": "인성과학문II",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA11602",
+    "name": "신입생세미나II",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA11603",
+    "name": "인성과학문IV",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA12401",
+    "name": "전공세미나II",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA14101",
+    "name": "교육심리학",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA14102",
+    "name": "교육철학",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA14201",
+    "name": "교육행정학",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA14202",
+    "name": "학교.학급경영",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA14203",
+    "name": "교육과정연구",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA14204",
+    "name": "교육측정및교육평가",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA14205",
+    "name": "성격심리학",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA14206",
+    "name": "교수학습이론",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA14207",
+    "name": "교육연구방법",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA14208",
+    "name": "비교교육학",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA14209",
+    "name": "심리검사",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA14210",
+    "name": "진로지도상담II",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA14211",
+    "name": "교육학교과교재연구및지도법",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA14212",
+    "name": "평생교육방법론",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA14214",
+    "name": "사회심리학",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA14215",
+    "name": "평생교육실습",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA14216",
+    "name": "진로지도상담IV",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA14217",
+    "name": "교육경제론",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA14223",
+    "name": "교육컨설팅",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA14301",
+    "name": "졸업종합평가",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA21601",
+    "name": "인성과학문II",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA21602",
+    "name": "신입생세미나II",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA21603",
+    "name": "인성과학문IV",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA22401",
+    "name": "전공세미나II",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA24101",
+    "name": "유아놀이지도",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA24102",
+    "name": "유아교사론",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA24201",
+    "name": "유아과학교육",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA24202",
+    "name": "유아동작교육",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA24203",
+    "name": "유아언어교육",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA24204",
+    "name": "유아교수법",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA24205",
+    "name": "유아안전교육",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA24206",
+    "name": "부모교육",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA24207",
+    "name": "유아관찰및실습",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA24208",
+    "name": "영유아프로그램개발과평가",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA24209",
+    "name": "진로지도상담II",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA24210",
+    "name": "유아교과교재연구및지도법",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA24211",
+    "name": "교육실습",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA24212",
+    "name": "유아인지발달과교육",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA24213",
+    "name": "진로지도상담IV",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA24214",
+    "name": "아동권리와복지",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA24301",
+    "name": "졸업종합평가",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA31601",
+    "name": "인성과학문II",
+    "department": "초등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA31602",
+    "name": "신입생세미나II",
+    "department": "초등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA31603",
+    "name": "인성과학문IV",
+    "department": "초등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA32401",
+    "name": "전공세미나II",
+    "department": "초등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA34101",
+    "name": "학습장애학생교육",
+    "department": "초등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA34102",
+    "name": "초등특수교육교과교육론",
+    "department": "초등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA34201",
+    "name": "통합교육실습",
+    "department": "초등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA34202",
+    "name": "의사소통장애학생교육",
+    "department": "초등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA34203",
+    "name": "정서행동장애학생교육",
+    "department": "초등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA34204",
+    "name": "특수아초등미술",
+    "department": "초등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA34207",
+    "name": "특수교육공학",
+    "department": "초등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA34208",
+    "name": "진로지도상담II",
+    "department": "초등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA34209",
+    "name": "특수아개별화교육",
+    "department": "초등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA34210",
+    "name": "특수아초등체육",
+    "department": "초등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA34211",
+    "name": "특수아초등사회",
+    "department": "초등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA34212",
+    "name": "한국수어",
+    "department": "초등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA34213",
+    "name": "중도·중복장애학생교육",
+    "department": "초등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA34214",
+    "name": "진로지도상담IV",
+    "department": "초등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA34216",
+    "name": "특수아초등영어",
+    "department": "초등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA34301",
+    "name": "졸업종합평가",
+    "department": "초등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA41601",
+    "name": "인성과학문II",
+    "department": "중등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA41602",
+    "name": "신입생세미나II",
+    "department": "중등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA41603",
+    "name": "인성과학문IV",
+    "department": "중등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA42401",
+    "name": "전공세미나II",
+    "department": "중등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA44101",
+    "name": "학습장애학생교육",
+    "department": "중등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA44102",
+    "name": "직업교육교과교육론",
+    "department": "중등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA44201",
+    "name": "의사소통장애학생교육",
+    "department": "중등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA44202",
+    "name": "정서행동장애학생교육",
+    "department": "중등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA44203",
+    "name": "특수아중등국어과지도",
+    "department": "중등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA44204",
+    "name": "자립생활",
+    "department": "중등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA44205",
+    "name": "직업재활상담",
+    "department": "중등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA44206",
+    "name": "특수교육공학",
+    "department": "중등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA44207",
+    "name": "진로지도상담II",
+    "department": "중등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA44208",
+    "name": "특수아개별화교육",
+    "department": "중등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA44209",
+    "name": "중도·중복장애학생교육",
+    "department": "중등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA44210",
+    "name": "특수아중등수학과지도",
+    "department": "중등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA44212",
+    "name": "보호및지원고용",
+    "department": "중등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA44213",
+    "name": "특수교육연구방법",
+    "department": "중등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA44214",
+    "name": "진로지도상담IV",
+    "department": "중등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "GA44301",
+    "name": "졸업종합평가",
+    "department": "중등특수교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ND01601",
+    "name": "컴퓨터프로그래밍",
+    "department": "교양 (대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ND01602",
+    "name": "공학수학",
+    "department": "부동산건설학부 (ICT건설공과대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ND01603",
+    "name": "사회봉사",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ND01604",
+    "name": "채플(이웃사랑)II",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ND01606",
+    "name": "자기이해와미래설계",
+    "department": "교양 (대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ND01607",
+    "name": "경천애인인성교육",
+    "department": "국제지역학과",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ND01608",
+    "name": "창의융합글쓰기",
+    "department": "교양 (대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ND01609",
+    "name": "채플(행복나눔)IV",
+    "department": "건축공학전공 (부동산건설학부)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ND01610",
+    "name": "Academic English L&S(Intro)",
+    "department": "교양 (대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ND01611",
+    "name": "Academic English L&S(Intermediate)",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "ND01612",
+    "name": "Academic English L&S(Advanced)",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NE11702",
+    "name": "서양역사의이해",
+    "department": "균형교양 1영역",
+    "course_type": "균형교양 1영역",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NE11703",
+    "name": "서양의지혜",
+    "department": "균형교양 1영역",
+    "course_type": "균형교양 1영역",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NE11704",
+    "name": "예술과철학",
+    "department": "균형교양 1영역",
+    "course_type": "균형교양 1영역",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NE11705",
+    "name": "인간과윤리",
+    "department": "균형교양 1영역",
+    "course_type": "균형교양 1영역",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NE11707",
+    "name": "서양근대와동아시아",
+    "department": "균형교양 1영역",
+    "course_type": "균형교양 1영역",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NE11708",
+    "name": "신화와철학",
+    "department": "균형교양 1영역",
+    "course_type": "균형교양 1영역",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NE11709",
+    "name": "역사속동서문화교류사",
+    "department": "균형교양 1영역",
+    "course_type": "균형교양 1영역",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NE11710",
+    "name": "심성론과심리철학",
+    "department": "균형교양 1영역",
+    "course_type": "균형교양 1영역",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NE11711",
+    "name": "Creative Mind",
+    "department": "균형교양 1영역",
+    "course_type": "균형교양 1영역",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NE11712",
+    "name": "역사로보는일본",
+    "department": "균형교양 1영역",
+    "course_type": "균형교양 1영역",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NE21701",
+    "name": "문학과인생",
+    "department": "균형교양 2영역",
+    "course_type": "균형교양 2영역",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NE21702",
+    "name": "Moral Compass for the Right Direction",
+    "department": "균형교양 2영역",
+    "course_type": "균형교양 2영역",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NE21703",
+    "name": "실버시대의문학과문화",
+    "department": "균형교양 2영역",
+    "course_type": "균형교양 2영역",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NE21704",
+    "name": "영어읽기와감상",
+    "department": "균형교양 2영역",
+    "course_type": "균형교양 2영역",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NE21705",
+    "name": "미디어문학의이해",
+    "department": "균형교양 2영역",
+    "course_type": "균형교양 2영역",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NE21706",
+    "name": "독일어와유럽문화",
+    "department": "균형교양 2영역",
+    "course_type": "균형교양 2영역",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NE21707",
+    "name": "스페인어문학",
+    "department": "균형교양 2영역",
+    "course_type": "균형교양 2영역",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NE21708",
+    "name": "현대실용중국어",
+    "department": "균형교양 2영역",
+    "course_type": "균형교양 2영역",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NE21709",
+    "name": "일본어문학",
+    "department": "균형교양 2영역",
+    "course_type": "균형교양 2영역",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NE21710",
+    "name": "생활일본어",
+    "department": "균형교양 2영역",
+    "course_type": "균형교양 2영역",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NG11401",
+    "name": "보육실습",
+    "department": "자율선택",
+    "course_type": "자율선택",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NG11402",
+    "name": "평생교육프로그램개발론",
+    "department": "자율선택",
+    "course_type": "자율선택",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NG21401",
+    "name": "안전및조직관리사례연구",
+    "department": "자율선택",
+    "course_type": "자율선택",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NG21402",
+    "name": "조직리더십사례연구",
+    "department": "자율선택",
+    "course_type": "자율선택",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NG31401",
+    "name": "현장실습창업형(단기)",
+    "department": "자율선택",
+    "course_type": "자율선택",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NG31402",
+    "name": "현장실습창업형(장기)I",
+    "department": "자율선택",
+    "course_type": "자율선택",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NG31403",
+    "name": "현장실습창업형(장기)II",
+    "department": "자율선택",
+    "course_type": "자율선택",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NG31404",
+    "name": "현장실습창업형(장기)III",
+    "department": "자율선택",
+    "course_type": "자율선택",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NG31405",
+    "name": "현장실습창업형(장기)IV",
+    "department": "자율선택",
+    "course_type": "자율선택",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NG41403",
+    "name": "K프로젝트I",
+    "department": "자율선택",
+    "course_type": "자율선택",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NG41404",
+    "name": "K프로젝트II",
+    "department": "자율선택",
+    "course_type": "자율선택",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NG41407",
+    "name": "단기 K-프로젝트I",
+    "department": "자율선택",
+    "course_type": "자율선택",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH11901",
+    "name": "무기체계",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH11902",
+    "name": "북한의이해",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH11903",
+    "name": "전쟁사",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH21901",
+    "name": "취업실전전략",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH21902",
+    "name": "플랫폼비즈니스와창업",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH21903",
+    "name": "취업설계와사회진출II",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH21904",
+    "name": "창업아이디어발굴과아이템선정",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH21905",
+    "name": "창업사업계획서작성및실천전략",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH21906",
+    "name": "E-비즈니스와창업전략",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH21907",
+    "name": "실전창업시뮬레이션",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH21908",
+    "name": "AI와직무수행이해",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH21909",
+    "name": "브로드캐스팅스피치",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH31901",
+    "name": "용인학",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH31903",
+    "name": "노동인권의이해II",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41901",
+    "name": "볼링",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41902",
+    "name": "축구",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41903",
+    "name": "필라테스",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41904",
+    "name": "복지융합인재와휴먼서비스",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41905",
+    "name": "복지와테크놀로지",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41906",
+    "name": "성문화와심리",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41907",
+    "name": "현대도시와사회적경제",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41908",
+    "name": "알기쉬운자연과학",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41909",
+    "name": "동서사상의통섭적이해",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41910",
+    "name": "진화와이상행동",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41911",
+    "name": "Analysis of Korean society",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41912",
+    "name": "군사과학의이해",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41913",
+    "name": "생활과법",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41914",
+    "name": "사회봉사의실천II",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41915",
+    "name": "스마트자산관리",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41916",
+    "name": "동계스포츠(스키)",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41917",
+    "name": "지속가능사회의이해와실천",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41918",
+    "name": "취향과소비의사회학",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41920",
+    "name": "공학수학특강",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41921",
+    "name": "일본어문화읽기",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41922",
+    "name": "미래공학도를위한선형대수",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41923",
+    "name": "인공지능과사회",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41924",
+    "name": "AI활용과다중문해력",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41925",
+    "name": "바이브코딩",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH41926",
+    "name": "인권사례연구",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH61901",
+    "name": "한국전통문화와콘텐츠",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH61902",
+    "name": "한국문학의이해",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH61903",
+    "name": "K-Biz와법률",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH61904",
+    "name": "초급한국어듣기",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH61905",
+    "name": "초급한국어말하기",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH61906",
+    "name": "초급한국어쓰기",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH61907",
+    "name": "초급한국어읽기",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH61908",
+    "name": "초급한국어문법",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH61911",
+    "name": "중급한국어쓰기",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH61912",
+    "name": "중급한국어읽기",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH61914",
+    "name": "고급한국어듣기",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH61915",
+    "name": "고급한국어말하기",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH61916",
+    "name": "고급한국어쓰기",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH61917",
+    "name": "고급한국어읽기",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "NH61918",
+    "name": "고급한국어문법",
+    "department": "일반교양",
+    "course_type": "일반교양",
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "PA03101",
+    "name": "교육학개론",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "PA03102",
+    "name": "교육사회",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "PA03103",
+    "name": "교육행정및교육경영",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "PA03104",
+    "name": "교육방법및교육공학",
+    "department": "유아교육과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "PB03201",
+    "name": "학교폭력예방및학생의이해",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "PB03202",
+    "name": "디지털교육",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "PB03203",
+    "name": "교직실무",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "PC03301",
+    "name": "교육봉사활동",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  },
+  {
+    "subject_code": "PP03002",
+    "name": "교육과미래융합",
+    "department": "교육학과 (사범대학)",
+    "course_type": null,
+    "semester": "2026-2"
+  }
+]
