@@ -1,11 +1,9 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from langchain_core.documents import Document
+
 import os
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_chroma import Chroma
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.prompts import PromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
-from langchain_core.documents import Document
 from datetime import datetime
 from dotenv import load_dotenv
 from app.services.academic_calendar import (
@@ -28,6 +26,13 @@ class CampusAIBot:
     def initialize(self):
         if self.is_initialized:
             return
+        # 서버 램 절약을 위해 초기화 시점에 임포트        
+        from langchain_huggingface import HuggingFaceEmbeddings
+        from langchain_chroma import Chroma
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        from langchain_core.prompts import PromptTemplate
+        from langchain_core.output_parsers import StrOutputParser
+        from langchain_core.runnables import RunnablePassthrough
 
         print("🤖 [AI Bot] 로컬 임베딩 모델 로드 중...")
         try:
