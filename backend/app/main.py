@@ -70,11 +70,11 @@ def startup_event():
     from datetime import timedelta
     
     # 1. 학식 메뉴: 즉시 시작
-    scheduler.add_job(run_menu_crawler, 'date', run_date=datetime.now())
+    # scheduler.add_job(run_menu_crawler, 'date', run_date=datetime.now())
     # 2. 셔틀 시간표: 1분 후 시작
-    scheduler.add_job(run_shuttle_crawler, 'date', run_date=datetime.now() + timedelta(minutes=1))
+    # scheduler.add_job(run_shuttle_crawler, 'date', run_date=datetime.now() + timedelta(minutes=1))
     # 3. 공지사항: 2분 후 시작
-    scheduler.add_job(run_notice_crawler, 'date', run_date=datetime.now() + timedelta(minutes=2))
+    # scheduler.add_job(run_notice_crawler, 'date', run_date=datetime.now() + timedelta(minutes=2))
 
 def run_notice_crawler():
     from app.crawlers.notice_crawler_v3 import crawl_notices_safely
