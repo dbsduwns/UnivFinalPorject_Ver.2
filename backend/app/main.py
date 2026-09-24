@@ -17,9 +17,10 @@ from app.models import (
     menu_item,
     notice,
     shuttle,
+    friendship,
 )
 from app.routers import auth, notice as notice_router, daily_menu as daily_menu_router, timetable as timetable_router, chat, course as course_router
-from app.routers import shuttle as shuttle_router
+from app.routers import shuttle as shuttle_router, friend as friend_router
 from app.core.ai_bot import campus_ai_bot
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
@@ -59,6 +60,7 @@ app.include_router(timetable_router.router)
 app.include_router(chat.router)
 app.include_router(course_router.router)
 app.include_router(shuttle_router.router)
+app.include_router(friend_router.router)
 
 
 @app.on_event("startup")

@@ -18,3 +18,4 @@ from .message import Message
 from .graduation_standard import GraduationStandard
 from .completed_course import CompletedCourse
 from .wizard_selection import WizardSelection
+from .friendship import Friendship

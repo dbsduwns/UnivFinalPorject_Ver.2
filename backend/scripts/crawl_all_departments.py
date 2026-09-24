@@ -1,97 +1,89 @@
-import json
 import sys
 import os
-import time
 
 # 백엔드 경로 추가
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.database import SessionLocal
-from app.crawlers.course_crawler import crawl_department_courses, save_courses
+from app.crawlers.course_crawler import save_courses
+from app.crawlers.sugang_course_crawler import (
+    SugangCourseCrawlError,
+    crawl_sugang_course_list,
+)
 
-def crawl_all_departments(session_cookie):
-    # 1. 학과 코드 로드
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    json_path = os.path.join(current_dir, "..", "data", "department_codes_all.json")
-    
-    if not os.path.exists(json_path):
-        print(f"❌ 에러: {json_path} 파일이 없습니다.")
+DEFAULT_SEMESTER = "2026-2"
+
+# 수강신청 시스템의 전체 조회 조건. 이 시스템은 현재 수강신청 학기만
+# 노출하므로, 학기 값은 실행 시 명시적으로 붙여 DB 스냅샷을 만든다.
+CRAWL_TARGETS = [
+    {"label": "전공 전체", "category": "1", "course_type": "전공"},
+    {
+        "label": "균형교양 1영역",
+        "category": "17",
+        "area": "31",
+        "course_type": "균형교양 1영역",
+    },
+    {
+        "label": "균형교양 2영역",
+        "category": "17",
+        "area": "32",
+        "course_type": "균형교양 2영역",
+    },
+    {
+        "label": "균형교양 3영역",
+        "category": "17",
+        "area": "33",
+        "course_type": "균형교양 3영역",
+    },
+    {
+        "label": "균형교양 4영역",
+        "category": "17",
+        "area": "345",
+        "course_type": "균형교양 4영역",
+    },
+    {
+        "label": "균형교양 5영역",
+        "category": "17",
+        "area": "35",
+        "course_type": "균형교양 5영역",
+    },
+]
+
+
+def crawl_all_departments(session_cookie: str, semester: str = DEFAULT_SEMESTER) -> None:
+    if "KN_SUGANG_SESSION=" not in session_cookie or "JSESSIONID=" not in session_cookie:
+        print("❌ 수강신청 사이트의 전체 Cookie 헤더가 필요합니다 (JSESSIONID, KN_SUGANG_SESSION 포함).")
         return
-
-    with open(json_path, "r", encoding="utf-8") as f:
-        all_departments = json.load(f)
-
-    # 2. 크롤링 설정
-    YEAR = "2026"
-    SEMESTER = "1"
-    STUDENT_INFO = {
-        "student_number": "202104255",
-        "student_grade": "4",
-        "student_department_code": "5446",
-        "fact_code": "5444", 
-        "fact_srch": "5446"
-    }
-
-    # 학년 및 교양 영역 정의
-    MAJOR_GRADES = ["H1", "H2", "H3", "H4"]
-    LIBERAL_AREAS = ["G31", "G32", "G333", "G344", "G355", "G9", "G19"]
 
     db = SessionLocal()
     total_saved = 0
     
     try:
-        for i, dept in enumerate(all_departments):
-            dept_code = dept["code"]
-            dept_name = dept["name"]
-            
-            # 교양, 원격, 학점교류 학과는 교양 영역(G) 순회
-            if dept_code in ["5185", "5183", "5181"]:
-                target_areas = LIBERAL_AREAS
-                is_liberal = True
-            else:
-                target_areas = MAJOR_GRADES
-                is_liberal = False
+        for target in CRAWL_TARGETS:
+            try:
+                items = crawl_sugang_course_list(
+                    session_cookie=session_cookie,
+                    semester=semester,
+                    category=target["category"],
+                    area=target.get("area", ""),
+                    course_type=target["course_type"],
+                )
+                saved = save_courses(db, items)
+                total_saved += saved
+                print(f"✅ {target['label']}: {len(items)}개 과목 발견 (새 분반 {saved}개)")
+            except SugangCourseCrawlError as exc:
+                print(f"❌ {target['label']} 조회 실패: {exc}")
 
-            print(f"[{i+1}/{len(all_departments)}] {dept_name} ({dept_code}) 시작...")
-
-            for area in target_areas:
-                area_label = "교양영역" if is_liberal else "학년"
-                print(f"   🔍 {area_label} {area} 조회 중...", end="\r")
-                
-                # 교양(G계열) 조회 시에는 학과 코드를 비워야 전체 조회가 가능함
-                current_dept = dept if not is_liberal else {"code": "", "name": dept_name}
-
-                try:
-                    results = crawl_department_courses(
-                        session_cookie=session_cookie,
-                        year=YEAR,
-                        semester=SEMESTER,
-                        departments=[current_dept],
-                        **STUDENT_INFO,
-                        grad_area1=area,
-                        delay_seconds=0.6
-                    )
-                    
-                    for res in results:
-                        if res["parsed_count"] > 0:
-                            saved = save_courses(db, res["items"])
-                            total_saved += saved
-                            print(f"   ✅ {area_label} {area}: {res['parsed_count']}개 과목 발견 (저장 {saved}개)")
-                
-                except Exception as e:
-                    print(f"   ❌ {area} 처리 중 오류: {e}")
-
-            # 학과 하나 끝날 때마다 커밋
-            db.commit()
-
-        print(f"\n✨ 모든 작업 완료! 총 {total_saved}개의 강의 정보가 업데이트되었습니다.")
+        print(f"\n✨ {semester} 수강신청 강좌 수집 완료! 새 분반 {total_saved}개")
 
     finally:
         db.close()
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("사용법: python scripts/crawl_all_departments.py \"SESSION_COOKIE\"")
+        print("사용법: python scripts/crawl_all_departments.py \"수강신청_COOKIE_전체값\" [학기]")
+        print("예시: python scripts/crawl_all_departments.py \"JSESSIONID=...; KN_SUGANG_SESSION=...\" 2026-2")
     else:
         cookie = sys.argv[1]
-        crawl_all_departments(cookie)
+        target_semester = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_SEMESTER
+        crawl_all_departments(cookie, target_semester)

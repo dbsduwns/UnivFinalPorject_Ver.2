@@ -11,7 +11,7 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://192.168.0.30:8000",
+        "EXPO_PUBLIC_API_URL": "http://192.168.0.11:8000",
         "EXPO_PUBLIC_KAKAO_MAP_KEY": "bff3c450dfb39befd334435a17e4f0b1",
         "EXPO_PUBLIC_TMAP_API_KEY": "3My61hSM2eaGS4fI2t4AqawevPn8uCLO1AsM7ZFd"
       },
@@ -24,7 +24,7 @@
     },
     "production": {
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://192.168.0.30:8000",
+        "EXPO_PUBLIC_API_URL": "http://192.168.0.11:8000",
         "EXPO_PUBLIC_KAKAO_MAP_KEY": "bff3c450dfb39befd334435a17e4f0b1",
         "EXPO_PUBLIC_TMAP_API_KEY": "3My61hSM2eaGS4fI2t4AqawevPn8uCLO1AsM7ZFd"
       },

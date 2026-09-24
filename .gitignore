@@ -74,6 +74,5 @@ backend/data/*.html
 !backend/data/*.json
 
 # Firebase / Native secrets
-google-services.json
 *.keystore
 *.jks
