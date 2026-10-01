@@ -15,8 +15,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarClock, Check, ChevronDown, ChevronUp, Plus, Search, Trash2, Wand2, ChevronLeft, ChevronRight, X, Users } from "lucide-react-native";
 
 import { getAxiosErrorMessage } from "@/api/errors";
-import { AppScreenLayout } from "@/components/AppScreenLayout";
-import { AppScrollContent } from "@/components/AppScrollContent";
+import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
+import { AppScrollContent } from "@/components/ui/AppScrollContent";
 import { getCourses } from "@/features/course/api/course";
 import type { Course, CourseSchedule } from "@/features/course/api/types";
 import { FriendManagementModal } from "@/features/friend/components/FriendManagementModal";

@@ -1,9 +1,9 @@
 import { Tabs } from "expo-router";
 import React from "react";
-import { Home, Calendar, Bot, Bell, Megaphone, User } from "lucide-react-native";
+import { Home, Calendar, Bot, Megaphone, User } from "lucide-react-native";
 
 import { HapticTab } from "@/components/haptic-tab";
-import { useAppDrawer } from "@/components/AppDrawer";
+import { useAppDrawer } from "@/components/ui/AppDrawer";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
@@ -59,9 +59,9 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="notice"
+        name="community"
         options={{
-          title: "공지",
+          title: "커뮤니티",
           tabBarIcon: ({ color }) => (
             <Megaphone size={28} color={color} />
           ),
@@ -74,6 +74,12 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => (
             <User size={28} color={color} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="notice"
+        options={{
+          href: null,
         }}
       />
       <Tabs.Screen

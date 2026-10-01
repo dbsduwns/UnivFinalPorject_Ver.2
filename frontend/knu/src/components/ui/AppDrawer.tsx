@@ -21,6 +21,7 @@ import {
   Calendar,
   Home,
   MapPin,
+  MessageCircle,
   Megaphone,
   Utensils,
   User,
@@ -44,6 +45,8 @@ const AppDrawerContext = createContext<AppDrawerContextValue | null>(null);
 const drawerItems: DrawerItem[] = [
   { label: "홈", href: "/(app)/(tabs)", icon: Home },
   { label: "시간표", href: "/(app)/(tabs)/schedule", icon: Calendar },
+  { label: "쪽지", href: "/(app)/messages", icon: MessageCircle },
+  { label: "커뮤니티", href: "/(app)/(tabs)/community", icon: Megaphone },
   { label: "AI 챗봇", href: "/(app)/(tabs)/ai_chat", icon: Bot },
   { label: "공지사항", href: "/(app)/(tabs)/notice", icon: Megaphone },
   { label: "마이페이지", href: "/(app)/(tabs)/my", icon: User },

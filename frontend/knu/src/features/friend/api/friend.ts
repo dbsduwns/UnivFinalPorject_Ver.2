@@ -4,6 +4,8 @@ import type {
   FriendSearchItem,
   FriendTimetableResponse,
   FriendUser,
+  FriendInviteLink,
+  FriendInvitePreview,
 } from "./types";
 import type { Timetable } from "@/features/timetable/api/types";
 
@@ -50,6 +52,23 @@ export const cancelFriendRequest = async (
 
 export const getFriends = async (): Promise<FriendUser[]> => {
   const { data } = await apiClient.get<FriendUser[]>("/api/friends/");
+  return data;
+};
+
+export const createFriendInviteLink = async (): Promise<FriendInviteLink> => {
+  const { data } = await apiClient.post<FriendInviteLink>("/api/friends/invite-links");
+  return data;
+};
+
+export const getFriendInvitePreview = async (token: string): Promise<FriendInvitePreview> => {
+  const { data } = await apiClient.get<FriendInvitePreview>(`/api/friends/invite-links/${token}`);
+  return data;
+};
+
+export const acceptFriendInviteLink = async (token: string): Promise<{ message: string }> => {
+  const { data } = await apiClient.post<{ message: string }>(
+    `/api/friends/invite-links/${token}/accept`
+  );
   return data;
 };
 

@@ -35,3 +35,13 @@ export type FriendTimetableResponse = {
   timetable: TimetableDetail | null;
   available_timetables: Timetable[];
 };
+
+export type FriendInviteLink = {
+  token: string;
+  expires_at: string;
+};
+
+export type FriendInvitePreview = {
+  inviter: FriendUser;
+  friendship_status: FriendshipStatus;
+};

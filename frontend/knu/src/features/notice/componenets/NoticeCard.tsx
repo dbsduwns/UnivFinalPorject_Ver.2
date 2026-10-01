@@ -1,7 +1,7 @@
 import { router } from "expo-router";
 import { Pressable, Text, View } from "react-native";
 import { Megaphone, ChevronRight } from "lucide-react-native";
-import { Notice } from "@/features/auth/api/types";
+import { Notice } from "@/features/notice/types";
 
 type NoticeCardProps = {
     notices: Notice[];
@@ -16,7 +16,7 @@ const categoryBadgeStyles: Record<
   "학사": { backgroundColor: "#DBEAFE", color: "#1E40AF" },
   "장학": { backgroundColor: "#D1FAE5", color: "#065F46" },
   "학습/상담": { backgroundColor: "#F3E8FF", color: "#6B21A8" },
-  "취업/창업": { backgroundColor: "#FEF3C7", color: "#92400E" },
+  "취창업": { backgroundColor: "#FEF3C7", color: "#92400E" },
 };
 
 const defaultBadgeStyle = {
@@ -42,7 +42,7 @@ export const NoticeCard = ({ notices, isLoading }: NoticeCardProps) => {
                 className="NoiticeCardTitle flex-row justify-between mx-6 mt-6">
                 <Megaphone 
                     className="IconMegaphone mr-2 mt-1 "
-                    color={'#1aaedb'}
+                    color={'#13708D'}
                     size={ 28 }/>
                 <Text
                     className="Title"
@@ -55,12 +55,14 @@ export const NoticeCard = ({ notices, isLoading }: NoticeCardProps) => {
                     onPress={() => router.push(NoticeHref)}>
                     <Text
                         style={{
-                            color: '#1aaedb',
-                            fontSize: 12
+                            color: '#13708D',
+                            fontSize: 12,
+                            fontWeight: '600',
+                            paddingTop: 6,
                         }}>
                         전체보기
                     </Text>
-                    <ChevronRight color={'#1aaedb'}/>
+                    <ChevronRight color={'#13708D'}/>
                 </Pressable>
             </View>
             {isLoading ? (

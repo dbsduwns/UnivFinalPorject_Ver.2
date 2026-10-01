@@ -39,6 +39,17 @@ class FriendSearchItem(BaseModel):
     friendship_status: str  # "NONE", "PENDING_SENT", "PENDING_RECEIVED", "FRIEND"
     request_id: Optional[int] = None
 
+
+class FriendInviteLinkResponse(BaseModel):
+    token: str
+    expires_at: datetime
+
+
+class FriendInvitePreview(BaseModel):
+    inviter: FriendUserResponse
+    friendship_status: str
+
+
 class FriendTimetableResponse(BaseModel):
     friend: FriendUserResponse
     timetable: Optional[TimetableDetailResponse] = None

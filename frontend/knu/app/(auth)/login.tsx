@@ -1,5 +1,5 @@
 import * as WebBrowser from 'expo-web-browser';
-import { Link, router } from "expo-router";
+import { Link, router, useLocalSearchParams } from "expo-router";
 
 import { hrefAppHome, hrefSignup } from "@/constants/routes";
 import React, { useState, useCallback, useEffect } from "react";
@@ -25,6 +25,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 
 export default function LoginScreen() {
+  const { redirect } = useLocalSearchParams<{ redirect?: string }>();
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
   const ready = useAuthStore((s) => s.ready);
@@ -40,6 +41,11 @@ export default function LoginScreen() {
 
   const [isEmail, setIsEmail] = useState<boolean>(false)
   const [isPassword, setIsPassword] = useState<boolean>(false)
+
+  const loginDestination =
+    typeof redirect === "string" && redirect.startsWith("/") && !redirect.startsWith("//")
+      ? redirect
+      : hrefAppHome;
 
 
   useEffect(() => {
@@ -73,9 +79,9 @@ export default function LoginScreen() {
 
   useEffect(() => {
     if (ready && user) {
-      router.replace(hrefAppHome);
+      router.replace(loginDestination as never);
     }
-  }, [ready, user]);
+  }, [ready, user, loginDestination]);
 
   if (!ready || user) {
     return null;
@@ -86,7 +92,7 @@ export default function LoginScreen() {
     setSubmitting(true);
     try {
       await login({ email: email.trim(), password });
-      router.replace(hrefAppHome);
+      router.replace(loginDestination as never);
     } catch (e) {
       logDevAxiosError("login", e);
         setError(getAxiosErrorMessage(e, "로그인에 실패했습니다."));

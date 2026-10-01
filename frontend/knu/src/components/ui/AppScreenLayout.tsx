@@ -1,7 +1,7 @@
 import type { PropsWithChildren } from "react";
 import { View } from "react-native";
 
-import { AppDrawerMenu } from "@/components/AppDrawer";
+import { AppDrawerMenu } from "@/components/ui/AppDrawer";
 import { HomeHeader } from "./HomeHeader";
 
 export const AppScreenLayout = ({ children }: PropsWithChildren) => {

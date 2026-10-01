@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { Send, Bot, User, Inbox, Plus, MessageSquare, X, Trash2, Edit3 } from "lucide-react-native";
 
-import { AppScreenLayout } from "@/components/AppScreenLayout";
+import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
 import { chatApi } from "@/features/chat/api/chat-api";
 import { ChatMessage, ChatRoom } from "@/features/chat/types";
 

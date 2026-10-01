@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getShuttles } from "@/features/shuttle/api/shuttle";
 import { getCurrentSemester } from "@/features/shuttle/utils/semester";
-import { AppScreenLayout } from "@/components/AppScreenLayout";
+import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
 import { Download, AlertCircle } from "lucide-react-native";
 import { API_BASE_URL } from "@/constants/config";
 

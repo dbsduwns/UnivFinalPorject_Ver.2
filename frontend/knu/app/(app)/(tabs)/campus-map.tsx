@@ -4,7 +4,7 @@ import { WebView } from "react-native-webview";
 import * as Location from "expo-location";
 import { Navigation, Info, X, ChevronRight, ChevronLeft, CornerUpRight, CornerUpLeft, ArrowUp, Footprints } from "lucide-react-native";
 
-import { AppScreenLayout } from "@/components/AppScreenLayout";
+import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
 import { fetchPedestrianRoute } from "@/utils/mapUtils";
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');

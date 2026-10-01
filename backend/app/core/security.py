@@ -9,6 +9,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "fallback-secret-key")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 REFRESH_TOKEN_EXPIRE_DAYS = 14
+FRIEND_INVITE_EXPIRE_DAYS = 7
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -40,4 +41,30 @@ def decode_token(token: str) -> dict | None:
     try:
         return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:
+        return None
+
+
+def create_friend_invite_token(inviter_id: int) -> tuple[str, datetime]:
+    """친구 초대 링크에 사용할 7일 만료 서명 토큰을 생성합니다."""
+    expires_at = datetime.now(timezone.utc) + timedelta(days=FRIEND_INVITE_EXPIRE_DAYS)
+    token = jwt.encode(
+        {
+            "sub": str(inviter_id),
+            "purpose": "friend_invite",
+            "exp": expires_at,
+        },
+        SECRET_KEY,
+        algorithm=ALGORITHM,
+    )
+    return token, expires_at
+
+
+def decode_friend_invite_token(token: str) -> int | None:
+    """유효한 친구 초대 토큰이면 초대한 사용자 ID를 반환합니다."""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("purpose") != "friend_invite":
+            return None
+        return int(payload["sub"])
+    except (JWTError, KeyError, TypeError, ValueError):
         return None

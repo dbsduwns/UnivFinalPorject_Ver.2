@@ -38,7 +38,12 @@ function NavigationTree() {
         <Stack.Screen name="(app)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: "modal", title: "Modal" }} />
       </Stack>
-      <StatusBar style="auto" />
+      <StatusBar
+        style="dark"
+        hidden={false}
+        backgroundColor="#FFFFFF"
+        translucent={false}
+      />
     </ThemeProvider>
   );
 }

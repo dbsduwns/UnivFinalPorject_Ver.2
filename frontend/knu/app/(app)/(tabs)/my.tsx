@@ -15,8 +15,8 @@ import {
 } from "lucide-react-native";
 
 import { useAuthStore } from "@/features/auth/store/auth-store";
-import { AppScreenLayout } from "@/components/AppScreenLayout";
-import ChangeUserInfo from "@/components/changeUserInfo";
+import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
+import ChangeUserInfo from "@/components/ChangeUserInfoModal";
 import { getNotificationSettingsRequest, updateNotificationSettingsRequest } from "@/features/auth/api/auth";
 import { NotificationSettings } from "@/features/auth/api/types";
 

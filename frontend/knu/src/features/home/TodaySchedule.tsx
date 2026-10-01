@@ -120,7 +120,7 @@ export const TodaySchedule = () => {
             <View className="ScheduleTitle flex-row justify-between mx-6 mt-6">
                 <View className="flex-row items-center">
                     <View className="IconCalendar mr-2">
-                        <Calendar color={'#1aaedb'} size={ 24 } />
+                        <Calendar color={'#13708D'} size={ 24 } />
                     </View>
                     <View className="Title">
                         <Text style={{ fontSize: 15, fontWeight: 'bold' }}>
@@ -133,10 +133,10 @@ export const TodaySchedule = () => {
                     className="flex-row items-center"
                     onPress={() => router.push("/(app)/(tabs)/schedule")}
                 >
-                    <Text style={{ color: '#1aaedb', fontSize: 12, marginRight: 2 }}>
+                    <Text style={{ color: '#13708D', fontSize: 12, fontWeight: "600", marginRight: 2 }}>
                         전체보기
                     </Text>
-                    <ChevronRight color={'#1aaedb'} size={16} />
+                    <ChevronRight color={'#13708D'} size={16} />
                 </Pressable>
             </View>
 

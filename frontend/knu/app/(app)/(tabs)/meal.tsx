@@ -4,50 +4,150 @@ import { useQuery } from "@tanstack/react-query";
 import { format, addDays, startOfWeek, isSameDay } from "date-fns";
 import { ko } from "date-fns/locale";
 
-import { AppScreenLayout } from "@/components/AppScreenLayout";
+import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
 import { getDailyMenu } from "@/features/menu/menu";
 import { API_BASE_URL } from "@/constants/config";
 import { Download, ChevronLeft, ChevronRight, Utensils } from "lucide-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import Animated, { useSharedValue, useAnimatedStyle } from "react-native-reanimated";
+import Animated, { useSharedValue, useAnimatedStyle, clamp, withTiming } from "react-native-reanimated";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
 function ZoomableImage({ uri }: { uri: string }) {
-  const scale = useSharedValue(1);
+
+  // 변수들
+  const scale = useSharedValue(1);          // 배율
   const savedScale = useSharedValue(1);
 
+  const translateX = useSharedValue(0);     // X, Y 위치
+  const translateY = useSharedValue(0);     
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
+
+  const containerWidth = useSharedValue(0);  // 콘텐츠 컨테이너 넓이, 높이
+  const containerHeight = useSharedValue(0);
+
+  const pintchStartScale = useSharedValue(1);
+  const pintchStartTranslateX = useSharedValue(0);
+  const pintchStartTranslateY = useSharedValue(0);
+  const pintchStartFocalX = useSharedValue(0);
+  const pintchStartFocalY = useSharedValue(0);
+
   const pinchGesture = Gesture.Pinch()
+    .onStart((e) => {
+      pintchStartScale.value = scale.value;
+
+      pintchStartTranslateX.value = translateX.value;
+      pintchStartTranslateY.value = translateY.value;
+
+      pintchStartFocalX.value = e.focalX - containerWidth.value / 2;
+      pintchStartFocalY.value = e.focalY - containerHeight.value / 2;
+    })
     .onUpdate((e) => {
-      scale.value = Math.min(Math.max(savedScale.value * e.scale, 1), 5);
+      
+      const nextScale = Math.min(Math.max(savedScale.value * e.scale, 1), 5);
+
+      const scaleRatio = nextScale / pintchStartScale.value;
+
+      const currentFocalX = e.focalX - containerWidth.value / 2;
+
+      const currentFocalY = e.focalY - containerHeight.value / 2;
+
+      scale.value = nextScale;
+
+      translateX.value = currentFocalX - scaleRatio * (pintchStartFocalX.value - pintchStartTranslateX.value);
+      translateY.value = currentFocalY - scaleRatio * (pintchStartFocalY.value - pintchStartTranslateY.value);
+
+      if (nextScale <= 1) {
+        translateX.value = 0;
+        translateY.value = 0;
+        savedTranslateX.value = 0;
+        savedTranslateY.value = 0;
+      }
     })
     .onEnd(() => {
       savedScale.value = scale.value;
+      
+      if (scale.value <= 1) {
+        translateX.value = 0;
+        translateY.value = 0;
+        savedTranslateX.value = 0;
+        savedTranslateY.value = 0;
+      } 
+      else {
+        savedTranslateX.value = translateX.value;
+        savedTranslateY.value = translateY.value;
+      }
     });
 
   const doubleTap = Gesture.Tap()
     .numberOfTaps(2)
     .onEnd(() => {
       if (scale.value > 1) {
+
+        scale.value = withTiming(1);        // 부드러운 복귀를 위한 애니매이션
+        translateX.value = withTiming(0);
+        translateY.value = withTiming(0);
+
         scale.value = 1;
         savedScale.value = 1;
+
+        translateX.value = 0;       // 위치 초기화
+        translateY.value = 0;
+        savedTranslateX.value = 0;
+        savedTranslateY.value = 0;
+
       } else {
         scale.value = 2.5;
         savedScale.value = 2.5;
       }
     });
 
-  const composed = Gesture.Simultaneous(pinchGesture, doubleTap);
+  const panGesture = Gesture.Pan()
+    .onUpdate((e) => {
+      if (scale.value <= 1) return;
+
+      const maxX = (containerWidth.value * (scale.value -1)) / 2;
+      const maxY = (containerHeight.value * (scale.value - 1)) / 2;
+
+      translateX.value = clamp(
+        savedTranslateX.value + e.translationX, -maxX, maxX
+      );
+
+      translateY.value = clamp(
+        savedTranslateY.value + e.translationY, -maxY, maxY
+      );
+    })
+    .onEnd(() => {
+      if (scale.value <= 1) return;
+
+      savedTranslateX.value = translateX.value;
+      savedTranslateY.value = translateY.value;
+    });
+      
+
+  const composed = Gesture.Simultaneous(pinchGesture, doubleTap, panGesture);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value }
+    ],
   }));
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView 
+      style={{ flex: 1 }}
+      onLayout={(e) => {
+        const { width, height } = e.nativeEvent.layout;
+
+        containerWidth.value = width;
+        containerHeight.value = height;
+      }}>
       <GestureDetector gesture={composed}>
         <Animated.View style={[{ flex: 1 }, animatedStyle]}>
           <Image

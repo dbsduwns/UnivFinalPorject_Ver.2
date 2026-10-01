@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, FlatList, ScrollView } from "react-native
 import { router } from "expo-router";
 
 import { useNotices } from "@/features/notice/hooks/use_notices";
-import { Notice } from "@/features/auth/api/types";
+import { Notice } from "@/features/notice/types";
 
 
 const CATEGORIES = ["전체", "학사", "장학", "학습/상담", "취창업"];

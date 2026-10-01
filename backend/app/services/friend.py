@@ -247,6 +247,76 @@ def get_friends(db: Session, current_user: User) -> List[User]:
     friends.sort(key=lambda u: u.name)
     return friends
 
+
+def get_friend_invite_preview(
+    db: Session,
+    current_user: User,
+    inviter_id: int,
+) -> Dict[str, Any]:
+    inviter = db.query(User).filter(User.id == inviter_id).first()
+    if not inviter:
+        raise ValueError("초대한 사용자를 찾을 수 없습니다.")
+    if inviter.id == current_user.id:
+        raise ValueError("자기 자신의 초대 링크는 사용할 수 없습니다.")
+
+    friendship = (
+        db.query(Friendship)
+        .filter(
+            or_(
+                and_(Friendship.requester_id == current_user.id, Friendship.addressee_id == inviter.id),
+                and_(Friendship.requester_id == inviter.id, Friendship.addressee_id == current_user.id),
+            )
+        )
+        .first()
+    )
+
+    status = "NONE"
+    if friendship:
+        if friendship.status == "ACCEPTED":
+            status = "FRIEND"
+        elif friendship.status == "PENDING":
+            status = "PENDING_SENT" if friendship.requester_id == current_user.id else "PENDING_RECEIVED"
+
+    return {"inviter": inviter, "friendship_status": status}
+
+
+def accept_friend_invite(
+    db: Session,
+    current_user: User,
+    inviter_id: int,
+) -> Friendship:
+    inviter = db.query(User).filter(User.id == inviter_id).first()
+    if not inviter:
+        raise ValueError("초대한 사용자를 찾을 수 없습니다.")
+    if inviter.id == current_user.id:
+        raise ValueError("자기 자신의 초대 링크는 사용할 수 없습니다.")
+
+    friendship = (
+        db.query(Friendship)
+        .filter(
+            or_(
+                and_(Friendship.requester_id == current_user.id, Friendship.addressee_id == inviter.id),
+                and_(Friendship.requester_id == inviter.id, Friendship.addressee_id == current_user.id),
+            )
+        )
+        .first()
+    )
+
+    if friendship:
+        friendship.status = "ACCEPTED"
+    else:
+        friendship = Friendship(
+            requester_id=inviter.id,
+            addressee_id=current_user.id,
+            status="ACCEPTED",
+        )
+        db.add(friendship)
+
+    db.commit()
+    db.refresh(friendship)
+    return friendship
+
+
 def delete_friend(db: Session, current_user: User, friend_id: int) -> None:
     friendship = (
         db.query(Friendship)

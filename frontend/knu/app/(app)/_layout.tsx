@@ -1,7 +1,7 @@
 import { Stack } from "expo-router";
 import { useEffect, useRef } from "react";
 
-import { AppDrawerProvider } from "@/components/AppDrawer";
+import { AppDrawerProvider } from "@/components/ui/AppDrawer";
 import { registerForPushNotificationsAsync, sendPushTokenToServer } from "@/utils/notification";
 import { useAuthStore } from "@/features/auth/store/auth-store";
 
@@ -23,6 +23,9 @@ export default function AppGroupLayout() {
     <AppDrawerProvider>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="messages" />
+        <Stack.Screen name="friends/invite" />
+        <Stack.Screen name="community/[board]" />
         <Stack.Screen name="shuttle" />
         <Stack.Screen name="meal" />
         <Stack.Screen name="campus-map" />
