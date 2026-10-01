@@ -13,9 +13,12 @@ from .shuttle import Shuttle
 from .timetable import Timetable
 from .timetable_course import TimetableCourse
 from .custom_schedule import CustomSchedule
-from .chat_room import ChatRoom
-from .message import Message
+from .ai_chat_room import ChatRoom
+from .ai_message import Message
 from .graduation_standard import GraduationStandard
 from .completed_course import CompletedCourse
 from .wizard_selection import WizardSelection
 from .friendship import Friendship
+from .room_messengers import RoomMessenger
+from .room_participants import RoomParticipant
+from .messenger import Messenger

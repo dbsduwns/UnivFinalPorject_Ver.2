@@ -4,11 +4,9 @@ from sqlalchemy import text
 from app.database import Base, SessionLocal, engine
 from app.models import (
     building,
-    chat_room,
     course,
     course_schedule,
     custom_schedule,
-    message,
     subject,
     timetable,
     timetable_course,
@@ -18,9 +16,12 @@ from app.models import (
     notice,
     shuttle,
     friendship,
+    messenger,
+    room_messengers,
+    room_participants,
 )
-from app.routers import auth, notice as notice_router, daily_menu as daily_menu_router, timetable as timetable_router, chat, course as course_router
-from app.routers import shuttle as shuttle_router, friend as friend_router
+from app.routers import auth, notice as notice_router, daily_menu as daily_menu_router, timetable as timetable_router, course as course_router
+from app.routers import shuttle as shuttle_router, friend as friend_router, chat as chat_router
 from app.core.ai_bot import campus_ai_bot
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
@@ -29,6 +30,9 @@ import os
 # 새롭게 개선된 크롤러들 임포트
 from app.crawlers.rules_crawler import crawl_rules
 from fastapi.staticfiles import StaticFiles
+
+from app.models import ai_chat_room, ai_message
+from app.routers import ai_chat
 
 STATIC_DIR = "static"
 SHUTTLE_DIR = os.path.join(STATIC_DIR, "shuttle")
@@ -54,10 +58,11 @@ app.include_router(auth.router)
 app.include_router(notice_router.router)
 app.include_router(daily_menu_router.router)
 app.include_router(timetable_router.router)
-app.include_router(chat.router)
+app.include_router(ai_chat.router)
 app.include_router(course_router.router)
 app.include_router(shuttle_router.router)
 app.include_router(friend_router.router)
+app.include_router(chat_router.router)
 
 
 @app.on_event("startup")

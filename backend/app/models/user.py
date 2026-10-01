@@ -24,3 +24,5 @@ class User(Base):
     notice_reads = relationship("NoticeRead", back_populates="user")
     notification_setting = relationship("NotificationSetting", back_populates="user", uselist=False)
     wizard_selections = relationship("WizardSelection", back_populates="user")
+    messengers = relationship("Messenger", back_populates="sender")
+    room_participants = relationship("RoomParticipant", back_populates="user", cascade="all, delete-orphan")

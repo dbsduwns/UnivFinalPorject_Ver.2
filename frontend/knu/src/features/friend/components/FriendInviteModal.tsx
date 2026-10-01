@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
-import * as Linking from "expo-linking";
 import {
   ActivityIndicator,
   Alert,
@@ -26,6 +25,7 @@ import {
 } from "lucide-react-native";
 
 import { getAxiosErrorMessage } from "@/api/errors";
+import { API_BASE_URL } from "@/constants/config";
 import {
   acceptFriendRequest,
   cancelFriendRequest,
@@ -98,7 +98,9 @@ export const FriendInviteModal = ({ visible, onClose }: Props) => {
   const linkMutation = useMutation({
     mutationFn: createFriendInviteLink,
     onSuccess: ({ token }) => {
-      const url = Linking.createURL("/friends/invite", { queryParams: { token } });
+      // 운영 서버 랜딩 페이지가 앱 딥링크로 전달하고,
+      // 앱이 없으면 설치 안내를 보여줍니다.
+      const url = `${API_BASE_URL}/api/friends/invite/${encodeURIComponent(token)}`;
       setInviteUrl(url);
     },
     onError: (error) => {

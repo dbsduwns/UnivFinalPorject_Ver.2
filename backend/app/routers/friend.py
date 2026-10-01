@@ -1,5 +1,11 @@
+import json
+import os
+from html import escape
 from typing import List, Optional
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user
@@ -110,6 +116,92 @@ def create_friend_invite_link(
     """현재 사용자의 7일 만료 친구 초대 링크 토큰을 발급합니다."""
     token, expires_at = create_friend_invite_token(current_user.id)
     return {"token": token, "expires_at": expires_at}
+
+
+@router.get("/invite/{token}", response_class=HTMLResponse, include_in_schema=False)
+def open_friend_invite_link(token: str):
+    """웹에서 열린 친구 초대 링크를 앱 딥링크로 전달하는 랜딩 페이지입니다."""
+    inviter_id = decode_friend_invite_token(token)
+    if inviter_id is None:
+        return HTMLResponse(
+            content="""
+            <!doctype html><html lang="ko"><meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <title>초대 링크 만료</title>
+            <body style="font-family:system-ui;padding:40px;text-align:center">
+              <h1>초대 링크를 열 수 없어요</h1>
+              <p>유효하지 않거나 만료된 친구 초대 링크입니다.</p>
+            </body></html>
+            """,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    scheme = os.getenv("APP_SCHEME", "knu")
+    app_url = f"{scheme}://friends/invite?token={quote(token, safe='')}"
+    download_url = os.getenv("APP_DOWNLOAD_URL", "").strip()
+    app_url_js = json.dumps(app_url)
+    download_url_js = json.dumps(download_url)
+    download_link = (
+        f'<a href="{escape(download_url, quote=True)}">앱 다운로드 페이지로 이동</a>'
+        if download_url
+        else "앱이 설치되어 있지 않다면 앱 설치 후 링크를 다시 열어주세요."
+    )
+
+    return HTMLResponse(
+        content=f"""
+        <!doctype html>
+        <html lang="ko">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <title>KNU Campus 친구 초대</title>
+            <style>
+              body {{ margin:0; min-height:100vh; display:grid; place-items:center;
+                background:#f4f7f8; color:#172033; font-family:system-ui,-apple-system,sans-serif; }}
+              main {{ width:min(420px,calc(100% - 40px)); padding:32px 24px; box-sizing:border-box;
+                border-radius:24px; background:white; text-align:center; box-shadow:0 10px 30px #17324d16; }}
+              .icon {{ width:64px; height:64px; margin:0 auto 20px; display:grid; place-items:center;
+                border-radius:20px; background:#e7f7fb; color:#13708d; font-size:30px; }}
+              h1 {{ margin:0; font-size:22px; }} p {{ color:#7b8798; line-height:1.6; }}
+              a {{ color:#13708d; font-weight:700; }}
+              button {{ width:100%; margin-top:18px; border:0; border-radius:14px; padding:14px;
+                background:#13708d; color:white; font-size:15px; font-weight:700; }}
+            </style>
+          </head>
+          <body>
+            <main>
+              <div class="icon">👥</div>
+              <h1>KNU Campus 친구 초대</h1>
+              <p id="message">앱에서 친구 초대 화면을 여는 중이에요.</p>
+              <button type="button" onclick="openApp()">앱에서 초대 수락하기</button>
+              <p id="fallback">{download_link}</p>
+            </main>
+            <script>
+              const appUrl = {app_url_js};
+              const downloadUrl = {download_url_js};
+              const message = document.getElementById("message");
+
+              function openApp() {{
+                const startedAt = Date.now();
+                window.location.href = appUrl;
+                window.setTimeout(() => {{
+                  if (document.visibilityState === "visible" && Date.now() - startedAt >= 1200) {{
+                    message.textContent = downloadUrl
+                      ? "앱이 열리지 않았어요. 앱을 설치한 뒤 다시 시도해주세요."
+                      : "앱이 설치되어 있지 않은 것 같아요.";
+                    if (downloadUrl) window.location.href = downloadUrl;
+                  }}
+                }}, 1400);
+              }}
+
+              if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {{
+                window.setTimeout(openApp, 250);
+              }}
+            </script>
+          </body>
+        </html>
+        """,
+    )
 
 
 @router.get("/invite-links/{token}", response_model=FriendInvitePreview)

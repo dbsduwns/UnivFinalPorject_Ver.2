@@ -1,5 +1,5 @@
 from app.database import SessionLocal
-from app.models.chat_room import ChatRoom
+from backend.app.models.ai_chat_room import ChatRoom
 from app.models.user import User
 
 db = SessionLocal()

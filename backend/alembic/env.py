@@ -9,9 +9,11 @@ from app.database import Base
 from app.models import user, subject, course, course_schedule
 from app.models import building, room, notice, notice_read
 from app.models import timetable, timetable_course, custom_schedule, wizard_selection
-from app.models import chat_room, message, daily_menu, menu_item
+from app.models import daily_menu, menu_item
 from app.models import notification_setting, completed_course, graduation_standard
 from app.models import shuttle
+from app.models import messenger, room_messengers, room_participants
+from app.models import ai_chat_room, ai_message
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

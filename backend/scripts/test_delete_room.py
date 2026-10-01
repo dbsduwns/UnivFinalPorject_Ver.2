@@ -1,7 +1,7 @@
 from app.database import SessionLocal
-from app.models.chat_room import ChatRoom
+from backend.app.models.ai_chat_room import ChatRoom
 from app.models.user import User
-from app.services import chat as chat_service
+from backend.app.services import ai_chat as chat_service
 
 db = SessionLocal()
 try:
