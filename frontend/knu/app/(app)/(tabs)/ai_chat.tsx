@@ -16,8 +16,8 @@ import {
 import { Send, Bot, User, Inbox, Plus, MessageSquare, X, Trash2, Edit3 } from "lucide-react-native";
 
 import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
-import { chatApi } from "@/features/chat/api/chat-api";
-import { ChatMessage, ChatRoom } from "@/features/chat/types";
+import { chatApi } from "@/features/ai_chat/api/ai_chat";
+import type { ChatMessage, ChatRoom } from "@/features/ai_chat/api/types";
 
 const DRAWER_WIDTH = 300;
 

@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMemo, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ActivityIndicator,
   Pressable,
@@ -23,6 +23,10 @@ import {
 } from "lucide-react-native";
 
 import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
+import { getAxiosErrorMessage } from "@/api/errors";
+import { chatApi } from "@/features/chat/api/chat-api";
+import type { ChatMessage } from "@/features/chat/types";
+import { useAuthStore } from "@/features/auth/store/auth-store";
 import { FriendInviteModal } from "@/features/friend/components/FriendInviteModal";
 import { FriendTimetableModal } from "@/features/friend/components/FriendTimetableModal";
 import { getFriendRequests, getFriends } from "@/features/friend/api/friend";
@@ -31,6 +35,8 @@ import type { FriendUser } from "@/features/friend/api/types";
 const BRAND = "#13708D";
 
 const getInitial = (name: string) => name.trim().slice(0, 1) || "친";
+const messageTime = (value: string) =>
+  new Date(value).toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit" });
 
 const FriendAvatar = ({ friend, size = 48 }: { friend: FriendUser; size?: number }) => (
   <View
@@ -44,10 +50,17 @@ const FriendAvatar = ({ friend, size = 48 }: { friend: FriendUser; size?: number
 );
 
 export const MessagesScreen = () => {
+  const userId = useAuthStore((state) => state.user?.id);
+  const queryClient = useQueryClient();
   const { width } = useWindowDimensions();
   const isWide = width >= 760;
   const [query, setQuery] = useState("");
   const [selectedFriend, setSelectedFriend] = useState<FriendUser | null>(null);
+  const [draft, setDraft] = useState("");
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [refreshingMessages, setRefreshingMessages] = useState(false);
+  const conversationScrollRef = useRef<ScrollView>(null);
+  const shouldAutoScrollRef = useRef(true);
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
   const [timetableFriend, setTimetableFriend] = useState<FriendUser | null>(null);
 
@@ -59,6 +72,57 @@ export const MessagesScreen = () => {
     queryKey: ["friendRequests"],
     queryFn: getFriendRequests,
   });
+
+  const roomQuery = useQuery({
+    queryKey: ["directChatRoom", userId, selectedFriend?.id],
+    queryFn: async () => (await chatApi.createRoom({ friend_id: selectedFriend!.id })).data,
+    enabled: !!userId && !!selectedFriend,
+    staleTime: 60_000,
+  });
+  const roomId = roomQuery.data?.id;
+  const messagesQuery = useQuery({
+    queryKey: ["chatMessages", userId, roomId],
+    queryFn: async () => (await chatApi.getMessages(roomId!)).data,
+    enabled: !!userId && roomId !== undefined,
+    refetchInterval: 5000,
+  });
+  const sendMutation = useMutation({
+    mutationFn: ({ targetRoomId, content }: { targetRoomId: number; targetFriendId: number; content: string }) =>
+      chatApi.sendMessage(targetRoomId, content),
+    onSuccess: ({ data }, { targetRoomId, targetFriendId, content }) => {
+      shouldAutoScrollRef.current = true;
+      queryClient.setQueryData<ChatMessage[]>(
+        ["chatMessages", userId, targetRoomId],
+        (previous) => previous?.some((message) => message.id === data.message.id)
+          ? previous
+          : [...(previous ?? []), data.message]
+      );
+      if (selectedFriend?.id === targetFriendId) {
+        setDraft((current) => current.trim() === content ? "" : current);
+        setSendError(null);
+      }
+      void queryClient.invalidateQueries({ queryKey: ["chatMessages", userId, targetRoomId] });
+    },
+    onError: (error, { targetFriendId }) => {
+      if (selectedFriend?.id === targetFriendId) {
+        setSendError(getAxiosErrorMessage(error, "메시지를 보내지 못했어요."));
+      }
+    },
+  });
+
+  const selectFriend = (friend: FriendUser) => {
+    setSelectedFriend(friend);
+    setDraft("");
+    setSendError(null);
+    shouldAutoScrollRef.current = true;
+  };
+
+  const sendMessage = () => {
+    const content = draft.trim();
+    if (!roomId || !selectedFriend || !content || sendMutation.isPending) return;
+    setSendError(null);
+    sendMutation.mutate({ targetRoomId: roomId, targetFriendId: selectedFriend.id, content });
+  };
 
   const friends = friendsQuery.data;
   const pendingCount = requestsQuery.data?.received?.length ?? 0;
@@ -223,7 +287,7 @@ export const MessagesScreen = () => {
                           <View className="flex-row items-center ml-2" style={{ gap: 6 }}>
                             <Pressable
                               accessibilityLabel={`${friend.name}에게 쪽지 보내기`}
-                              onPress={() => setSelectedFriend(friend)}
+                              onPress={() => selectFriend(friend)}
                               className={`h-9 px-2.5 rounded-xl flex-row items-center ${
                                 selected ? "bg-cyan-700" : "bg-cyan-50"
                               }`}
@@ -260,7 +324,10 @@ export const MessagesScreen = () => {
                       {!isWide && (
                         <Pressable
                           accessibilityLabel="친구 목록으로 돌아가기"
-                          onPress={() => setSelectedFriend(null)}
+                          onPress={() => {
+                            setSelectedFriend(null);
+                            setDraft("");
+                          }}
                           className="w-10 h-10 rounded-full items-center justify-center mr-1 active:bg-gray-100"
                         >
                           <ArrowLeft size={22} color="#334155" />
@@ -281,30 +348,123 @@ export const MessagesScreen = () => {
                       </Pressable>
                     </View>
 
-                    <View className="flex-1 items-center justify-center px-8 bg-[#FBFDFD]">
-                      <View className="w-20 h-20 rounded-full bg-cyan-50 items-center justify-center">
-                        <MessageCircle size={36} color={BRAND} />
+                    {roomQuery.isPending || (roomId && messagesQuery.isPending) ? (
+                      <View className="flex-1 items-center justify-center bg-[#FBFDFD]">
+                        <ActivityIndicator color={BRAND} />
+                        <Text className="text-sm text-gray-500 mt-3">대화를 불러오는 중이에요.</Text>
                       </View>
-                      <Text className="text-lg font-extrabold text-gray-800 mt-5">
-                        {selectedFriend.name} 님과의 대화
-                      </Text>
-                      <Text className="text-sm leading-6 text-gray-400 text-center mt-2">
-                        아직 주고받은 쪽지가 없어요.{"\n"}채팅 기능이 연결되면 여기에서 바로 대화할 수 있어요.
-                      </Text>
-                    </View>
+                    ) : roomQuery.isError || (messagesQuery.isError && !messagesQuery.data) ? (
+                      <View className="flex-1 items-center justify-center px-8 bg-[#FBFDFD]">
+                        <Text className="text-sm text-gray-600 text-center">
+                          {getAxiosErrorMessage(roomQuery.error ?? messagesQuery.error, "대화를 불러오지 못했어요.")}
+                        </Text>
+                        <Pressable
+                          onPress={() => {
+                            if (roomQuery.isError) void roomQuery.refetch();
+                            else void messagesQuery.refetch();
+                          }}
+                          className="mt-4 px-4 py-2 rounded-xl bg-cyan-50"
+                        >
+                          <Text className="font-bold" style={{ color: BRAND }}>다시 시도</Text>
+                        </Pressable>
+                      </View>
+                    ) : (
+                      <ScrollView
+                        ref={conversationScrollRef}
+                        className="flex-1 bg-[#FBFDFD]"
+                        contentContainerStyle={{ flexGrow: 1, padding: 16 }}
+                        keyboardShouldPersistTaps="handled"
+                        onScroll={({ nativeEvent }) => {
+                          const { contentOffset, contentSize, layoutMeasurement } = nativeEvent;
+                          shouldAutoScrollRef.current =
+                            contentOffset.y + layoutMeasurement.height >= contentSize.height - 60;
+                        }}
+                        scrollEventThrottle={100}
+                        onContentSizeChange={() => {
+                          if (shouldAutoScrollRef.current) {
+                            conversationScrollRef.current?.scrollToEnd({ animated: false });
+                          }
+                        }}
+                        refreshControl={
+                          <RefreshControl
+                            refreshing={refreshingMessages}
+                            onRefresh={() => {
+                              setRefreshingMessages(true);
+                              void messagesQuery.refetch().finally(() => setRefreshingMessages(false));
+                            }}
+                            tintColor={BRAND}
+                          />
+                        }
+                      >
+                        {(messagesQuery.data ?? []).length === 0 ? (
+                          <View className="flex-1 items-center justify-center px-4">
+                            <View className="w-20 h-20 rounded-full bg-cyan-50 items-center justify-center">
+                              <MessageCircle size={36} color={BRAND} />
+                            </View>
+                            <Text className="text-lg font-extrabold text-gray-800 mt-5">
+                              {selectedFriend.name} 님과의 대화
+                            </Text>
+                            <Text className="text-sm leading-6 text-gray-400 text-center mt-2">
+                              아직 주고받은 쪽지가 없어요.{"\n"}첫 메시지를 보내보세요.
+                            </Text>
+                          </View>
+                        ) : (
+                          messagesQuery.data?.map((message) => {
+                            const mine = message.sender_id === userId;
+                            return (
+                              <View
+                                key={message.id}
+                                className={`mb-3 flex-row items-end ${mine ? "justify-end" : "justify-start"}`}
+                              >
+                                {!mine && <FriendAvatar friend={selectedFriend} size={30} />}
+                                <View className={`max-w-[78%] ${mine ? "items-end" : "items-start ml-2"}`}>
+                                  <View
+                                    className={`px-3.5 py-2.5 rounded-2xl ${mine ? "bg-cyan-700" : "bg-white border border-gray-200"}`}
+                                  >
+                                    <Text className={`text-sm leading-5 ${mine ? "text-white" : "text-gray-900"}`}>
+                                      {message.content}
+                                    </Text>
+                                  </View>
+                                  <Text className="text-[10px] text-gray-400 mt-1 px-1">
+                                    {messageTime(message.created_at)}
+                                  </Text>
+                                </View>
+                              </View>
+                            );
+                          })
+                        )}
+                      </ScrollView>
+                    )}
 
                     <View className="px-4 py-3 border-t border-gray-100 bg-white">
                       <View className="min-h-12 rounded-2xl bg-gray-100 px-4 flex-row items-center">
                         <TextInput
-                          editable={false}
-                          placeholder="채팅 기능을 준비하고 있어요"
+                          value={draft}
+                          onChangeText={setDraft}
+                          editable={!!roomId && !roomQuery.isError}
+                          placeholder="메시지를 입력하세요"
                           placeholderTextColor="#94A3B8"
-                          className="flex-1 text-sm text-gray-500"
+                          className="flex-1 text-sm text-gray-900"
+                          multiline
+                          maxLength={10000}
                         />
-                        <View className="w-9 h-9 rounded-xl bg-gray-300 items-center justify-center">
-                          <Send size={17} color="white" />
-                        </View>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="메시지 보내기"
+                          onPress={sendMessage}
+                          disabled={!roomId || !draft.trim() || sendMutation.isPending}
+                          className={`w-9 h-9 rounded-xl items-center justify-center ${
+                            roomId && draft.trim() && !sendMutation.isPending ? "bg-cyan-700" : "bg-gray-200"
+                          }`}
+                        >
+                          {sendMutation.isPending ? (
+                            <ActivityIndicator size="small" color="white" />
+                          ) : (
+                            <Send size={17} color={roomId && draft.trim() ? "white" : "#94A3B8"} />
+                          )}
+                        </Pressable>
                       </View>
+                      {!!sendError && <Text className="mt-2 text-xs text-red-600">{sendError}</Text>}
                     </View>
                   </>
                 ) : (
