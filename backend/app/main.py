@@ -20,8 +20,21 @@ from app.models import (
     room_messengers,
     room_participants,
 )
-from app.routers import auth, notice as notice_router, daily_menu as daily_menu_router, timetable as timetable_router, course as course_router
-from app.routers import shuttle as shuttle_router, friend as friend_router, chat as chat_router
+from app.routers import (
+    auth,
+    notice as notice_router, 
+    daily_menu as daily_menu_router,
+    timetable as timetable_router, 
+    course as course_router,
+    shuttle as shuttle_router,
+    friend as friend_router,
+    chat as chat_router,
+)
+from app.routers.community import (
+    post as post_router,
+    comment as comment_router,
+    like as like_router,
+)
 from app.core.ai_bot import campus_ai_bot
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
@@ -63,6 +76,9 @@ app.include_router(course_router.router)
 app.include_router(shuttle_router.router)
 app.include_router(friend_router.router)
 app.include_router(chat_router.router)
+app.include_router(post_router.router)
+app.include_router(comment_router.router)
+app.include_router(like_router.router)
 
 
 @app.on_event("startup")

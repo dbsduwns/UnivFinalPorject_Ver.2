@@ -22,3 +22,4 @@ from .friendship import Friendship
 from .room_messengers import RoomMessenger
 from .room_participants import RoomParticipant
 from .messenger import Messenger
+from .community import Post, Comment, PostLike, CommentLike

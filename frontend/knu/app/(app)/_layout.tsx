@@ -26,6 +26,8 @@ export default function AppGroupLayout() {
         <Stack.Screen name="messages" />
         <Stack.Screen name="friends/invite" />
         <Stack.Screen name="community/[board]" />
+        <Stack.Screen name="community/new" />
+        <Stack.Screen name="community/post/[slug]" />
         <Stack.Screen name="shuttle" />
         <Stack.Screen name="meal" />
         <Stack.Screen name="campus-map" />

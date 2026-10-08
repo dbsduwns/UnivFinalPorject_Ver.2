@@ -1,21 +1,29 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { router, useLocalSearchParams } from "expo-router";
+import { ArrowLeft, FileText, PenLine, Search, X } from "lucide-react-native";
 import {
-  ArrowLeft,
-  FileText,
-  PenLine,
-  Search,
-  X,
-} from "lucide-react-native";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import {
-  HOT_POSTS,
-  getCommunityBoard,
-} from "@/features/community/data/community";
+import { getAxiosErrorMessage } from "@/api/errors";
+import type { CommunityPost } from "@/features/community/api/types";
+import { getCommunityBoard } from "@/features/community/data/community";
+import { useCommunityPosts } from "@/features/community/hooks/use-community";
 
 const BRAND = "#13708D";
+
+const formatDate = (value: string) =>
+  new Date(value).toLocaleDateString("ko-KR", {
+    month: "short",
+    day: "numeric",
+  });
 
 export default function CommunityBoardScreen() {
   const insets = useSafeAreaInsets();
@@ -23,15 +31,15 @@ export default function CommunityBoardScreen() {
   const slug = Array.isArray(params.board) ? params.board[0] : params.board;
   const board = getCommunityBoard(slug);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
 
-  const posts = useMemo(() => {
-    const boardPosts = HOT_POSTS.filter((post) => post.boardSlug === slug);
-    const keyword = query.trim().toLocaleLowerCase("ko");
-    if (!keyword) return boardPosts;
-    return boardPosts.filter((post) =>
-      `${post.title} ${post.preview}`.toLocaleLowerCase("ko").includes(keyword)
-    );
-  }, [query, slug]);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const postsQuery = useCommunityPosts(slug, debouncedQuery);
+  const posts = postsQuery.data ?? [];
 
   return (
     <View className="flex-1 bg-[#F4F6F8]">
@@ -53,7 +61,7 @@ export default function CommunityBoardScreen() {
         </View>
       </View>
 
-      <View className="px-5 pt-5 pb-3 bg-[#F4F6F8]">
+      <View className="px-5 pt-5 pb-3">
         <View className="h-12 rounded-2xl bg-white border border-gray-200 px-4 flex-row items-center">
           <Search size={19} color="#94A3B8" />
           <TextInput
@@ -72,29 +80,97 @@ export default function CommunityBoardScreen() {
         </View>
       </View>
 
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: 20, flexGrow: 1 }}>
-        {posts.length === 0 ? (
-          <View className="flex-1 min-h-[360px] items-center justify-center">
-            <View className="w-16 h-16 rounded-full bg-cyan-50 items-center justify-center">
-              {query ? <Search size={28} color={BRAND} /> : <FileText size={28} color={BRAND} />}
+      {postsQuery.isPending ? (
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator color={BRAND} />
+          <Text className="text-sm text-gray-500 mt-3">게시물을 불러오고 있어요</Text>
+        </View>
+      ) : postsQuery.isError ? (
+        <View className="flex-1 items-center justify-center px-8">
+          <Text className="text-base font-extrabold text-gray-700">게시물을 불러오지 못했어요</Text>
+          <Text className="text-sm text-gray-400 text-center mt-2">
+            {getAxiosErrorMessage(postsQuery.error)}
+          </Text>
+          <Pressable
+            onPress={() => void postsQuery.refetch()}
+            className="mt-5 px-5 py-3 rounded-2xl bg-[#13708D] active:opacity-80"
+          >
+            <Text className="text-white font-extrabold">다시 시도</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <FlatList
+          data={posts}
+          keyExtractor={(post) => String(post.id)}
+          renderItem={({ item }) => <PostCard post={item} />}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 100, flexGrow: 1 }}
+          ItemSeparatorComponent={() => <View className="h-3" />}
+          refreshControl={
+            <RefreshControl
+              refreshing={postsQuery.isRefetching}
+              onRefresh={() => void postsQuery.refetch()}
+              tintColor={BRAND}
+            />
+          }
+          ListEmptyComponent={
+            <View className="flex-1 min-h-[360px] items-center justify-center">
+              <View className="w-16 h-16 rounded-full bg-cyan-50 items-center justify-center">
+                {debouncedQuery ? (
+                  <Search size={28} color={BRAND} />
+                ) : (
+                  <FileText size={28} color={BRAND} />
+                )}
+              </View>
+              <Text className="text-base font-extrabold text-gray-700 mt-4">
+                {debouncedQuery ? "검색 결과가 없어요" : "아직 작성된 게시물이 없어요"}
+              </Text>
+              <Text className="text-sm text-gray-400 text-center mt-2">
+                {debouncedQuery ? "다른 검색어를 입력해보세요." : "첫 번째 게시물을 작성해보세요."}
+              </Text>
             </View>
-            <Text className="text-base font-extrabold text-gray-700 mt-4">
-              {query ? "검색 결과가 없어요" : "아직 작성된 게시물이 없어요"}
-            </Text>
-            <Text className="text-sm text-gray-400 text-center mt-2">
-              {query ? "다른 검색어를 입력해보세요." : "첫 번째 게시물을 작성해보세요."}
-            </Text>
-          </View>
-        ) : null}
-      </ScrollView>
+          }
+        />
+      )}
 
       <Pressable
         accessibilityLabel="게시물 작성"
+        onPress={() =>
+          router.push({
+            pathname: "/(app)/community/new",
+            params: { board: slug },
+          } as never)
+        }
         className="absolute right-5 w-14 h-14 rounded-full items-center justify-center shadow-lg"
         style={{ bottom: Math.max(insets.bottom, 20), backgroundColor: BRAND, elevation: 6 }}
       >
         <PenLine size={23} color="white" />
       </Pressable>
     </View>
+  );
+}
+
+function PostCard({ post }: { post: CommunityPost }) {
+  return (
+    <Pressable
+      onPress={() =>
+        router.push({
+          pathname: "/(app)/community/post/[slug]",
+          params: { slug: post.slug },
+        } as never)
+      }
+      className="rounded-3xl bg-white border border-gray-200 px-5 py-5 active:bg-gray-50"
+    >
+      <View className="flex-row items-center">
+        <Text className="text-xs font-bold text-[#13708D]">{post.author_name}</Text>
+        <Text className="text-xs text-gray-300 mx-2">•</Text>
+        <Text className="text-xs text-gray-400">{formatDate(post.created_at)}</Text>
+      </View>
+      <Text className="text-[17px] font-extrabold text-gray-900 mt-3" numberOfLines={1}>
+        {post.title}
+      </Text>
+      <Text className="text-sm leading-5 text-gray-500 mt-2" numberOfLines={2}>
+        {post.content}
+      </Text>
+    </Pressable>
   );
 }

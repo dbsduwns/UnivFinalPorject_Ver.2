@@ -1,0 +1,141 @@
+import { apiClient } from "@/api/client";
+
+import type {
+  CommunityComment,
+  CommunityPost,
+  CreateCommentBody,
+  CreatePostBody,
+  GetPostsParams,
+  LikeToggleResponse,
+  UpdateCommentBody,
+  UpdatePostBody,
+} from "./types";
+
+export const getCommunityPosts = async (
+  params: GetPostsParams = {}
+): Promise<CommunityPost[]> => {
+  const { data } = await apiClient.get<CommunityPost[]>("/api/community/", {
+    params: {
+      board_slug: params.boardSlug,
+      keyword: params.keyword?.trim() || undefined,
+      skip: params.skip ?? 0,
+      limit: params.limit ?? 20,
+    },
+  });
+  return data;
+};
+
+export const getCommunityPost = async (postSlug: string): Promise<CommunityPost> => {
+  const { data } = await apiClient.get<CommunityPost>("/api/community/slug", {
+    params: { post_slug: postSlug },
+  });
+  return data;
+};
+
+export const createCommunityPost = async (
+  boardSlug: string,
+  body: CreatePostBody
+): Promise<CommunityPost> => {
+  const { data } = await apiClient.post<CommunityPost>("/api/community/posts", body, {
+    params: { board_slug: boardSlug },
+  });
+  return data;
+};
+
+export const updateCommunityPost = async (
+  postSlug: string,
+  body: UpdatePostBody
+): Promise<CommunityPost> => {
+  const { data } = await apiClient.put<CommunityPost>(
+    `/api/community/${encodeURIComponent(postSlug)}`,
+    body
+  );
+  return data;
+};
+
+export const deleteCommunityPost = async (postSlug: string): Promise<void> => {
+  await apiClient.delete(`/api/community/${encodeURIComponent(postSlug)}`);
+};
+
+export const getComments = async (
+  postId: number,
+  parentCommentId?: number | null
+): Promise<CommunityComment[]> => {
+  const { data } = await apiClient.get<CommunityComment[]>("/api/community/comments", {
+    params: {
+      post_id: postId,
+      parent_comment_id: parentCommentId ?? undefined,
+    },
+  });
+  return data;
+};
+
+export const createComment = async (
+  postId: number,
+  body: CreateCommentBody
+): Promise<CommunityComment> => {
+  const { data } = await apiClient.post<CommunityComment>("/api/community/comments", body, {
+    params: { post_id: postId },
+  });
+  return data;
+};
+
+export const updateComment = async (
+  postId: number,
+  commentId: number,
+  body: UpdateCommentBody
+): Promise<CommunityComment> => {
+  const { data } = await apiClient.put<CommunityComment>(
+    `/api/community/comments/${postId}/${commentId}`,
+    body
+  );
+  return data;
+};
+
+export const deleteComment = async (postId: number, commentId: number): Promise<void> => {
+  await apiClient.delete(`/api/community/comments/${postId}/${commentId}`);
+};
+
+export const getPostLikeCount = async (postId: number): Promise<number> => {
+  const { data } = await apiClient.get<number>(`/api/community/posts/${postId}/likes`);
+  return data;
+};
+
+export const getIsPostLiked = async (postId: number): Promise<boolean> => {
+  const { data } = await apiClient.get<boolean>(`/api/community/posts/${postId}/likes/me`);
+  return data;
+};
+
+export const togglePostLike = async (postId: number): Promise<LikeToggleResponse> => {
+  const { data } = await apiClient.put<LikeToggleResponse>(
+    `/api/community/posts/${postId}/likes`
+  );
+  return data;
+};
+
+const commentLikePath = (postId: number, commentId: number) =>
+  `/api/community/posts/${postId}/comments/${commentId}/likes`;
+
+export const getCommentLikeCount = async (
+  postId: number,
+  commentId: number
+): Promise<number> => {
+  const { data } = await apiClient.get<number>(commentLikePath(postId, commentId));
+  return data;
+};
+
+export const getIsCommentLiked = async (
+  postId: number,
+  commentId: number
+): Promise<boolean> => {
+  const { data } = await apiClient.get<boolean>(`${commentLikePath(postId, commentId)}/me`);
+  return data;
+};
+
+export const toggleCommentLike = async (
+  postId: number,
+  commentId: number
+): Promise<LikeToggleResponse> => {
+  const { data } = await apiClient.put<LikeToggleResponse>(commentLikePath(postId, commentId));
+  return data;
+};
