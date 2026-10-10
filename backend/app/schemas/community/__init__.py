@@ -1,6 +1,20 @@
 from .post import CreatePost, UpdatePost, PostResponse
 from .comment import CreateComment, UpdateComment, CommentResponse
 from .like import PostLikeResponse, CommentLikeResponse
+from .comment_report import (
+    AdminCommentReportResponse,
+    CommentReportReason,
+    CommentReportResponse,
+    CommentReportStatus,
+    CreateCommentReport,
+    UpdateCommentReportStatus,
+)
+from .user_block import (
+    CreateUserBlock,
+    UserBlockListItem,
+    UserBlockResponse,
+    UserBlockStatusResponse,
+)
 
 __all__ = [
     "CreatePost",
@@ -11,4 +25,14 @@ __all__ = [
     "CommentResponse",
     "PostLikeResponse",
     "CommentLikeResponse",
+    "AdminCommentReportResponse",
+    "CommentReportReason",
+    "CommentReportResponse",
+    "CommentReportStatus",
+    "CreateCommentReport",
+    "UpdateCommentReportStatus",
+    "CreateUserBlock",
+    "UserBlockListItem",
+    "UserBlockResponse",
+    "UserBlockStatusResponse",
 ]

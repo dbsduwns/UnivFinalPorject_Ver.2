@@ -93,6 +93,16 @@ def is_comment_liked(db: Session, user: User, comment_id: int) -> bool:
 def toggle_comment_like(db: Session, user: User, comment_id: int) -> dict:
 
     validate_comment_exists(db, comment_id)
+
+    comment = (
+        db.query(Comment)
+        .filter(Comment.id == comment_id)
+        .first()
+    )
+    if comment.is_hidden:
+        raise ValueError(
+            "Comment is hidden. You do not have permission"
+        )
     
     like = (
         db.query(CommentLike)

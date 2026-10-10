@@ -1,7 +1,6 @@
 import { router } from "expo-router";
 import { Pressable, Text, View } from "react-native";
 import { Megaphone, ChevronRight } from "lucide-react-native";
-import { Notice } from "@/features/auth/api/types";
 import { useAuthStore } from "@/features/auth/store/auth-store";
 
 

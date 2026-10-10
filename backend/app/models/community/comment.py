@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, TIMESTAMP, ForeignKey, Text, Boolean, func
+from sqlalchemy import Column, Integer, TIMESTAMP, ForeignKey, Text, Boolean, String, func
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -10,9 +10,13 @@ class Comment(Base):
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     post_id = Column(Integer, ForeignKey("posts.id", ondelete="CASCADE"), nullable=False)
     parent_comment_id = Column(Integer, ForeignKey("comments.id", ondelete="CASCADE"), nullable=True)
+    hidden_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
     commented_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
     updated_at = Column(TIMESTAMP, nullable=False, server_default=func.now(), onupdate=func.now())
+    hidden_at = Column(TIMESTAMP)
+    hidden_reason = Column(String(500), nullable=True)
     is_anonymous = Column(Boolean, default=False, nullable=False)
+    is_hidden = Column(Boolean, default=False, nullable=False)
 
     author = relationship("User", foreign_keys=[author_id])
     parent = relationship("Comment", remote_side=[id], back_populates="replies")

@@ -29,11 +29,14 @@ from app.routers import (
     shuttle as shuttle_router,
     friend as friend_router,
     chat as chat_router,
+    admin as admin_router,
 )
 from app.routers.community import (
     post as post_router,
     comment as comment_router,
     like as like_router,
+    user_block as user_block_router,
+    comment_report as comment_report_router,
 )
 from app.core.ai_bot import campus_ai_bot
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -76,9 +79,14 @@ app.include_router(course_router.router)
 app.include_router(shuttle_router.router)
 app.include_router(friend_router.router)
 app.include_router(chat_router.router)
+app.include_router(admin_router.router)
 app.include_router(post_router.router)
 app.include_router(comment_router.router)
 app.include_router(like_router.router)
+app.include_router(user_block_router.router)
+app.include_router(comment_report_router.router)
+app.include_router(comment_report_router.admin_router)
+app.include_router(comment_router.admin_router)
 
 
 @app.on_event("startup")

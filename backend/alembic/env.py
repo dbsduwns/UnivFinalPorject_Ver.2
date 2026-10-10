@@ -1,4 +1,5 @@
 from logging.config import fileConfig
+import os
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
@@ -18,6 +19,13 @@ from app.models import ai_chat_room, ai_message
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+# 배포 환경에서는 alembic.ini의 로컬 기본값보다 DATABASE_URL을 우선한다.
+# URL에 퍼센트 인코딩이 포함되어도 ConfigParser가 다시 해석하지 않도록
+# '%'를 이스케이프한다.
+database_url = os.getenv("DATABASE_URL")
+if database_url:
+    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

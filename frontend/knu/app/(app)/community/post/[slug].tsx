@@ -1,11 +1,20 @@
 import { useState } from "react";
 import { useLocalSearchParams, router } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Heart, MessageCircle, Send } from "lucide-react-native";
+import {
+  ArrowLeft,
+  EllipsisVertical,
+  Heart,
+  MessageCircle,
+  Send,
+  ThumbsUp,
+  X,
+} from "lucide-react-native";
 import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -18,10 +27,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getAxiosErrorMessage } from "@/api/errors";
 import {
   createComment,
+  deleteComment,
+  getCommentLikeCount,
   getComments,
+  getIsCommentLiked,
   getIsPostLiked,
   getPostLikeCount,
+  toggleCommentLike,
   togglePostLike,
+  updateComment,
 } from "@/features/community/api/community";
 import type { CommunityComment } from "@/features/community/api/types";
 import { useCommunityPost } from "@/features/community/hooks/use-community";
@@ -37,6 +51,11 @@ export default function CommunityPostScreen() {
   const post = postQuery.data;
   const [commentText, setCommentText] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
+  const [replyTarget, setReplyTarget] = useState<CommunityComment | null>(null);
+  const [menuComment, setMenuComment] = useState<CommunityComment | null>(null);
+  const [editingComment, setEditingComment] = useState<CommunityComment | null>(null);
+  const [editText, setEditText] = useState("");
+  const [editAnonymous, setEditAnonymous] = useState(false);
 
   const commentsKey = ["community", "comments", post?.id] as const;
   const likeCountKey = ["community", "post-like-count", post?.id] as const;
@@ -71,11 +90,12 @@ export default function CommunityPostScreen() {
     mutationFn: () =>
       createComment(post!.id, {
         content: commentText.trim(),
-        parent_comment_id: null,
+        parent_comment_id: replyTarget?.id ?? null,
         is_anonymous: isAnonymous,
       }),
     onSuccess: () => {
       setCommentText("");
+      setReplyTarget(null);
       void queryClient.invalidateQueries({ queryKey: commentsKey });
     },
     onError: (error) => Alert.alert("댓글 작성 실패", getAxiosErrorMessage(error)),
@@ -84,6 +104,48 @@ export default function CommunityPostScreen() {
   const submitComment = () => {
     if (!commentText.trim() || commentMutation.isPending || !post) return;
     commentMutation.mutate();
+  };
+
+  const updateCommentMutation = useMutation({
+    mutationFn: () =>
+      updateComment(post!.id, editingComment!.id, {
+        content: editText.trim(),
+        is_anonymous: editAnonymous,
+      }),
+    onSuccess: () => {
+      setEditingComment(null);
+      setEditText("");
+      void queryClient.invalidateQueries({ queryKey: commentsKey });
+    },
+    onError: (error) => Alert.alert("댓글 수정 실패", getAxiosErrorMessage(error)),
+  });
+
+  const deleteCommentMutation = useMutation({
+    mutationFn: (commentId: number) => deleteComment(post!.id, commentId),
+    onSuccess: () => {
+      setMenuComment(null);
+      void queryClient.invalidateQueries({ queryKey: commentsKey });
+    },
+    onError: (error) => Alert.alert("댓글 삭제 실패", getAxiosErrorMessage(error)),
+  });
+
+  const startEditing = (comment: CommunityComment) => {
+    setMenuComment(null);
+    setEditingComment(comment);
+    setEditText(comment.content);
+    setEditAnonymous(comment.is_anonymous);
+  };
+
+  const confirmDelete = (comment: CommunityComment) => {
+    setMenuComment(null);
+    Alert.alert("댓글 삭제", "이 댓글을 삭제할까요?", [
+      { text: "취소", style: "cancel" },
+      {
+        text: "삭제",
+        style: "destructive",
+        onPress: () => deleteCommentMutation.mutate(comment.id),
+      },
+    ]);
   };
 
   if (postQuery.isPending) {
@@ -174,7 +236,16 @@ export default function CommunityPostScreen() {
               <Text className="text-sm text-gray-500">댓글을 불러오지 못했어요. 다시 시도</Text>
             </Pressable>
           ) : commentsQuery.data?.length ? (
-            commentsQuery.data.map((comment) => <CommentCard key={comment.id} comment={comment} />)
+            commentsQuery.data.map((comment) => (
+              <CommentCard
+                key={comment.id}
+                comment={comment}
+                postId={post.id}
+                commentsKey={commentsKey}
+                onReply={setReplyTarget}
+                onOpenMenu={setMenuComment}
+              />
+            ))
           ) : (
             <View className="py-10 items-center">
               <Text className="text-sm text-gray-400">첫 댓글을 남겨보세요.</Text>
@@ -187,6 +258,20 @@ export default function CommunityPostScreen() {
         className="bg-white border-t border-gray-200 px-4 pt-3"
         style={{ paddingBottom: Math.max(insets.bottom, 12) }}
       >
+        {replyTarget ? (
+          <View className="flex-row items-center justify-between mb-2 px-1">
+            <Text className="flex-1 text-xs font-bold text-[#13708D]" numberOfLines={1}>
+              {replyTarget.author_name}님에게 답글 작성 중
+            </Text>
+            <Pressable
+              accessibilityLabel="답글 작성 취소"
+              onPress={() => setReplyTarget(null)}
+              className="w-7 h-7 items-center justify-center rounded-full active:bg-gray-100"
+            >
+              <X size={16} color="#64748B" />
+            </Pressable>
+          </View>
+        ) : null}
         <View className="flex-row items-center mb-2">
           <Pressable
             onPress={() => setIsAnonymous((value) => !value)}
@@ -201,7 +286,7 @@ export default function CommunityPostScreen() {
           <TextInput
             value={commentText}
             onChangeText={setCommentText}
-            placeholder="댓글을 입력하세요"
+            placeholder={replyTarget ? "답글을 입력하세요" : "댓글을 입력하세요"}
             placeholderTextColor="#94A3B8"
             multiline
             className="flex-1 min-h-11 max-h-28 rounded-2xl bg-gray-100 px-4 py-3 text-sm text-gray-900"
@@ -220,21 +305,263 @@ export default function CommunityPostScreen() {
           </Pressable>
         </View>
       </View>
+
+      <Modal
+        visible={Boolean(menuComment)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuComment(null)}
+      >
+        <Pressable
+          className="flex-1 bg-black/40 justify-end"
+          onPress={() => setMenuComment(null)}
+        >
+          <Pressable
+            className="bg-white rounded-t-3xl px-5 pt-3"
+            style={{ paddingBottom: Math.max(insets.bottom, 16) }}
+            onPress={(event) => event.stopPropagation()}
+          >
+            <View className="w-10 h-1 rounded-full bg-gray-300 self-center mb-4" />
+            {menuComment?.is_mine ? (
+              <>
+                <Pressable
+                  className="h-14 justify-center px-2 border-b border-gray-100"
+                  onPress={() => menuComment && startEditing(menuComment)}
+                >
+                  <Text className="text-base font-bold text-gray-800">수정</Text>
+                </Pressable>
+                <Pressable
+                  className="h-14 justify-center px-2"
+                  onPress={() => menuComment && confirmDelete(menuComment)}
+                >
+                  <Text className="text-base font-bold text-red-500">삭제</Text>
+                </Pressable>
+                <Pressable
+                  className="h-12 mt-2 rounded-2xl bg-gray-100 items-center justify-center"
+                  onPress={() => setMenuComment(null)}
+                >
+                  <Text className="text-sm font-extrabold text-gray-600">취소</Text>
+                </Pressable>
+              </>
+            ): (
+              <>
+                <Pressable
+                  className="h-14 justify-center px-2 border-b border-gray-100"
+                  onPress={() => menuComment && startEditing(menuComment)}
+                >
+                  <Text className="text-base font-bold text-gray-800">신고</Text>
+                </Pressable>
+                <Pressable
+                  className="h-14 justify-center px-2"
+                  onPress={() => menuComment && confirmDelete(menuComment)}
+                >
+                  <Text className="text-base font-bold text-red-500">작성자 차단</Text>
+                </Pressable>
+                <Pressable
+                  className="h-12 mt-2 rounded-2xl bg-gray-100 items-center justify-center"
+                  onPress={() => setMenuComment(null)}
+                >
+                  <Text className="text-sm font-extrabold text-gray-600">취소</Text>
+                </Pressable>
+              </>
+            )
+              }
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={Boolean(editingComment)}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEditingComment(null)}
+      >
+        <KeyboardAvoidingView
+          className="flex-1 bg-black/40 justify-end"
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View
+            className="bg-white rounded-t-3xl px-5 pt-5"
+            style={{ paddingBottom: Math.max(insets.bottom, 16) }}
+          >
+            <View className="flex-row items-center justify-between mb-4">
+              <Text className="text-lg font-extrabold text-gray-900">댓글 수정</Text>
+              <Pressable
+                accessibilityLabel="댓글 수정 닫기"
+                onPress={() => setEditingComment(null)}
+                className="w-9 h-9 rounded-full bg-gray-100 items-center justify-center"
+              >
+                <X size={18} color="#475569" />
+              </Pressable>
+            </View>
+            <TextInput
+              value={editText}
+              onChangeText={setEditText}
+              placeholder="댓글을 입력하세요"
+              placeholderTextColor="#94A3B8"
+              multiline
+              autoFocus
+              className="min-h-28 max-h-48 rounded-2xl bg-gray-100 px-4 py-3 text-sm text-gray-900"
+              textAlignVertical="top"
+            />
+            <View className="flex-row items-center justify-between mt-4">
+              <Pressable
+                onPress={() => setEditAnonymous((value) => !value)}
+                className={`px-3 py-2 rounded-full ${editAnonymous ? "bg-cyan-100" : "bg-gray-100"}`}
+              >
+                <Text
+                  className={`text-xs font-bold ${editAnonymous ? "text-[#13708D]" : "text-gray-500"}`}
+                >
+                  익명 {editAnonymous ? "ON" : "OFF"}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => updateCommentMutation.mutate()}
+                disabled={!editText.trim() || updateCommentMutation.isPending}
+                className="h-11 px-6 rounded-2xl bg-[#13708D] items-center justify-center disabled:opacity-40"
+              >
+                {updateCommentMutation.isPending ? (
+                  <ActivityIndicator color="white" size="small" />
+                ) : (
+                  <Text className="text-sm font-extrabold text-white">수정 완료</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
 
-function CommentCard({ comment }: { comment: CommunityComment }) {
+type CommentCardProps = {
+  comment: CommunityComment;
+  postId: number;
+  commentsKey: readonly unknown[];
+  depth?: number;
+  onReply: (comment: CommunityComment) => void;
+  onOpenMenu: (comment: CommunityComment) => void;
+};
+
+function CommentCard({
+  comment,
+  postId,
+  commentsKey,
+  depth = 0,
+  onReply,
+  onOpenMenu,
+}: CommentCardProps) {
+  const queryClient = useQueryClient();
+  const repliesKey = [...commentsKey, comment.id] as const;
+  const likeCountKey = ["community", "comment-like-count", comment.id] as const;
+  const likedKey = ["community", "comment-liked", comment.id] as const;
+
+  const repliesQuery = useQuery({
+    queryKey: repliesKey,
+    queryFn: () => getComments(postId, comment.id),
+  });
+  const likeCountQuery = useQuery({
+    queryKey: likeCountKey,
+    queryFn: () => getCommentLikeCount(postId, comment.id),
+  });
+  const likedQuery = useQuery({
+    queryKey: likedKey,
+    queryFn: () => getIsCommentLiked(postId, comment.id),
+  });
+  const likeMutation = useMutation({
+    mutationFn: () => toggleCommentLike(postId, comment.id),
+    onSuccess: (result) => {
+      queryClient.setQueryData(likeCountKey, result.like_count);
+      queryClient.setQueryData(likedKey, result.liked);
+    },
+    onError: (error) => Alert.alert("좋아요 처리 실패", getAxiosErrorMessage(error)),
+  });
+
   return (
-    <View className="bg-white rounded-2xl border border-gray-200 px-4 py-4 mb-3">
-      <View className="flex-row items-center">
-        <Text className="text-xs font-extrabold text-[#13708D]">{comment.author_name}</Text>
-        <Text className="text-xs text-gray-300 mx-2">•</Text>
-        <Text className="text-xs text-gray-400">
-          {new Date(comment.commented_at).toLocaleString("ko-KR")}
-        </Text>
+    <View className={depth === 0 ? "mb-3" : "mt-2"}>
+      <View className="bg-white rounded-2xl border border-gray-200 px-4 py-4">
+        <View className="flex-row items-start justify-between">
+          <View className="flex-1 flex-row items-center pr-2">
+            <Text className="text-xs font-extrabold text-[#13708D]">{comment.author_name}</Text>
+            <Text className="text-xs text-gray-300 mx-2">•</Text>
+            <Text className="text-xs text-gray-400" numberOfLines={1}>
+              {new Date(comment.commented_at).toLocaleString("ko-KR")}
+            </Text>
+          </View>
+          <View className="flex-row items-center -mt-2 -mr-2">
+            <Pressable
+              accessibilityLabel="대댓글 작성"
+              onPress={() => onReply(comment)}
+              className="w-9 h-9 rounded-full items-center justify-center active:bg-gray-100"
+            >
+              <MessageCircle size={17} color="#64748B" />
+            </Pressable>
+            <Pressable
+              accessibilityLabel={likedQuery.data ? "댓글 좋아요 취소" : "댓글 좋아요"}
+              onPress={() => likeMutation.mutate()}
+              disabled={likeMutation.isPending}
+              className="min-w-9 h-9 px-1 rounded-full flex-row items-center justify-center active:bg-gray-100"
+            >
+              <ThumbsUp
+                size={17}
+                color={likedQuery.data ? BRAND : "#64748B"}
+                fill={likedQuery.data ? BRAND : "transparent"}
+              />
+              {(likeCountQuery.data ?? 0) > 0 ? (
+                <Text className="ml-1 text-[11px] font-bold text-gray-500">
+                  {likeCountQuery.data}
+                </Text>
+              ) : null}
+            </Pressable>
+            <Pressable
+              accessibilityLabel="댓글 메뉴"
+              onPress={() => onOpenMenu(comment)}
+              className="w-9 h-9 rounded-full items-center justify-center active:bg-gray-100"
+            >
+              <EllipsisVertical size={18} color="#64748B" />
+            </Pressable>
+          </View>
+        </View>
+        <Text className="text-sm leading-6 text-gray-700 mt-2">{comment.content}</Text>
       </View>
-      <Text className="text-sm leading-6 text-gray-700 mt-2">{comment.content}</Text>
+
+      {repliesQuery.data?.length ? (
+        <View className="ml-5">
+          {repliesQuery.data.map((reply, index) => {
+            const isLastReply = index === repliesQuery.data.length - 1;
+
+            return (
+              <View key={reply.id} className="relative pl-6">
+                <View
+                  pointerEvents="none"
+                  className="absolute left-0 top-0 w-6 h-7"
+                  style={{
+                    borderLeftWidth: 1.25,
+                    borderBottomWidth: 1.25,
+                    borderBottomLeftRadius: 14,
+                    borderColor: "#CBD5E1",
+                  }}
+                />
+                {!isLastReply ? (
+                  <View
+                    pointerEvents="none"
+                    className="absolute left-0 top-7 bottom-0"
+                    style={{ borderLeftWidth: 1.25, borderColor: "#CBD5E1" }}
+                  />
+                ) : null}
+                <CommentCard
+                  comment={reply}
+                  postId={postId}
+                  commentsKey={commentsKey}
+                  depth={depth + 1}
+                  onReply={onReply}
+                  onOpenMenu={onOpenMenu}
+                />
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
     </View>
   );
 }

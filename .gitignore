@@ -16,6 +16,7 @@ desktop.ini
 .env
 .env.local
 .env.*.local
+.env.oracle
 *.env
 !.env.example
 
@@ -60,11 +61,13 @@ yarn-error.log*
 # Databases and Vector Stores
 *.db
 *.sqlite3
+*.dump
 chroma_db/
 **/chroma_db/
+backend/backups/
 *.log
 *.txt
-!requirements.txt
+!requirements*.txt
 
 # Project specific ignores
 backend/static/shuttle/*.pdf

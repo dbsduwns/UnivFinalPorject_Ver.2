@@ -1,5 +1,6 @@
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+from enum import Enum
 
 class CreateComment(BaseModel):
     content: str
@@ -19,5 +20,22 @@ class CommentResponse(BaseModel):
     is_anonymous: bool
     commented_at: datetime
     updated_at: datetime
+    is_mine: bool
+    is_hidden: bool
 
     model_config = ConfigDict(from_attributes=True)
+
+class CommentModerationAction(str, Enum):
+    HIDE = "hide"
+    RESTORE = "restore"
+
+
+class ModerateComment(BaseModel):
+    action: CommentModerationAction
+    reason: str | None = Field(default=None, max_length=500) 
+
+class AdminCommentResponse(CommentResponse):
+    original_content: str
+    hidden_by_id: int | None
+    hidden_at: datetime | None
+    hidden_reason: str | None

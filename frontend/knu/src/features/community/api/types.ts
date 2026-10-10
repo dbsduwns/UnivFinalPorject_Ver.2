@@ -27,6 +27,7 @@ export type CommunityComment = {
   is_anonymous: boolean;
   commented_at: string;
   updated_at: string;
+  is_mine: boolean;
 };
 
 export type CreateCommentBody = {
