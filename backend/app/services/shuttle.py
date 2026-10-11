@@ -1,6 +1,5 @@
 from sqlalchemy.orm import Session
 from app.models.shuttle import Shuttle
-from app.crawlers.shuttle_crawler import crawl_shuttle_schedule
 
 
 def get_shuttle_schedules(db: Session, semester: str | None = None) -> list[Shuttle]:
@@ -17,6 +16,8 @@ def get_latest_shuttle_schedule(db: Session) -> Shuttle | None:
 
 
 def crawl_and_save_shuttle_schedule(db: Session) -> Shuttle:
+    from app.crawlers.shuttle_crawler import crawl_shuttle_schedule
+
     item = crawl_shuttle_schedule()
 
     existing = (

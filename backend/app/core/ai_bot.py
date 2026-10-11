@@ -26,49 +26,85 @@ class CampusAIBot:
     def initialize(self):
         if self.is_initialized:
             return
-        # 서버 램 절약을 위해 초기화 시점에 임포트        
-        from langchain_huggingface import HuggingFaceEmbeddings
-        from langchain_chroma import Chroma
+        # 서버 램 절약을 위해 초기화 시점에 임포트
         from langchain_google_genai import ChatGoogleGenerativeAI
         from langchain_core.prompts import PromptTemplate
         from langchain_core.output_parsers import StrOutputParser
         from langchain_core.runnables import RunnablePassthrough
 
-        print("🤖 [AI Bot] 로컬 임베딩 모델 로드 중...")
+        self.vectorstore = None
+        self.retriever = None
+        self.llm = None
+
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            print("❌ [AI Bot] GOOGLE_API_KEY가 설정되지 않았습니다.")
+            return
+
+        embedding_provider = os.getenv("EMBEDDING_PROVIDER", "huggingface").lower()
+        print(f"🤖 [AI Bot] 임베딩 로드 중 ({embedding_provider})...")
         try:
-            self.embeddings = HuggingFaceEmbeddings(
-                model_name="jhgan/ko-sroberta-multitask",
-                model_kwargs={'device': 'cpu'},
-                encode_kwargs={'normalize_embeddings': True}
-            )
+            if embedding_provider == "google":
+                from langchain_google_genai import GoogleGenerativeAIEmbeddings
+
+                self.embeddings = GoogleGenerativeAIEmbeddings(
+                    model=os.getenv("GOOGLE_EMBEDDING_MODEL", "models/gemini-embedding-001"),
+                    google_api_key=api_key,
+                )
+            elif embedding_provider == "huggingface":
+                from langchain_huggingface import HuggingFaceEmbeddings
+
+                self.embeddings = HuggingFaceEmbeddings(
+                    model_name="jhgan/ko-sroberta-multitask",
+                    model_kwargs={"device": "cpu"},
+                    encode_kwargs={"normalize_embeddings": True},
+                )
+            else:
+                raise ValueError(f"지원하지 않는 EMBEDDING_PROVIDER: {embedding_provider}")
         except Exception as e:
             print(f"❌ [AI Bot] 임베딩 모델 로드 실패: {e}")
             return
 
-        print("🤖 [AI Bot] 벡터 DB(Chroma) 연결 중...")
-        from pathlib import Path
-        current_file = Path(__file__).resolve()
-        backend_dir = current_file.parents[2] 
-        persist_directory = str(backend_dir / "chroma_db")
-        
-        print(f"🤖 [AI Bot] 벡터 DB 경로: {persist_directory}")
-        
+        vector_store_provider = os.getenv("VECTOR_STORE_PROVIDER", "chroma").lower()
+        print(f"🤖 [AI Bot] 벡터 DB 연결 중 ({vector_store_provider})...")
         try:
-            self.vectorstore = Chroma(
-                persist_directory=persist_directory,
-                embedding_function=self.embeddings
-            )
-            # 검색 결과 개수(k)를 3에서 5로 늘려 더 많은 문맥을 참고하게 함
-            self.retriever = self.vectorstore.as_retriever(search_kwargs={"k": 5})
+            if vector_store_provider == "qdrant":
+                from app.core.vector_store import QdrantDocumentStore
+
+                qdrant_url = os.getenv("QDRANT_URL")
+                qdrant_api_key = os.getenv("QDRANT_API_KEY")
+                if not qdrant_url or not qdrant_api_key:
+                    raise ValueError("QDRANT_URL과 QDRANT_API_KEY가 필요합니다.")
+                self.vectorstore = QdrantDocumentStore(
+                    url=qdrant_url,
+                    api_key=qdrant_api_key,
+                    collection_name=os.getenv("QDRANT_COLLECTION", "knu-campus"),
+                    embeddings=self.embeddings,
+                    search_limit=5,
+                )
+                self.retriever = self.vectorstore
+            elif vector_store_provider == "chroma":
+                from pathlib import Path
+                from langchain_chroma import Chroma
+
+                backend_dir = Path(__file__).resolve().parents[2]
+                persist_directory = str(backend_dir / "chroma_db")
+                print(f"🤖 [AI Bot] 벡터 DB 경로: {persist_directory}")
+                self.vectorstore = Chroma(
+                    persist_directory=persist_directory,
+                    embedding_function=self.embeddings,
+                )
+                self.retriever = self.vectorstore.as_retriever(search_kwargs={"k": 5})
+            else:
+                raise ValueError(f"지원하지 않는 VECTOR_STORE_PROVIDER: {vector_store_provider}")
         except Exception as e:
             print(f"❌ [AI Bot] 벡터 DB 로드 실패: {e}")
             self.retriever = None
 
         print("🤖 [AI Bot] Gemini LLM 설정 중...")
         try:
-            api_key = os.getenv("GOOGLE_API_KEY")
             self.llm = ChatGoogleGenerativeAI(
-                model="gemini-flash-latest",
+                model=os.getenv("GEMINI_MODEL", "gemini-flash-latest"),
                 google_api_key=api_key,
                 # temperature를 0.7로 높여 더 자연스럽고 풍부한 답변을 유도
                 temperature=0.7,

@@ -19,6 +19,7 @@ pydantic==2.12.5
 python-dotenv==1.2.2
 python-jose[cryptography]==3.5.0
 python-multipart==0.0.20
+qdrant-client==1.19.1
 requests==2.33.1
 sentence-transformers==5.4.1
 SQLAlchemy==2.0.48

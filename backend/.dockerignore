@@ -2,6 +2,7 @@
 .env.*
 !.env.example
 !.env.oracle.example
+!.env.cloudrun.example
 .venv/
 venv/
 __pycache__/

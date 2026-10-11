@@ -5,7 +5,6 @@ from app.schemas.notice import NoticeResponse, NoticeUpdate
 from app.services import notice as notice_service
 from app.models.user import User
 from app.core.dependencies import get_current_admin_user
-from app.crawlers.notice_crawler import crawl_notice_list, save_notices
 
 router = APIRouter(prefix="/api/notices", tags=["notices"])
 
@@ -33,6 +32,9 @@ def crawl_notices(
 		current_admin: User = Depends(get_current_admin_user), # 관리자 검증
 	):
 	try:
+		# Playwright는 크롤링 요청이 실제로 들어올 때만 로드한다.
+		from app.crawlers.notice_crawler import crawl_notice_list, save_notices
+
 		notices = crawl_notice_list(max_items=max_items)
 		save_notices(notices)
 		return {"message": "Notice crawling completed", "count": len(notices)}

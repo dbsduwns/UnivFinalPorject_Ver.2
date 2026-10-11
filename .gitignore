@@ -17,6 +17,7 @@ desktop.ini
 .env.local
 .env.*.local
 .env.oracle
+.env.cloudrun
 *.env
 !.env.example
 

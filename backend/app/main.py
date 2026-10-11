@@ -43,8 +43,6 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 import os
 
-# 새롭게 개선된 크롤러들 임포트
-from app.crawlers.rules_crawler import crawl_rules
 from fastapi.staticfiles import StaticFiles
 
 from app.models import ai_chat_room, ai_message
