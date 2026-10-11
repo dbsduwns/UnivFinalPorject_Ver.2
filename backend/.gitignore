@@ -6,6 +6,7 @@ __pycache__/
 .env.cloudrun
 venv/
 .venv/
+.venv-migration/
 
 # Database
 *.db

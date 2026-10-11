@@ -4,6 +4,7 @@
 !.env.oracle.example
 !.env.cloudrun.example
 .venv/
+.venv-migration/
 venv/
 __pycache__/
 *.py[cod]

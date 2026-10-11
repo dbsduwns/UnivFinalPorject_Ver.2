@@ -27,40 +27,18 @@ class CampusAIBot:
         if self.is_initialized:
             return
         # 서버 램 절약을 위해 초기화 시점에 임포트
-        from langchain_google_genai import ChatGoogleGenerativeAI
         from langchain_core.prompts import PromptTemplate
         from langchain_core.output_parsers import StrOutputParser
-        from langchain_core.runnables import RunnablePassthrough
+        from app.core.ai_providers import build_chat_model, build_embeddings
 
         self.vectorstore = None
         self.retriever = None
         self.llm = None
 
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            print("❌ [AI Bot] GOOGLE_API_KEY가 설정되지 않았습니다.")
-            return
-
         embedding_provider = os.getenv("EMBEDDING_PROVIDER", "huggingface").lower()
         print(f"🤖 [AI Bot] 임베딩 로드 중 ({embedding_provider})...")
         try:
-            if embedding_provider == "google":
-                from langchain_google_genai import GoogleGenerativeAIEmbeddings
-
-                self.embeddings = GoogleGenerativeAIEmbeddings(
-                    model=os.getenv("GOOGLE_EMBEDDING_MODEL", "models/gemini-embedding-001"),
-                    google_api_key=api_key,
-                )
-            elif embedding_provider == "huggingface":
-                from langchain_huggingface import HuggingFaceEmbeddings
-
-                self.embeddings = HuggingFaceEmbeddings(
-                    model_name="jhgan/ko-sroberta-multitask",
-                    model_kwargs={"device": "cpu"},
-                    encode_kwargs={"normalize_embeddings": True},
-                )
-            else:
-                raise ValueError(f"지원하지 않는 EMBEDDING_PROVIDER: {embedding_provider}")
+            self.embeddings = build_embeddings(embedding_provider)
         except Exception as e:
             print(f"❌ [AI Bot] 임베딩 모델 로드 실패: {e}")
             return
@@ -101,17 +79,12 @@ class CampusAIBot:
             print(f"❌ [AI Bot] 벡터 DB 로드 실패: {e}")
             self.retriever = None
 
-        print("🤖 [AI Bot] Gemini LLM 설정 중...")
+        llm_provider = os.getenv("LLM_PROVIDER", "google").lower()
+        print(f"🤖 [AI Bot] LLM 설정 중 ({llm_provider})...")
         try:
-            self.llm = ChatGoogleGenerativeAI(
-                model=os.getenv("GEMINI_MODEL", "gemini-flash-latest"),
-                google_api_key=api_key,
-                # temperature를 0.7로 높여 더 자연스럽고 풍부한 답변을 유도
-                temperature=0.7,
-                max_retries=2,
-            )
+            self.llm = build_chat_model(llm_provider)
         except Exception as e:
-            print(f"❌ [AI Bot] Gemini LLM 설정 실패: {e}")
+            print(f"❌ [AI Bot] LLM 설정 실패: {e}")
             self.llm = None
 
         template = """당신은 강남대학교 캠퍼스 안내 AI 도우미입니다. 
@@ -147,18 +120,6 @@ class CampusAIBot:
             # 1. 쿼리 재작성 체인
             self.rewrite_chain = self.rewrite_prompt | self.llm | StrOutputParser()
             self.answer_chain = self.prompt | self.llm | StrOutputParser()
-
-            # 2. 메인 RAG 체인
-            self.chain = (
-                {
-                    "context": self.retriever, 
-                    "question": RunnablePassthrough(),
-                    "current_date": lambda _: datetime.now().strftime('%Y-%m-%d')
-                }
-                | self.prompt
-                | self.llm
-                | StrOutputParser()
-            )
             self.is_initialized = True
             print("✅ [AI Bot] 초기화 완료!")
         else:
@@ -223,7 +184,7 @@ class CampusAIBot:
             print(f"📚 [AI Bot] Context 구성 완료:\n{context}", flush=True)
 
             # Step 3: RAG 실행
-            print(f"🚀 [AI Bot] Gemini LLM 호출 중...", flush=True)
+            print(f"🚀 [AI Bot] LLM 호출 중...", flush=True)
             response = await self.answer_chain.ainvoke({
                 "context": context,
                 "question": question,

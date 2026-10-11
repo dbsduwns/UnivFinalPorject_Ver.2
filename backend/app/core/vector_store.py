@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import uuid
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
@@ -33,6 +34,7 @@ class QdrantDocumentStore:
         self.collection_name = collection_name
         self.embeddings = embeddings
         self.search_limit = search_limit
+        self._text_index_ready = False
 
     @staticmethod
     def _document_id(document: Document) -> str:
@@ -61,13 +63,122 @@ class QdrantDocumentStore:
     def _ensure_collection(self, vector_size: int) -> None:
         from qdrant_client.models import Distance, VectorParams
 
-        if self.client.collection_exists(self.collection_name):
+        if not self.client.collection_exists(self.collection_name):
+            self.client.create_collection(
+                collection_name=self.collection_name,
+                vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
+            )
+        self._ensure_text_index()
+
+    def _ensure_text_index(self) -> None:
+        if self._text_index_ready or not self.client.collection_exists(self.collection_name):
             return
 
-        self.client.create_collection(
-            collection_name=self.collection_name,
-            vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
+        from qdrant_client.models import TextIndexParams, TextIndexType, TokenizerType
+
+        collection = self.client.get_collection(self.collection_name)
+        if "page_content" not in collection.payload_schema:
+            self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="page_content",
+                field_schema=TextIndexParams(
+                    type=TextIndexType.TEXT,
+                    tokenizer=TokenizerType.MULTILINGUAL,
+                    min_token_len=2,
+                    lowercase=True,
+                ),
+                wait=True,
+            )
+        self._text_index_ready = True
+
+    @staticmethod
+    def _search_keywords(query: str) -> list[str]:
+        stopwords = {
+            "강남대학교",
+            "공지사항",
+            "공지",
+            "관련",
+            "관련된",
+            "현재",
+            "지금",
+            "정보",
+            "내용",
+            "알려줘",
+            "알려주세요",
+            "궁금해",
+            "질문",
+        }
+        particles = (
+            "으로부터",
+            "에서부터",
+            "이라고",
+            "이라고는",
+            "으로",
+            "에서",
+            "에게",
+            "까지",
+            "부터",
+            "처럼",
+            "보다",
+            "하고",
+            "이나",
+            "거나",
+            "입니다",
+            "인가요",
+            "의",
+            "은",
+            "는",
+            "이",
+            "가",
+            "을",
+            "를",
+            "과",
+            "와",
+            "도",
+            "만",
+            "에",
         )
+        keywords: list[str] = []
+        for raw_token in re.findall(r"[0-9A-Za-z가-힣]+", query):
+            token = raw_token
+            for particle in particles:
+                if token.endswith(particle) and len(token) > len(particle) + 1:
+                    token = token[: -len(particle)]
+                    break
+            if len(token) < 2 or token in stopwords or token in keywords:
+                continue
+            keywords.append(token)
+        return keywords[:3]
+
+    def _lexical_search(self, query: str) -> list[Any]:
+        from qdrant_client.models import FieldCondition, Filter, MatchText
+
+        keywords = self._search_keywords(query)
+        if not keywords:
+            return []
+
+        conditions = [
+            FieldCondition(key="page_content", match=MatchText(text=keyword))
+            for keyword in keywords
+        ]
+        records, _ = self.client.scroll(
+            collection_name=self.collection_name,
+            scroll_filter=Filter(must=conditions),
+            limit=self.search_limit,
+            with_payload=True,
+            with_vectors=False,
+        )
+        if records or len(conditions) == 1:
+            return records
+
+        records, _ = self.client.scroll(
+            collection_name=self.collection_name,
+            scroll_filter=Filter(should=conditions),
+            limit=self.search_limit,
+            with_payload=True,
+            with_vectors=False,
+        )
+        return records
 
     def add_documents(
         self,
@@ -108,6 +219,8 @@ class QdrantDocumentStore:
         if not self.client.collection_exists(self.collection_name):
             return []
 
+        self._ensure_text_index()
+        lexical_points = self._lexical_search(query)
         vector = self.embeddings.embed_query(query)
         response = self.client.query_points(
             collection_name=self.collection_name,
@@ -116,7 +229,12 @@ class QdrantDocumentStore:
             with_payload=True,
         )
         documents: list[Document] = []
-        for point in response.points:
+        seen_ids: set[str] = set()
+        for point in [*lexical_points, *response.points]:
+            point_id = str(point.id)
+            if point_id in seen_ids:
+                continue
+            seen_ids.add(point_id)
             payload = point.payload or {}
             page_content = payload.get("page_content")
             if not page_content:
@@ -127,6 +245,8 @@ class QdrantDocumentStore:
                     metadata=payload.get("metadata") or {},
                 )
             )
+            if len(documents) >= self.search_limit:
+                break
         return documents
 
     async def ainvoke(self, query: str) -> list[Document]:

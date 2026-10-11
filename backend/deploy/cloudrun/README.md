@@ -5,10 +5,10 @@ data in Supabase PostgreSQL, and stores RAG vectors in Qdrant Cloud.
 
 ## Target layout
 
-- Cloud Run: FastAPI, Gemini calls, and on-demand crawlers
+- Cloud Run: FastAPI, Workers AI calls, and on-demand crawlers
 - Supabase: PostgreSQL
 - Qdrant Cloud: RAG documents and vectors
-- Gemini API: chat completion and embeddings
+- Cloudflare Workers AI: Qwen chat completion and BGE-M3 embeddings
 
 Cloud Run has an ephemeral filesystem. Files written after startup can disappear
 when an instance is replaced. PostgreSQL and vector data therefore must not be
@@ -41,7 +41,8 @@ Required values:
 
 - `DATABASE_URL`
 - `SECRET_KEY`
-- `GOOGLE_API_KEY`
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
 - `QDRANT_URL`
 - `QDRANT_API_KEY`
 
@@ -49,9 +50,11 @@ Keep these deployment values unchanged:
 
 ```text
 VECTOR_STORE_PROVIDER=qdrant
-EMBEDDING_PROVIDER=google
-GOOGLE_EMBEDDING_MODEL=models/gemini-embedding-001
-QDRANT_COLLECTION=knu-campus
+LLM_PROVIDER=cloudflare
+EMBEDDING_PROVIDER=cloudflare
+CLOUDFLARE_CHAT_MODEL=@cf/qwen/qwen3-30b-a3b-fp8
+CLOUDFLARE_EMBEDDING_MODEL=@cf/baai/bge-m3
+QDRANT_COLLECTION=knu-campus-bge-m3
 ```
 
 ## 3. Move the existing PostgreSQL data
@@ -79,7 +82,7 @@ Install the updated local requirements, then run from the `backend` directory:
 python scripts/migrate_chroma_to_qdrant.py
 ```
 
-The script reads `backend/chroma_db`, uses the Gemini embedding model configured
+The script reads `backend/chroma_db`, uses the Workers AI embedding model configured
 in `.env.cloudrun`, and upserts the documents with deterministic IDs. Running it
 again updates the same points instead of intentionally deleting the collection.
 
@@ -104,7 +107,7 @@ Console so it does not become part of source control:
 
 - `knu-database-url`
 - `knu-secret-key`
-- `knu-google-api-key`
+- `knu-cloudflare-api-token`
 - `knu-qdrant-api-key`
 
 Optionally create `knu-user-id` and `knu-password` when server-side crawling is
@@ -149,11 +152,13 @@ Set these ordinary environment variables:
 
 ```text
 VECTOR_STORE_PROVIDER=qdrant
-EMBEDDING_PROVIDER=google
-GOOGLE_EMBEDDING_MODEL=models/gemini-embedding-001
-QDRANT_COLLECTION=knu-campus
+LLM_PROVIDER=cloudflare
+EMBEDDING_PROVIDER=cloudflare
+CLOUDFLARE_ACCOUNT_ID=your Cloudflare account ID
+CLOUDFLARE_CHAT_MODEL=@cf/qwen/qwen3-30b-a3b-fp8
+CLOUDFLARE_EMBEDDING_MODEL=@cf/baai/bge-m3
+QDRANT_COLLECTION=knu-campus-bge-m3
 QDRANT_URL=your Qdrant cluster URL
-GEMINI_MODEL=gemini-flash-latest
 APP_SCHEME=knu
 ```
 
@@ -162,7 +167,7 @@ Map secrets to these environment variables:
 ```text
 DATABASE_URL=knu-database-url:latest
 SECRET_KEY=knu-secret-key:latest
-GOOGLE_API_KEY=knu-google-api-key:latest
+CLOUDFLARE_API_TOKEN=knu-cloudflare-api-token:latest
 QDRANT_API_KEY=knu-qdrant-api-key:latest
 ```
 
