@@ -11,7 +11,9 @@ from dotenv import load_dotenv
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND_DIR))
 load_dotenv(BACKEND_DIR / ".env")
-load_dotenv(BACKEND_DIR / ".env.cloudrun", override=True)
+# Never overwrite variables injected by Cloud Run/Secret Manager. The local
+# file is only a fallback for developer machines.
+load_dotenv(BACKEND_DIR / ".env.cloudrun")
 
 from langchain_core.documents import Document  # noqa: E402
 
@@ -101,6 +103,14 @@ def main() -> None:
         return
 
     embedding_provider = os.getenv("EMBEDDING_PROVIDER", "cloudflare").lower()
+    print(
+        "환경변수 주입 상태: "
+        f"CLOUDFLARE_API_TOKEN={'설정됨' if os.getenv('CLOUDFLARE_API_TOKEN') else '누락'}, "
+        f"CLOUDFLARE_ACCOUNT_ID={'설정됨' if os.getenv('CLOUDFLARE_ACCOUNT_ID') else '누락'}, "
+        f"QDRANT_API_KEY={'설정됨' if os.getenv('QDRANT_API_KEY') else '누락'}, "
+        f"QDRANT_URL={'설정됨' if os.getenv('QDRANT_URL') else '누락'}",
+        flush=True,
+    )
     store = QdrantDocumentStore(
         url=require_env("QDRANT_URL"),
         api_key=require_env("QDRANT_API_KEY"),
