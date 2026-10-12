@@ -213,6 +213,64 @@ class QdrantDocumentStore:
         ]
         self.client.upsert(collection_name=self.collection_name, points=points, wait=True)
 
+    def replace_documents_by_source(
+        self,
+        documents: Sequence[Document],
+        *,
+        ids: Sequence[str],
+        source: str,
+    ) -> int:
+        """Upsert a complete source snapshot, then remove stale points safely."""
+
+        if len(documents) != len(ids):
+            raise ValueError("ids and documents must have the same length")
+        if not documents:
+            raise ValueError("refusing to replace a source with an empty document set")
+
+        # New points are written first. A failed embedding or upsert therefore leaves the
+        # previously indexed snapshot intact.
+        self.add_documents(documents, ids=ids)
+
+        from qdrant_client.models import (
+            FieldCondition,
+            Filter,
+            MatchValue,
+            PointIdsList,
+        )
+
+        expected_ids = {self._point_id(value) for value in ids}
+        existing_ids: set[str] = set()
+        offset = None
+        source_filter = Filter(
+            must=[
+                FieldCondition(
+                    key="metadata.source",
+                    match=MatchValue(value=source),
+                )
+            ]
+        )
+        while True:
+            points, offset = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=source_filter,
+                limit=256,
+                offset=offset,
+                with_payload=False,
+                with_vectors=False,
+            )
+            existing_ids.update(str(point.id) for point in points)
+            if offset is None:
+                break
+
+        stale_ids = sorted(existing_ids - expected_ids)
+        if stale_ids:
+            self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=PointIdsList(points=stale_ids),
+                wait=True,
+            )
+        return len(stale_ids)
+
     def _search(self, query: str) -> list[Document]:
         from langchain_core.documents import Document
 

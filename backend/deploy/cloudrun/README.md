@@ -192,3 +192,35 @@ Existing static shuttle PDFs are included in the image. A newly crawled shuttle
 PDF is written to Cloud Run's ephemeral filesystem and can disappear after a
 restart. Move new PDF uploads to Google Cloud Storage before relying on the
 server-side shuttle crawler in production.
+
+## Academic calendar synchronization
+
+The official undergraduate academic-calendar page can be synchronized to the
+configured Qdrant collection with:
+
+```text
+python scripts/sync_academic_calendar.py
+```
+
+The job crawls every displayed monthly table, converts ranges that cross a year
+boundary, and upserts every event with a deterministic ID. After a successful
+upsert it removes obsolete Qdrant points whose `metadata.source` is `학사일정`.
+Repeated executions therefore do not create duplicates.
+
+For production, create a Cloud Run Job from the same container image with:
+
+```text
+command: python
+arguments: scripts/sync_academic_calendar.py
+```
+
+Give the job the same Cloudflare embedding and Qdrant environment variables and
+secrets as the API service. Trigger it weekly with Cloud Scheduler using the
+`Asia/Seoul` time zone, and also run it manually after the university announces
+an academic-calendar revision.
+
+To validate parsing without writing to Qdrant, run:
+
+```text
+python scripts/sync_academic_calendar.py --dry-run
+```
