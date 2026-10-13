@@ -231,34 +231,24 @@ class QdrantDocumentStore:
         # previously indexed snapshot intact.
         self.add_documents(documents, ids=ids)
 
-        from qdrant_client.models import (
-            FieldCondition,
-            Filter,
-            MatchValue,
-            PointIdsList,
-        )
+        from qdrant_client.models import PointIdsList
 
         expected_ids = {self._point_id(value) for value in ids}
         existing_ids: set[str] = set()
         offset = None
-        source_filter = Filter(
-            must=[
-                FieldCondition(
-                    key="metadata.source",
-                    match=MatchValue(value=source),
-                )
-            ]
-        )
         while True:
             points, offset = self.client.scroll(
                 collection_name=self.collection_name,
-                scroll_filter=source_filter,
                 limit=256,
                 offset=offset,
-                with_payload=False,
+                with_payload=True,
                 with_vectors=False,
             )
-            existing_ids.update(str(point.id) for point in points)
+            for point in points:
+                payload = point.payload or {}
+                metadata = payload.get("metadata") or {}
+                if isinstance(metadata, dict) and metadata.get("source") == source:
+                    existing_ids.add(str(point.id))
             if offset is None:
                 break
 
