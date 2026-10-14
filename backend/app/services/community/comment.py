@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.community.comment import Comment
 from app.models.community.post import Post
+from app.models.community.user_block import UserBlock
 from app.models.user import User
 from app.schemas.community.comment import (
     CommentResponse,
@@ -22,12 +23,19 @@ def get_comments(
     limit: int = 50,
 ) -> list[CommentResponse]:
     """Return comments for a post, optionally limited to one reply level."""
+    blocked_user_ids = (
+        db.query(UserBlock.blocked_user_id)
+        .filter(UserBlock.blocker_id == user.id)
+        .scalar_subquery()
+    )
+
     comments = (
         db.query(Comment)
         .options(selectinload(Comment.author))
         .filter(
             Comment.post_id == post_id,
             Comment.parent_comment_id == parent_comment_id,
+            ~Comment.author_id.in_(blocked_user_ids),
         )
         .order_by(Comment.commented_at.asc())
         .offset(skip)

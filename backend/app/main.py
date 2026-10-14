@@ -91,8 +91,6 @@ app.include_router(comment_router.admin_router)
 
 @app.on_event("startup")
 def startup_event():
-    # 1. DB 테이블 생성
-    Base.metadata.create_all(bind=engine)
 
     # 2. 서버 시작 시 즉시 크롤링 예약 (순차적으로 실행하여 자원 충돌 방지)
     print("🚀 [Startup] 서버 시작 - 초기 데이터 동기화 예약 중...")

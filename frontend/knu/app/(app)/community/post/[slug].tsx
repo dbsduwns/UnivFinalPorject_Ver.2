@@ -27,6 +27,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { getAxiosErrorMessage } from "@/api/errors";
 import {
+  blockCommentAuthor,
   createComment,
   deleteComment,
   getCommentLikeCount,
@@ -34,14 +35,31 @@ import {
   getIsCommentLiked,
   getIsPostLiked,
   getPostLikeCount,
+  reportComment,
   toggleCommentLike,
   togglePostLike,
   updateComment,
 } from "@/features/community/api/community";
-import type { CommunityComment } from "@/features/community/api/types";
+import type {
+  CommentReportReason,
+  CommunityComment,
+} from "@/features/community/api/types";
 import { useCommunityPost } from "@/features/community/hooks/use-community";
 
 const BRAND = "#13708D";
+const REPORT_REASONS: ReadonlyArray<{
+  value: CommentReportReason;
+  label: string;
+}> = [
+  { value: "abuse", label: "욕설 및 괴롭힘" },
+  { value: "hate", label: "혐오 표현" },
+  { value: "sexual", label: "성적 콘텐츠" },
+  { value: "spam", label: "스팸 및 도배" },
+  { value: "personal_info", label: "개인정보 노출" },
+  { value: "impersonation", label: "사칭" },
+  { value: "illegal", label: "불법 콘텐츠" },
+  { value: "other", label: "기타" },
+];
 
 export default function CommunityPostScreen() {
   const insets = useSafeAreaInsets();
@@ -57,6 +75,9 @@ export default function CommunityPostScreen() {
   const [editingComment, setEditingComment] = useState<CommunityComment | null>(null);
   const [editText, setEditText] = useState("");
   const [editAnonymous, setEditAnonymous] = useState(false);
+  const [reportingComment, setReportingComment] = useState<CommunityComment | null>(null);
+  const [reportReason, setReportReason] = useState<CommentReportReason>("abuse");
+  const [reportDescription, setReportDescription] = useState("");
   const screenContentRef = useRef<View>(null);
   const keyboardTopRef = useRef<number | null>(null);
   const [keyboardOverlap, setKeyboardOverlap] = useState(0);
@@ -174,6 +195,29 @@ export default function CommunityPostScreen() {
     onError: (error) => Alert.alert("댓글 삭제 실패", getAxiosErrorMessage(error)),
   });
 
+  const reportCommentMutation = useMutation({
+    mutationFn: () =>
+      reportComment(reportingComment!.id, {
+        reason: reportReason,
+        description: reportDescription.trim() || null,
+      }),
+    onSuccess: () => {
+      setReportingComment(null);
+      setReportDescription("");
+      Alert.alert("신고 접수 완료", "신고가 접수되었습니다.");
+    },
+    onError: (error) => Alert.alert("신고 실패", getAxiosErrorMessage(error)),
+  });
+
+  const blockCommentAuthorMutation = useMutation({
+    mutationFn: (commentId: number) => blockCommentAuthor(commentId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: commentsKey });
+      Alert.alert("차단 완료", "작성자의 댓글이 더 이상 표시되지 않습니다.");
+    },
+    onError: (error) => Alert.alert("작성자 차단 실패", getAxiosErrorMessage(error)),
+  });
+
   const startEditing = (comment: CommunityComment) => {
     setMenuComment(null);
     setEditingComment(comment);
@@ -191,6 +235,29 @@ export default function CommunityPostScreen() {
         onPress: () => deleteCommentMutation.mutate(comment.id),
       },
     ]);
+  };
+
+  const openReport = (comment: CommunityComment) => {
+    setMenuComment(null);
+    setReportReason("abuse");
+    setReportDescription("");
+    setReportingComment(comment);
+  };
+
+  const confirmBlock = (comment: CommunityComment) => {
+    setMenuComment(null);
+    Alert.alert(
+      "작성자 차단",
+      "이 작성자를 차단할까요? 차단한 작성자의 댓글은 더 이상 표시되지 않습니다.",
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "차단",
+          style: "destructive",
+          onPress: () => blockCommentAuthorMutation.mutate(comment.id),
+        },
+      ]
+    );
   };
 
   if (postQuery.isPending) {
@@ -408,13 +475,13 @@ export default function CommunityPostScreen() {
               <>
                 <Pressable
                   className="h-14 justify-center px-2 border-b border-gray-100"
-                  onPress={() => menuComment && startEditing(menuComment)}
+                  onPress={() => menuComment && openReport(menuComment)}
                 >
                   <Text className="text-base font-bold text-gray-800">신고</Text>
                 </Pressable>
                 <Pressable
                   className="h-14 justify-center px-2"
-                  onPress={() => menuComment && confirmDelete(menuComment)}
+                  onPress={() => menuComment && confirmBlock(menuComment)}
                 >
                   <Text className="text-base font-bold text-red-500">작성자 차단</Text>
                 </Pressable>
@@ -429,6 +496,97 @@ export default function CommunityPostScreen() {
               }
           </Pressable>
         </Pressable>
+      </Modal>
+
+      <Modal
+        visible={Boolean(reportingComment)}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setReportingComment(null)}
+      >
+        <KeyboardAvoidingView
+          className="flex-1 bg-black/40 justify-end"
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View
+            className="bg-white rounded-t-3xl px-5 pt-5"
+            style={{ paddingBottom: Math.max(insets.bottom, 16), maxHeight: "85%" }}
+          >
+            <View className="flex-row items-center justify-between mb-4">
+              <Text className="text-lg font-extrabold text-gray-900">댓글 신고</Text>
+              <Pressable
+                accessibilityLabel="댓글 신고 닫기"
+                onPress={() => setReportingComment(null)}
+                className="w-9 h-9 rounded-full bg-gray-100 items-center justify-center"
+              >
+                <X size={18} color="#475569" />
+              </Pressable>
+            </View>
+
+            <Text className="text-sm font-bold text-gray-700 mb-2">신고 사유</Text>
+            <ScrollView
+              className="shrink-0"
+              style={{ maxHeight: 280 }}
+              keyboardShouldPersistTaps="handled"
+            >
+              {REPORT_REASONS.map((reason) => {
+                const selected = reportReason === reason.value;
+                return (
+                  <Pressable
+                    key={reason.value}
+                    onPress={() => setReportReason(reason.value)}
+                    className={`h-12 px-4 mb-2 rounded-2xl flex-row items-center justify-between ${
+                      selected ? "bg-cyan-50 border border-[#13708D]" : "bg-gray-100"
+                    }`}
+                  >
+                    <Text
+                      className={`text-sm font-bold ${
+                        selected ? "text-[#13708D]" : "text-gray-600"
+                      }`}
+                    >
+                      {reason.label}
+                    </Text>
+                    <View
+                      className={`w-5 h-5 rounded-full border-2 items-center justify-center ${
+                        selected ? "border-[#13708D]" : "border-gray-300"
+                      }`}
+                    >
+                      {selected ? <View className="w-2.5 h-2.5 rounded-full bg-[#13708D]" /> : null}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <Text className="text-sm font-bold text-gray-700 mt-2 mb-2">
+              상세 내용 {reportReason === "other" ? "(필수)" : "(선택)"}
+            </Text>
+            <TextInput
+              value={reportDescription}
+              onChangeText={setReportDescription}
+              placeholder="신고 내용을 입력해주세요"
+              placeholderTextColor="#94A3B8"
+              multiline
+              maxLength={1000}
+              textAlignVertical="top"
+              className="min-h-24 max-h-36 rounded-2xl bg-gray-100 px-4 py-3 text-sm text-gray-900"
+            />
+            <Pressable
+              onPress={() => reportCommentMutation.mutate()}
+              disabled={
+                reportCommentMutation.isPending ||
+                (reportReason === "other" && !reportDescription.trim())
+              }
+              className="h-12 mt-4 rounded-2xl bg-[#13708D] items-center justify-center disabled:opacity-40"
+            >
+              {reportCommentMutation.isPending ? (
+                <ActivityIndicator color="white" size="small" />
+              ) : (
+                <Text className="text-sm font-extrabold text-white">신고하기</Text>
+              )}
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal

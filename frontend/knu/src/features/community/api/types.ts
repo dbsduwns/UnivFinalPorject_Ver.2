@@ -41,6 +41,36 @@ export type UpdateCommentBody = {
   is_anonymous?: boolean;
 };
 
+export type CommentReportReason =
+  | "abuse"
+  | "hate"
+  | "sexual"
+  | "spam"
+  | "personal_info"
+  | "impersonation"
+  | "illegal"
+  | "other";
+
+export type CreateCommentReportBody = {
+  reason: CommentReportReason;
+  description?: string | null;
+};
+
+export type CommentReport = {
+  id: number;
+  comment_id: number | null;
+  reason: CommentReportReason;
+  description: string | null;
+  status: "pending" | "reviewing" | "resolved" | "dismissed";
+  created_at: string;
+  reviewed_at: string | null;
+};
+
+export type UserBlock = {
+  id: number;
+  created_at: string;
+};
+
 export type LikeToggleResponse = {
   liked: boolean;
   like_count: number;

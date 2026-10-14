@@ -1,14 +1,17 @@
 import { apiClient } from "@/api/client";
 
 import type {
+  CommentReport,
   CommunityComment,
   CommunityPost,
   CreateCommentBody,
+  CreateCommentReportBody,
   CreatePostBody,
   GetPostsParams,
   LikeToggleResponse,
   UpdateCommentBody,
   UpdatePostBody,
+  UserBlock,
 } from "./types";
 
 export const getCommunityPosts = async (
@@ -94,6 +97,27 @@ export const updateComment = async (
 
 export const deleteComment = async (postId: number, commentId: number): Promise<void> => {
   await apiClient.delete(`/api/community/comments/${postId}/${commentId}`);
+};
+
+export const reportComment = async (
+  commentId: number,
+  body: CreateCommentReportBody
+): Promise<CommentReport> => {
+  const { data } = await apiClient.post<CommentReport>(
+    "/api/community/commentreports",
+    body,
+    { params: { comment_id: commentId } }
+  );
+  return data;
+};
+
+export const blockCommentAuthor = async (commentId: number): Promise<UserBlock> => {
+  const { data } = await apiClient.post<UserBlock>(
+    "/api/community/userblocks",
+    undefined,
+    { params: { comment_id: commentId } }
+  );
+  return data;
 };
 
 export const getPostLikeCount = async (postId: number): Promise<number> => {

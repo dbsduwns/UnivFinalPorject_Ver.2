@@ -55,7 +55,7 @@ export const TodaySchedule = () => {
                         id: `course-${course.id}`,
                         name: course.name,
                         professor: course.professor,
-                        room: "강의실 정보",
+                        room: course.building_name ?? "건물 없음",
                         startTime: schedule.start_time.substring(0, 5),
                         endTime: schedule.end_time.substring(0, 5),
                         credits: course.credits,
@@ -193,7 +193,7 @@ export const TodaySchedule = () => {
                                             </View>
                                             <Text style={{ color: active ? '#60A5FA' : '#6B7280', fontSize: 12, marginTop: 1 }}>
                                                 {lecture.type === 'course' 
-                                                    ? `${lecture.professor} · ${lecture.credits}학점` 
+                                                    ? `${lecture.professor} · ${lecture.credits}학점 · ${lecture.room}` 
                                                     : (lecture.memo || "메모 없음")}
                                             </Text>
                                         </View>
