@@ -36,6 +36,14 @@ class CommuteSettingsUpdate(BaseModel):
     departure_buffer_minutes: int | None = Field(default=None, ge=0, le=120)
 
 
+class CommuteAddressSearchResult(BaseModel):
+    address: str
+    road_address: str | None = None
+    building_name: str | None = None
+    latitude: float
+    longitude: float
+
+
 class CommuteProfileResponse(BaseModel):
     id: int
     user_id: int

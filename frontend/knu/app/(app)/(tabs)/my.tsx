@@ -10,8 +10,8 @@ import {
   Settings, 
   Key, 
   Mail,
-  Smartphone,
-  Info
+  Info,
+  Navigation,
 } from "lucide-react-native";
 
 import { useAuthStore } from "@/features/auth/store/auth-store";
@@ -115,6 +115,15 @@ export default function MyScreen() {
 
         {/* 설정 그룹 */}
         <View className="px-5 mt-6 pb-12">
+          {/* 등교 설정 */}
+          <SectionTitle title="등교 설정" />
+          <View className="bg-white rounded-3xl overflow-hidden shadow-sm border border-gray-100 mb-6">
+            <SettingLink
+              icon={<Navigation size={20} color="#13708D" />}
+              title="집 주소 및 등교 경로 설정"
+              onPress={() => router.push("/(app)/commute-settings")}
+            />
+          </View>
           
           {/* 알림 설정 */}
           <SectionTitle title="알림 설정" />

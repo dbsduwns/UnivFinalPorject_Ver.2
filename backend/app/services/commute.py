@@ -906,3 +906,91 @@ def geocode_address(address: str) -> dict:
         "road_address": result.get("newRoadName"),
         "building_name": result.get("newBuildingName"),
     }
+
+
+def search_addresses(query: str, limit: int = 10) -> list[dict]:
+    """TMAP 통합주소검색 결과를 통학 주소 선택용 목록으로 반환한다."""
+    if not TMAP_API_KEY:
+        raise GeocodingError("TMAP_API_KEY가 설정되지 않았습니다.")
+
+    normalized_query = query.strip()
+    if len(normalized_query) < 2:
+        return []
+
+    try:
+        response = requests.get(
+            TMAP_GEOCODING_URL,
+            params={
+                "version": 1,
+                "addressFlag": "F00",
+                "coordType": "WGS84GEO",
+                "fullAddr": normalized_query,
+                "page": 1,
+                "count": max(1, min(limit, 20)),
+                "appKey": TMAP_API_KEY,
+            },
+            headers={"Accept": "application/json"},
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
+    except requests.RequestException as exc:
+        raise GeocodingError("TMAP 주소 검색 요청에 실패했습니다.") from exc
+    except ValueError as exc:
+        raise GeocodingError("TMAP 주소 검색 응답을 해석할 수 없습니다.") from exc
+
+    coordinates = data.get("coordinateInfo", {}).get("coordinate", [])
+    results: list[dict] = []
+    seen: set[tuple[str, float, float]] = set()
+
+    for item in coordinates:
+        latitude = item.get("latEntr") or item.get("lat")
+        longitude = item.get("lonEntr") or item.get("lon")
+        if latitude is None or longitude is None:
+            continue
+
+        try:
+            latitude_value = float(latitude)
+            longitude_value = float(longitude)
+        except (TypeError, ValueError):
+            continue
+
+        region = " ".join(
+            str(item.get(key) or "").strip()
+            for key in ("city_do", "gu_gun")
+            if item.get(key)
+        )
+        road_detail = " ".join(
+            str(item.get(key) or "").strip()
+            for key in ("newRoadName", "newBuildingIndex")
+            if item.get(key)
+        )
+        road_address = " ".join(part for part in (region, road_detail) if part)
+
+        lot_detail = " ".join(
+            str(item.get(key) or "").strip()
+            for key in ("legalDong", "ri", "bunji")
+            if item.get(key)
+        )
+        lot_address = " ".join(part for part in (region, lot_detail) if part)
+        address = (
+            str(item.get("fullAddress") or "").strip()
+            or road_address
+            or lot_address
+            or normalized_query
+        )
+        key = (address, latitude_value, longitude_value)
+        if key in seen:
+            continue
+        seen.add(key)
+        results.append(
+            {
+                "address": address,
+                "road_address": road_address or None,
+                "building_name": item.get("newBuildingName") or None,
+                "latitude": latitude_value,
+                "longitude": longitude_value,
+            }
+        )
+
+    return results

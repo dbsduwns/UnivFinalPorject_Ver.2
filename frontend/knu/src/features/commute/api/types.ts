@@ -44,6 +44,14 @@ export type CommuteSettingsUpdate = Partial<
   Pick<CommuteProfile, "use_shuttle" | "departure_buffer_minutes">
 >;
 
+export type CommuteAddressSearchResult = {
+  address: string;
+  road_address: string | null;
+  building_name: string | null;
+  latitude: number;
+  longitude: number;
+};
+
 export type FirstClass = {
   course_id: number | null;
   course_name: string;

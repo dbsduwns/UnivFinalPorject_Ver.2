@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -7,6 +7,7 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.commute import (
     CommuteProfileCreate,
+    CommuteAddressSearchResult,
     CommuteProfileResponse,
     CommuteProfileUpdate,
     CommuteSettingsUpdate,
@@ -16,6 +17,18 @@ from app.services import commute as commute_service
 
 
 router = APIRouter(prefix="/api/commute", tags=["commute"])
+
+
+@router.get("/addresses", response_model=list[CommuteAddressSearchResult])
+def search_commute_addresses(
+    q: str = Query(min_length=2, max_length=100),
+    current_user: User = Depends(get_current_user),
+):
+    del current_user
+    try:
+        return commute_service.search_addresses(q)
+    except commute_service.GeocodingError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.get("/profile", response_model=CommuteProfileResponse)

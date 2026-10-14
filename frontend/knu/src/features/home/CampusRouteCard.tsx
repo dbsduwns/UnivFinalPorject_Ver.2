@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { ChevronRight, Clock3, Home, MapPin, Navigation } from "lucide-react-native";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { getTodayCommute } from "@/features/commute/api/commute";
 import type { CommuteToday, RouteSummary } from "@/features/commute/api/types";
@@ -75,6 +76,7 @@ function getSecondaryInfo(route: RouteSummary | null | undefined) {
 }
 
 export const CampusRouteCard = () => {
+  const [isSetupModalVisible, setIsSetupModalVisible] = useState(false);
   const commuteQuery = useQuery({
     queryKey: ["commute", "today"],
     queryFn: getTodayCommute,
@@ -93,7 +95,16 @@ export const CampusRouteCard = () => {
       void commuteQuery.refetch();
       return;
     }
+    if (commuteQuery.data?.status === "setup_required") {
+      setIsSetupModalVisible(true);
+      return;
+    }
     router.push("/(app)/(tabs)/campus-map");
+  };
+
+  const openCommuteSettings = () => {
+    setIsSetupModalVisible(false);
+    router.push("/(app)/commute-settings");
   };
 
   return (
@@ -162,6 +173,40 @@ export const CampusRouteCard = () => {
           </Text>
         </View>
       </Pressable>
+
+      <Modal
+        visible={isSetupModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsSetupModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setIsSetupModalVisible(false)}
+          />
+          <View style={styles.modalCard}>
+            <View style={styles.modalIcon}>
+              <Navigation size={26} color="#13708D" />
+            </View>
+            <Text style={styles.modalTitle}>맞춤 등교 시간을 확인해보세요</Text>
+            <Text style={styles.modalDescription}>
+              집 주소를 등록하면 첫 수업과 셔틀 시간에 맞춰 추천 출발 시간을 계산해드려요.
+            </Text>
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={styles.laterButton}
+                onPress={() => setIsSetupModalVisible(false)}
+              >
+                <Text style={styles.laterButtonText}>나중에</Text>
+              </Pressable>
+              <Pressable style={styles.setupButton} onPress={openCommuteSettings}>
+                <Text style={styles.setupButtonText}>집 주소 등록</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -190,4 +235,14 @@ const styles = StyleSheet.create({
   infoItem: { flexDirection: "row", alignItems: "center", marginRight: 14 },
   infoText: { marginLeft: 5, fontSize: 11, color: "#475569" },
   actionText: { marginLeft: "auto", fontSize: 12, fontWeight: "700", color: "#13708D" },
+  modalBackdrop: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: "rgba(15, 23, 42, 0.45)" },
+  modalCard: { width: "100%", maxWidth: 360, padding: 24, borderRadius: 22, alignItems: "center", backgroundColor: "#FFFFFF" },
+  modalIcon: { width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center", backgroundColor: "#EAF8FC", marginBottom: 16 },
+  modalTitle: { fontSize: 18, fontWeight: "700", color: "#0F172A", textAlign: "center" },
+  modalDescription: { marginTop: 9, fontSize: 13, lineHeight: 20, color: "#64748B", textAlign: "center" },
+  modalButtons: { width: "100%", flexDirection: "row", gap: 10, marginTop: 22 },
+  laterButton: { flex: 1, height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#F1F5F9" },
+  laterButtonText: { fontSize: 14, fontWeight: "600", color: "#64748B" },
+  setupButton: { flex: 1.4, height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "#13708D" },
+  setupButtonText: { fontSize: 14, fontWeight: "700", color: "#FFFFFF" },
 });
