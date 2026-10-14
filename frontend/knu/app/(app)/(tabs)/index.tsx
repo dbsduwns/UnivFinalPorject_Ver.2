@@ -8,6 +8,7 @@ import { TodaySchedule } from "@/features/home/TodaySchedule";
 import { useNotices } from "@/features/notice/hooks/use_notices";
 import { WelcomeMessage } from "@/features/home/WelcomeMessage";
 import { SocialQuickMenu } from "@/features/home/SocialQuickMenu";
+import { CampusRouteCard } from "@/features/home/CampusRouteCard";
 
 export default function HomeScreen() {
   const { data: notices = [], isLoading } = useNotices();
@@ -18,6 +19,7 @@ export default function HomeScreen() {
         <WelcomeMessage/>
         <AIAskBar/>
         <TodaySchedule/>
+        <CampusRouteCard/>
         <QuickMenu/>
         <SocialQuickMenu/>
         <NoticeCard notices={notices.slice(0, 3)} isLoading={isLoading}/>

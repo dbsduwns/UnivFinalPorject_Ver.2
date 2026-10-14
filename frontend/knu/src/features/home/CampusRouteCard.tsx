@@ -1,0 +1,193 @@
+import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
+import { ChevronRight, Clock3, Home, MapPin, Navigation } from "lucide-react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+
+import { getTodayCommute } from "@/features/commute/api/commute";
+import type { CommuteToday, RouteSummary } from "@/features/commute/api/types";
+
+const formatTime = (value: string | null | undefined) => value?.slice(0, 5) ?? null;
+
+function getCardCopy(commute: CommuteToday | undefined) {
+  if (!commute) {
+    return {
+      title: "집에서 강남대학교까지",
+      description: "맞춤 등교 정보를 불러오고 있어요",
+      action: "불러오는 중",
+    };
+  }
+
+  const route = commute.recommended_route;
+  if (commute.status === "ready" && route) {
+    const departureTime = formatTime(route.departure_time);
+    const title =
+      commute.display_mode === "departure_recommendation" && departureTime
+        ? `${departureTime}에 출발하세요`
+        : `학교까지 약 ${route.duration_minutes}분`;
+    const classTime = formatTime(commute.first_class?.start_time);
+    const classLabel = commute.first_class?.course_name;
+    const destination = commute.destination?.destination_name;
+    const description = [
+      classTime && classLabel ? `${classTime} ${classLabel}` : classLabel,
+      destination,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
+    return {
+      title,
+      description: description || route.recommendation_reason || "추천 경로를 확인해보세요",
+      action: "경로보기",
+    };
+  }
+
+  if (commute.status === "setup_required") {
+    return {
+      title: "집 주소를 등록해주세요",
+      description: commute.message ?? "주소를 등록하면 맞춤 등교 시간을 알려드려요",
+      action: "설정하기",
+    };
+  }
+
+  if (commute.status === "no_schedule") {
+    return {
+      title: "오늘은 정규 수업이 없어요",
+      description: commute.message ?? "여유로운 하루를 보내세요",
+      action: "캠퍼스맵",
+    };
+  }
+
+  return {
+    title: "등교 경로를 계산하지 못했어요",
+    description: commute.message ?? "캠퍼스맵에서 경로를 다시 확인해주세요",
+    action: commute.status === "provider_error" ? "다시 확인" : "캠퍼스맵",
+  };
+}
+
+function getSecondaryInfo(route: RouteSummary | null | undefined) {
+  if (!route) return "대중교통 추천";
+  if (route.bus_arrival_minutes !== null) {
+    return `버스 ${route.bus_arrival_minutes}분 후`;
+  }
+  const shuttleTime = formatTime(route.shuttle_departure_time);
+  if (shuttleTime) return `셔틀 ${shuttleTime}`;
+  return route.transfer_count > 0 ? `환승 ${route.transfer_count}회` : "환승 없음";
+}
+
+export const CampusRouteCard = () => {
+  const commuteQuery = useQuery({
+    queryKey: ["commute", "today"],
+    queryFn: getTodayCommute,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    retry: 1,
+  });
+
+  const copy = getCardCopy(commuteQuery.data);
+  const route = commuteQuery.data?.recommended_route;
+  const hasRequestError = commuteQuery.isError;
+  const shouldRetry = hasRequestError || commuteQuery.data?.status === "provider_error";
+
+  const handlePress = () => {
+    if (shouldRetry) {
+      void commuteQuery.refetch();
+      return;
+    }
+    router.push("/(app)/(tabs)/campus-map");
+  };
+
+  return (
+    <View style={styles.section}>
+      <Pressable
+        style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+        onPress={handlePress}
+      >
+        <View style={styles.cardHeader}>
+          <View style={styles.headerTitleWrap}>
+            <Navigation size={22} color="#13708D" />
+            <Text style={styles.sectionTitle}>오늘의 등교 길찾기</Text>
+          </View>
+          <View style={styles.headerLink}>
+            <Text style={styles.moreText}>캠퍼스맵</Text>
+            <ChevronRight size={16} color="#13708D" />
+          </View>
+        </View>
+
+        <View style={styles.cardTopRow}>
+          <View style={styles.routeLine}>
+            <View style={styles.routeIcon}>
+              <Home size={17} color="#13708D" />
+            </View>
+            <View style={styles.routeConnector} />
+            <View style={[styles.routeIcon, styles.schoolIcon]}>
+              <MapPin size={17} color="#FFFFFF" />
+            </View>
+          </View>
+          <View style={styles.routeTitleWrap}>
+            {commuteQuery.isLoading ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator size="small" color="#13708D" />
+                <Text style={styles.loadingText}>등교 시간을 계산하고 있어요</Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.routeTitle}>
+                  {hasRequestError ? "등교 정보를 불러오지 못했어요" : copy.title}
+                </Text>
+                <Text style={styles.routeDescription} numberOfLines={2}>
+                  {hasRequestError
+                    ? "네트워크 상태를 확인한 뒤 다시 시도해주세요"
+                    : copy.description}
+                </Text>
+              </>
+            )}
+          </View>
+          <ChevronRight size={20} color="#13708D" />
+        </View>
+
+        <View style={styles.divider} />
+        <View style={styles.cardBottomRow}>
+          <View style={styles.infoItem}>
+            <Clock3 size={16} color="#13708D" />
+            <Text style={styles.infoText}>
+              {route ? `총 ${route.duration_minutes}분` : "출발 시간 계산"}
+            </Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Navigation size={16} color="#13708D" />
+            <Text style={styles.infoText}>{getSecondaryInfo(route)}</Text>
+          </View>
+          <Text style={styles.actionText}>
+            {shouldRetry ? "다시 확인" : copy.action}
+          </Text>
+        </View>
+      </Pressable>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  section: { marginBottom: 24, backgroundColor: "white", borderRadius: 15 },
+  cardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: 24, marginTop: 20, marginBottom: 18 },
+  headerTitleWrap: { flexDirection: "row", alignItems: "center", gap: 8 },
+  sectionTitle: { fontSize: 15, fontWeight: "700", color: "#111827" },
+  headerLink: { flexDirection: "row", alignItems: "center" },
+  moreText: { color: "#13708D", fontSize: 12, fontWeight: "600", marginRight: 2 },
+  card: { backgroundColor: "white", borderWidth: 1, borderRadius: 15, borderColor: "#E5E7EB", width: "100%" },
+  cardPressed: { opacity: 0.82 },
+  cardTopRow: { flexDirection: "row", alignItems: "center", marginHorizontal: 24, marginBottom: 18 },
+  routeLine: { width: 30, alignItems: "center", marginRight: 12 },
+  routeIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: "#EAF8FC", alignItems: "center", justifyContent: "center" },
+  schoolIcon: { backgroundColor: "#13708D" },
+  routeConnector: { width: 2, height: 10, backgroundColor: "#B5DDE5" },
+  routeTitleWrap: { flex: 1 },
+  routeTitle: { fontSize: 16, fontWeight: "700", color: "#0F172A", marginBottom: 5 },
+  routeDescription: { fontSize: 12, color: "#64748B", lineHeight: 17 },
+  loadingRow: { flexDirection: "row", alignItems: "center" },
+  loadingText: { marginLeft: 8, fontSize: 13, color: "#64748B" },
+  divider: { height: 1, backgroundColor: "#F3F4F6", marginHorizontal: 24, marginBottom: 16 },
+  cardBottomRow: { flexDirection: "row", alignItems: "center", marginHorizontal: 24, marginBottom: 20 },
+  infoItem: { flexDirection: "row", alignItems: "center", marginRight: 14 },
+  infoText: { marginLeft: 5, fontSize: 11, color: "#475569" },
+  actionText: { marginLeft: "auto", fontSize: 12, fontWeight: "700", color: "#13708D" },
+});

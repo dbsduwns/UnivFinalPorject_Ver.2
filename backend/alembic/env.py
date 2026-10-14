@@ -12,7 +12,13 @@ from app.models import building, room, notice, notice_read
 from app.models import timetable, timetable_course, custom_schedule, wizard_selection
 from app.models import daily_menu, menu_item
 from app.models import notification_setting, completed_course, graduation_standard
-from app.models import shuttle
+from app.models import shuttle_map
+from app.models.shuttle_map import (
+    shuttle_map_routes,
+    shuttle_map_schedules,
+    shuttle_map_schedule_stops,
+    shuttle_map_stops,
+)
 from app.models import messenger, room_messengers, room_participants
 from app.models import ai_chat_room, ai_message
 

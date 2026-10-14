@@ -9,7 +9,7 @@ from .menu_item import MenuItem
 from .notice import Notice
 from .notice_read import NoticeRead
 from .notification_setting import NotificationSetting
-from .shuttle import Shuttle
+from app.models.shuttle import Shuttle
 from .timetable import Timetable
 from .timetable_course import TimetableCourse
 from .custom_schedule import CustomSchedule
@@ -23,3 +23,8 @@ from .room_messengers import RoomMessenger
 from .room_participants import RoomParticipant
 from .messenger import Messenger
 from .community import Post, Comment, PostLike, CommentLike, CommentReport, UserBlock
+from .commute import CommuteProfile
+from .shuttle_map.shuttle_map_routes import ShuttleMapRoute
+from .shuttle_map.shuttle_map_schedules import ShuttleMapSchedule
+from .shuttle_map.shuttle_map_schedule_stops import ShuttleMapScheduleStop
+from .shuttle_map.shuttle_map_stops import ShuttleMapStop

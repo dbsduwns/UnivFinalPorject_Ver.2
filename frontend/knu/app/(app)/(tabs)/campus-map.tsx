@@ -1,8 +1,8 @@
 import React, { useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Platform, StyleSheet, Text, View, Alert, TouchableOpacity, ScrollView, Animated, Dimensions } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, Text, View, Alert, TouchableOpacity, ScrollView, Animated, Dimensions, TextInput } from "react-native";
 import { WebView } from "react-native-webview";
 import * as Location from "expo-location";
-import { Navigation, Info, X, ChevronRight, ChevronLeft, CornerUpRight, CornerUpLeft, ArrowUp, Footprints } from "lucide-react-native";
+import { Navigation, Info, X, ChevronRight, ChevronLeft, CornerUpRight, CornerUpLeft, ArrowUp, Footprints, Search, LocateFixed, Building2, Coffee, Heart } from "lucide-react-native";
 
 import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
 import { fetchPedestrianRoute } from "@/utils/mapUtils";
@@ -169,6 +169,8 @@ export default function CampusMapScreen() {
   const [routeData, setRouteData] = useState<RouteData | null>(null);
   const [isRouting, setIsRouting] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(true);
+  const [activeTab, setActiveTab] = useState("건물");
+  const [searchText, setSearchText] = useState("");
 
   const drawerAnim = useRef(new Animated.Value(0)).current;
 
@@ -193,6 +195,31 @@ export default function CampusMapScreen() {
     if (selectedLoc) {
       webViewRef.current?.postMessage(JSON.stringify({ type: "CENTER_MAP", ...selectedLoc }));
     }
+  };
+
+  const filteredLocations = CAMPUS_LOCATIONS.filter((location) =>
+    location.name.includes(searchText.trim())
+  );
+
+  const handleSelectSearchResult = (location: LocationData) => {
+    setSelectedLoc(location);
+    setRouteData(null);
+    webViewRef.current?.postMessage(JSON.stringify({ type: "CLEAR_ROUTE" }));
+    webViewRef.current?.postMessage(JSON.stringify({ type: "CENTER_MAP", ...location }));
+    setSearchText("");
+    toggleDrawer(true);
+  };
+
+  const handleCenterOnUser = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("권한 필요", "현재 위치를 확인하려면 위치 정보 권한이 필요합니다.");
+      return;
+    }
+    const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    webViewRef.current?.postMessage(JSON.stringify({
+      type: "CENTER_MAP", lat: location.coords.latitude, lng: location.coords.longitude,
+    }));
   };
 
   const getInstructionIcon = (text: string) => {
@@ -273,6 +300,54 @@ export default function CampusMapScreen() {
           onMessage={onMessage}
         />
 
+        <View style={styles.mapToolbar}>
+          <View style={styles.searchBar}>
+            <Search size={19} color="#64748B" />
+            <TextInput
+              value={searchText}
+              onChangeText={setSearchText}
+              placeholder="건물이나 장소를 검색하세요"
+              placeholderTextColor="#94A3B8"
+              style={styles.searchInput}
+              returnKeyType="search"
+            />
+            {searchText.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchText("")} hitSlop={8}>
+                <X size={17} color="#94A3B8" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={styles.tabRow}>
+            {[{ label: "건물", icon: Building2 }, { label: "편의시설", icon: Coffee }, { label: "즐겨찾기", icon: Heart }].map(({ label, icon: Icon }) => (
+              <TouchableOpacity
+                key={label}
+                style={[styles.mapTab, activeTab === label && styles.mapTabActive]}
+                onPress={() => setActiveTab(label)}
+              >
+                <Icon size={15} color={activeTab === label ? "#FFFFFF" : "#475569"} />
+                <Text style={[styles.mapTabText, activeTab === label && styles.mapTabTextActive]}>{label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {searchText.length > 0 && activeTab === "건물" && (
+            <View style={styles.searchResults}>
+              {filteredLocations.length > 0 ? filteredLocations.slice(0, 5).map((location) => (
+                <TouchableOpacity key={location.name} style={styles.searchResult} onPress={() => handleSelectSearchResult(location)}>
+                  <Building2 size={16} color="#13708D" />
+                  <Text style={styles.searchResultText}>{location.name}</Text>
+                  <ChevronRight size={16} color="#CBD5E1" />
+                </TouchableOpacity>
+              )) : <Text style={styles.emptyResult}>검색 결과가 없습니다.</Text>}
+            </View>
+          )}
+        </View>
+
+        <TouchableOpacity style={styles.locationButton} onPress={handleCenterOnUser}>
+          <LocateFixed size={21} color="#13708D" />
+        </TouchableOpacity>
+
         {/* 미니 제어바 (드로어가 닫혔을 때) */}
         {!isDrawerOpen && selectedLoc && (
           <TouchableOpacity style={styles.miniBar} onPress={() => toggleDrawer(true)}>
@@ -340,6 +415,31 @@ export default function CampusMapScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   webview: { flex: 1 },
+  mapToolbar: { position: 'absolute', top: 16, left: 16, right: 16, zIndex: 80 },
+  searchBar: {
+    height: 52, backgroundColor: '#FFFFFF', borderRadius: 18, paddingHorizontal: 16,
+    flexDirection: 'row', alignItems: 'center', shadowColor: '#0F172A', shadowOpacity: 0.14,
+    shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 6,
+  },
+  searchInput: { flex: 1, marginLeft: 10, color: '#0F172A', fontSize: 14, paddingVertical: 0 },
+  tabRow: { flexDirection: 'row', marginTop: 10, gap: 8 },
+  mapTab: {
+    height: 36, paddingHorizontal: 13, borderRadius: 18, backgroundColor: '#FFFFFF',
+    flexDirection: 'row', alignItems: 'center', gap: 5, shadowColor: '#0F172A',
+    shadowOpacity: 0.1, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 3,
+  },
+  mapTabActive: { backgroundColor: '#13708D' },
+  mapTabText: { fontSize: 12, fontWeight: '600', color: '#475569' },
+  mapTabTextActive: { color: '#FFFFFF' },
+  searchResults: { marginTop: 8, backgroundColor: '#FFFFFF', borderRadius: 16, paddingVertical: 5, shadowColor: '#0F172A', shadowOpacity: 0.12, shadowRadius: 8, elevation: 5 },
+  searchResult: { minHeight: 42, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  searchResultText: { flex: 1, fontSize: 13, color: '#334155', fontWeight: '600' },
+  emptyResult: { padding: 14, fontSize: 13, color: '#64748B' },
+  locationButton: {
+    position: 'absolute', right: 18, bottom: 24, width: 48, height: 48, borderRadius: 16,
+    backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', zIndex: 70,
+    shadowColor: '#0F172A', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 6,
+  },
   drawer: {
     position: 'absolute', top: 20, left: 16, width: 280,
     backgroundColor: 'white', borderRadius: 20, padding: 20,

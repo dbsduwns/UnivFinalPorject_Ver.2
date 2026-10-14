@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.models import building, course_schedule, custom_schedule, room, subject  # noqa: F401
 from app.models.course import Course
 from app.models.custom_schedule import CustomSchedule
+from app.models.room import Room
 from app.models.timetable import Timetable
 from app.models.timetable_course import TimetableCourse
 from app.models.user import User
@@ -68,7 +69,12 @@ def delete_timetable(db: Session, user: User, timetable_id: int) -> None:
     
 
 def get_my_timetables(db: Session, user: User) -> list[Timetable]:
-    return db.query(Timetable).filter(Timetable.user_id == user.id).order_by(Timetable.id.desc()).all()
+    return (
+        db.query(Timetable)
+        .filter(Timetable.user_id == user.id)
+        .order_by(Timetable.created_at.desc(), Timetable.id.desc())
+        .all()
+    )
 
 
 def get_my_timetable(db: Session, user: User, timetable_id: int) -> Timetable | None:
@@ -95,11 +101,16 @@ def get_my_timetable_detail(db: Session, user: User, timetable_id: int) -> dict 
     if course_ids:
         course_rows = (
             db.query(Course)
-            .options(joinedload(Course.subject), joinedload(Course.schedules))
+            .options(
+                joinedload(Course.subject),
+                joinedload(Course.schedules),
+                joinedload(Course.room).joinedload(Room.building),
+            )
             .filter(Course.id.in_(course_ids))
             .all()
         )
         for course in course_rows:
+            building = course.room.building if course.room else None
             courses.append(
                 {
                     "id": course.id,
@@ -110,6 +121,10 @@ def get_my_timetable_detail(db: Session, user: User, timetable_id: int) -> dict 
                     "section": course.section,
                     "professor": course.professor,
                     "color": color_by_course_id.get(course.id),
+                    "room_name": course.room.room_number if course.room else None,
+                    "building_name": building.name if building else None,
+                    "latitude": building.latitude if building else None,
+                    "longitude": building.longitude if building else None,
                     "schedules": course.schedules,
                 }
             )

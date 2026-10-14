@@ -14,7 +14,7 @@ from app.models import (
     daily_menu,
     menu_item,
     notice,
-    shuttle,
+    shuttle_map,
     friendship,
     messenger,
     room_messengers,
@@ -27,6 +27,7 @@ from app.routers import (
     timetable as timetable_router, 
     course as course_router,
     shuttle as shuttle_router,
+    commute as commute_router,
     friend as friend_router,
     chat as chat_router,
     admin as admin_router,
@@ -75,6 +76,7 @@ app.include_router(timetable_router.router)
 app.include_router(ai_chat.router)
 app.include_router(course_router.router)
 app.include_router(shuttle_router.router)
+app.include_router(commute_router.router)
 app.include_router(friend_router.router)
 app.include_router(chat_router.router)
 app.include_router(admin_router.router)

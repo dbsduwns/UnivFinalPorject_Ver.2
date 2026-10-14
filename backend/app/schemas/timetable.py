@@ -64,6 +64,10 @@ class CourseDetailResponse(BaseModel):
     section: str
     professor: str | None = None
     color: str | None = None
+    room_name: str | None = None
+    building_name: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
     schedules: list[CourseScheduleResponse] = []
 
     model_config = {
