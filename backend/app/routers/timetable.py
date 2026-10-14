@@ -5,10 +5,12 @@ from app.core.dependencies import get_current_user
 from app.database import get_db
 from app.models.user import User
 from app.schemas.timetable import (
+    BuildingResponse,
     CustomScheduleCreate,
     CustomScheduleUpdate,
     CustomScheduleResponse,
     TimetableCourseCreate,
+    TimetableCourseUpdate,
     TimetableCourseResponse,
     TimetableCreate,
     TimetableUpdate,
@@ -18,6 +20,11 @@ from app.schemas.timetable import (
 from app.services import timetable as timetable_service
 
 router = APIRouter(prefix="/api/timetables", tags=["timetables"])
+
+
+@router.get("/buildings", response_model=list[BuildingResponse])
+def get_buildings(db: Session = Depends(get_db)):
+    return timetable_service.get_buildings(db)
 
 
 @router.post("/", response_model=TimetableResponse)
@@ -81,6 +88,20 @@ def add_course_to_timetable(
 ):
     try:
         return timetable_service.add_course_to_timetable(db, current_user, timetable_id, data)
+    except ValueError as e:
+        raise_timetable_error(e)
+
+
+@router.patch("/{timetable_id}/courses/{course_id}", response_model=TimetableCourseResponse)
+def update_timetable_course(
+    timetable_id: int,
+    course_id: int,
+    data: TimetableCourseUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        return timetable_service.update_timetable_course(db, current_user, timetable_id, course_id, data)
     except ValueError as e:
         raise_timetable_error(e)
 

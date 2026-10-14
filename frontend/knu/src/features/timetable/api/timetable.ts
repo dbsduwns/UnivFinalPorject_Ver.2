@@ -1,4 +1,5 @@
 import type {
+  CampusBuilding,
   CustomSchedule,
   CustomScheduleCreateBody,
   Timetable,
@@ -17,6 +18,11 @@ export const getTimetables = async () => {
 
 export const getTimetableDetail = async (timetableId: number) => {
   const { data } = await apiClient.get<TimetableDetail>(`/api/timetables/${timetableId}`);
+  return data;
+};
+
+export const getCampusBuildings = async () => {
+  const { data } = await apiClient.get<CampusBuilding[]>("/api/timetables/buildings");
   return data;
 };
 
@@ -52,6 +58,18 @@ export const addCourseToTimetable = async (
   return data;
 };
 
+export const updateTimetableCourseBuilding = async (
+  timetableId: number,
+  courseId: number,
+  buildingId: number | null
+) => {
+  const { data } = await apiClient.patch<TimetableCourse>(
+    `/api/timetables/${timetableId}/courses/${courseId}`,
+    { building_id: buildingId }
+  );
+  return data;
+};
+
 export const removeCourseFromTimetable = async (
   timetableId: number,
   courseId: number
@@ -69,6 +87,18 @@ export const createCustomSchedule = async (
   const { data } = await apiClient.post<CustomSchedule>(
     `/api/timetables/${timetableId}/custom-schedules`,
     body
+  );
+  return data;
+};
+
+export const updateCustomScheduleBuilding = async (
+  timetableId: number,
+  scheduleId: number,
+  buildingId: number | null
+) => {
+  const { data } = await apiClient.patch<CustomSchedule>(
+    `/api/timetables/${timetableId}/custom-schedules/${scheduleId}`,
+    { building_id: buildingId }
   );
   return data;
 };

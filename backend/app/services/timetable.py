@@ -2,12 +2,22 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models import building, course_schedule, custom_schedule, room, subject  # noqa: F401
 from app.models.course import Course
+from app.models.building import Building
 from app.models.custom_schedule import CustomSchedule
 from app.models.room import Room
 from app.models.timetable import Timetable
 from app.models.timetable_course import TimetableCourse
 from app.models.user import User
-from app.schemas.timetable import CustomScheduleCreate, CustomScheduleUpdate, TimetableCourseCreate, TimetableCreate, TimetableUpdate
+from app.schemas.timetable import CustomScheduleCreate, CustomScheduleUpdate, TimetableCourseCreate, TimetableCourseUpdate, TimetableCreate, TimetableUpdate
+
+
+def get_buildings(db: Session) -> list[Building]:
+    return db.query(Building).order_by(Building.name).all()
+
+
+def _validate_building(db: Session, building_id: int | None) -> None:
+    if building_id is not None and db.get(Building, building_id) is None:
+        raise ValueError("Building not found")
 
 
 def create_timetable(db: Session, user: User, data: TimetableCreate) -> Timetable:
@@ -91,11 +101,12 @@ def get_my_timetable_detail(db: Session, user: User, timetable_id: int) -> dict 
 
     timetable_courses = (
         db.query(TimetableCourse)
+        .options(joinedload(TimetableCourse.building))
         .filter(TimetableCourse.timetable_id == timetable_id)
         .all()
     )
     course_ids = [item.course_id for item in timetable_courses]
-    color_by_course_id = {item.course_id: item.color for item in timetable_courses}
+    timetable_course_by_id = {item.course_id: item for item in timetable_courses}
 
     courses = []
     if course_ids:
@@ -110,7 +121,8 @@ def get_my_timetable_detail(db: Session, user: User, timetable_id: int) -> dict 
             .all()
         )
         for course in course_rows:
-            building = course.room.building if course.room else None
+            timetable_course = timetable_course_by_id[course.id]
+            building = timetable_course.building or (course.room.building if course.room else None)
             courses.append(
                 {
                     "id": course.id,
@@ -120,7 +132,8 @@ def get_my_timetable_detail(db: Session, user: User, timetable_id: int) -> dict 
                     "credits": course.subject.credits if course.subject else None,
                     "section": course.section,
                     "professor": course.professor,
-                    "color": color_by_course_id.get(course.id),
+                    "color": timetable_course.color,
+                    "building_id": timetable_course.building_id,
                     "room_name": course.room.room_number if course.room else None,
                     "building_name": building.name if building else None,
                     "latitude": building.latitude if building else None,
@@ -131,9 +144,25 @@ def get_my_timetable_detail(db: Session, user: User, timetable_id: int) -> dict 
 
     custom_schedules = (
         db.query(CustomSchedule)
+        .options(joinedload(CustomSchedule.building))
         .filter(CustomSchedule.timetable_id == timetable_id)
         .all()
     )
+    custom_schedule_details = [
+        {
+            "id": schedule.id,
+            "timetable_id": schedule.timetable_id,
+            "name": schedule.name,
+            "day_of_week": schedule.day_of_week,
+            "start_time": schedule.start_time,
+            "end_time": schedule.end_time,
+            "color": schedule.color,
+            "memo": schedule.memo,
+            "building_id": schedule.building_id,
+            "building_name": schedule.building.name if schedule.building else None,
+        }
+        for schedule in custom_schedules
+    ]
 
     return {
         "id": timetable.id,
@@ -144,7 +173,7 @@ def get_my_timetable_detail(db: Session, user: User, timetable_id: int) -> dict 
         "share_token": timetable.share_token,
         "created_at": timetable.created_at,
         "courses": courses,
-        "custom_schedules": custom_schedules,
+        "custom_schedules": custom_schedule_details,
         "total_credits": sum(course.get("credits") or 0 for course in courses),
     }
 
@@ -237,13 +266,34 @@ def add_course_to_timetable(
         raise ValueError("Course already added to timetable")
 
     _validate_schedules_no_conflict(db, timetable_id, course.schedules)
+    _validate_building(db, data.building_id)
 
     timetable_course = TimetableCourse(
         timetable_id=timetable_id,
         course_id=data.course_id,
         color=data.color,
+        building_id=data.building_id,
     )
     db.add(timetable_course)
+    db.commit()
+    db.refresh(timetable_course)
+    return timetable_course
+
+
+def update_timetable_course(
+    db: Session, user: User, timetable_id: int, course_id: int, data: TimetableCourseUpdate
+) -> TimetableCourse:
+    if get_my_timetable(db, user, timetable_id) is None:
+        raise ValueError("Timetable not found")
+    timetable_course = (
+        db.query(TimetableCourse)
+        .filter(TimetableCourse.timetable_id == timetable_id, TimetableCourse.course_id == course_id)
+        .first()
+    )
+    if timetable_course is None:
+        raise ValueError("Timetable course not found")
+    _validate_building(db, data.building_id)
+    timetable_course.building_id = data.building_id
     db.commit()
     db.refresh(timetable_course)
     return timetable_course
@@ -279,6 +329,7 @@ def create_custom_schedule(
     if not timetable:
         raise ValueError("Timetable not found")
 
+    _validate_building(db, data.building_id)
     schedule = CustomSchedule(
         timetable_id=timetable_id,
         name=data.name,
@@ -287,6 +338,7 @@ def create_custom_schedule(
         end_time=data.end_time,
         color=data.color,
         memo=data.memo,
+        building_id=data.building_id,
     )
 
     if schedule.start_time >= schedule.end_time:
@@ -328,6 +380,9 @@ def update_custom_schedule(
         raise ValueError("Custom schedule not found")
     
     update_data = data.model_dump(exclude_unset=True)
+
+    if "building_id" in update_data:
+        _validate_building(db, update_data["building_id"])
 
     for field, value in update_data.items():
         setattr(schedule, field, value)

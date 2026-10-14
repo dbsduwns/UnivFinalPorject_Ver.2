@@ -50,10 +50,7 @@ export default function CreateCommunityPostScreen() {
   const canSubmit = Boolean(boardSlug && title.trim() && content.trim());
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-[#F4F6F8]"
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <View className="flex-1 bg-[#F4F6F8]">
       <View
         className="bg-white border-b border-gray-200 px-4 flex-row items-end pb-4"
         style={{ paddingTop: insets.top, height: insets.top + 76 }}
@@ -86,28 +83,33 @@ export default function CreateCommunityPostScreen() {
         className="flex-1"
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+        automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
         contentContainerStyle={{ padding: 20, paddingBottom: Math.max(insets.bottom, 24) }}
       >
         <Text className="text-sm font-extrabold text-gray-700 mb-2">제목</Text>
-        <TextInput
-          value={title}
-          onChangeText={setTitle}
-          placeholder="제목을 입력하세요"
-          placeholderTextColor="#94A3B8"
-          maxLength={255}
-          className="h-14 rounded-2xl bg-white border border-gray-200 px-4 text-base text-gray-900"
-        />
+        <KeyboardAvoidingView behavior="padding">
+          <TextInput
+            value={title}
+            onChangeText={setTitle}
+            placeholder="제목을 입력하세요"
+            placeholderTextColor="#94A3B8"
+            maxLength={255}
+            className="h-14 rounded-2xl bg-white border border-gray-200 px-4 text-base text-gray-900"
+          />
+        </KeyboardAvoidingView>
 
         <Text className="text-sm font-extrabold text-gray-700 mt-6 mb-2">내용</Text>
-        <TextInput
-          value={content}
-          onChangeText={setContent}
-          placeholder="함께 나누고 싶은 이야기를 작성해보세요."
-          placeholderTextColor="#94A3B8"
-          multiline
-          textAlignVertical="top"
-          className="min-h-[260px] rounded-2xl bg-white border border-gray-200 px-4 py-4 text-[15px] leading-6 text-gray-900"
-        />
+        <KeyboardAvoidingView behavior="padding">
+          <TextInput
+            value={content}
+            onChangeText={setContent}
+            placeholder="함께 나누고 싶은 이야기를 작성해보세요."
+            placeholderTextColor="#94A3B8"
+            multiline
+            textAlignVertical="top"
+            className="min-h-[260px] rounded-2xl bg-white border border-gray-200 px-4 py-4 text-[15px] leading-6 text-gray-900"
+          />
+        </KeyboardAvoidingView>
 
         <Pressable
           onPress={() => setIsAnonymous((value) => !value)}
@@ -126,6 +128,6 @@ export default function CreateCommunityPostScreen() {
           </View>
         </Pressable>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }

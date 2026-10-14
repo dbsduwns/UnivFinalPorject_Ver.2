@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -63,6 +64,9 @@ export const MessagesScreen = () => {
   const [refreshingMessages, setRefreshingMessages] = useState(false);
   const conversationScrollRef = useRef<ScrollView>(null);
   const shouldAutoScrollRef = useRef(true);
+  const screenContentRef = useRef<View>(null);
+  const keyboardTopRef = useRef<number | null>(null);
+  const [keyboardOverlap, setKeyboardOverlap] = useState(0);
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
   const [timetableFriend, setTimetableFriend] = useState<FriendUser | null>(null);
 
@@ -148,14 +152,57 @@ export const MessagesScreen = () => {
   const showList = isWide || !selectedFriend;
   const showConversation = isWide || !!selectedFriend;
 
+  const measureKeyboardOverlap = useCallback(() => {
+    const keyboardTop = keyboardTopRef.current;
+    if (keyboardTop === null) return;
+
+    screenContentRef.current?.measureInWindow((_x, y, _width, height) => {
+      if (keyboardTopRef.current !== keyboardTop) return;
+      setKeyboardOverlap(Math.max(0, Math.ceil(y + height - keyboardTop)));
+    });
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+
+    let frameId: number | null = null;
+    const scheduleMeasurement = () => {
+      if (frameId !== null) cancelAnimationFrame(frameId);
+      frameId = requestAnimationFrame(() => {
+        frameId = null;
+        measureKeyboardOverlap();
+      });
+    };
+
+    const showSubscription = Keyboard.addListener("keyboardDidShow", (event) => {
+      keyboardTopRef.current = event.endCoordinates.screenY;
+      scheduleMeasurement();
+    });
+    const hideSubscription = Keyboard.addListener("keyboardDidHide", () => {
+      keyboardTopRef.current = null;
+      setKeyboardOverlap(0);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+      if (frameId !== null) cancelAnimationFrame(frameId);
+    };
+  }, [measureKeyboardOverlap]);
+
   return (
     <AppScreenLayout>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View className="flex-1 bg-[#F4F7F8] px-4 pb-4 pt-3 md:px-7 md:pb-7">
-        <View className="self-center w-full max-w-[1080px] flex-1">
+        <View
+          ref={screenContentRef}
+          className="flex-1 bg-[#F4F7F8] px-4 pb-4 pt-3 md:px-7 md:pb-7"
+          style={Platform.OS === "android" ? { paddingBottom: keyboardOverlap + 16 } : undefined}
+          onLayout={Platform.OS === "android" ? measureKeyboardOverlap : undefined}
+        >
+          <View className="self-center w-full max-w-[1080px] flex-1">
           <View className="flex-row items-center justify-between mb-4">
             <View>
               <Text className="text-2xl font-extrabold text-gray-900">쪽지</Text>
@@ -180,7 +227,7 @@ export const MessagesScreen = () => {
             </Pressable>
           </View>
 
-          <View className={`flex-1 ${isWide ? "flex-row" : ""}`} style={{ gap: 14 }}>
+          <View className={`flex-1 ${isWide ? "flex-row" : ""}`} style={{ gap: 14, minHeight: 0 }}>
             {showList && (
               <View
                 className="bg-white rounded-[28px] border border-gray-200 overflow-hidden"
@@ -323,155 +370,163 @@ export const MessagesScreen = () => {
             )}
 
             {showConversation && (
-              <View className="flex-1 bg-white rounded-[28px] border border-gray-200 overflow-hidden">
-                {selectedFriend ? (
+              <View className="flex-1 bg-white rounded-[28px] border border-gray-200 overflow-hidden" style={{ minHeight: 0 }}>
+              {selectedFriend ? (
                   <>
-                    <View className="h-[72px] px-4 border-b border-gray-100 flex-row items-center">
-                      {!isWide && (
-                        <Pressable
-                          accessibilityLabel="친구 목록으로 돌아가기"
-                          onPress={() => {
-                            setSelectedFriend(null);
-                            setDraft("");
-                          }}
-                          className="w-10 h-10 rounded-full items-center justify-center mr-1 active:bg-gray-100"
-                        >
-                          <ArrowLeft size={22} color="#334155" />
-                        </Pressable>
-                      )}
-                      <FriendAvatar friend={selectedFriend} size={42} />
-                      <View className="flex-1 ml-3">
-                        <Text className="text-base font-extrabold text-gray-900">{selectedFriend.name}</Text>
-                        <Text className="text-xs text-emerald-600 mt-0.5">친구</Text>
-                      </View>
+                  <View className="h-[72px] px-4 border-b border-gray-100 flex-row items-center">
+                    {!isWide && (
                       <Pressable
-                        accessibilityLabel="친구 시간표 보기"
-                        onPress={() => setTimetableFriend(selectedFriend)}
-                        className="h-10 px-3 rounded-xl bg-cyan-50 flex-row items-center active:bg-cyan-100"
+                        accessibilityLabel="친구 목록으로 돌아가기"
+                        onPress={() => {
+                          setSelectedFriend(null);
+                          setDraft("");
+                        }}
+                        className="w-10 h-10 rounded-full items-center justify-center mr-1 active:bg-gray-100"
                       >
-                        <CalendarDays size={17} color={BRAND} />
-                        <Text className="ml-1.5 text-xs font-bold" style={{ color: BRAND }}>시간표</Text>
+                        <ArrowLeft size={22} color="#334155" />
+                      </Pressable>
+                    )}
+                    <FriendAvatar friend={selectedFriend} size={42} />
+                    <View className="flex-1 ml-3">
+                      <Text className="text-base font-extrabold text-gray-900">{selectedFriend.name}</Text>
+                      <Text className="text-xs text-emerald-600 mt-0.5">친구</Text>
+                    </View>
+                    <Pressable
+                      accessibilityLabel="친구 시간표 보기"
+                      onPress={() => setTimetableFriend(selectedFriend)}
+                      className="h-10 px-3 rounded-xl bg-cyan-50 flex-row items-center active:bg-cyan-100"
+                    >
+                      <CalendarDays size={17} color={BRAND} />
+                      <Text className="ml-1.5 text-xs font-bold" style={{ color: BRAND }}>시간표</Text>
+                    </Pressable>
+                  </View>
+
+                  <View className="flex-1" style={{ minHeight: 0 }}>
+                    {roomQuery.isPending || (roomId && messagesQuery.isPending) ? (
+                    <View className="flex-1 items-center justify-center bg-[#FBFDFD]">
+                      <ActivityIndicator color={BRAND} />
+                      <Text className="text-sm text-gray-500 mt-3">대화를 불러오는 중이에요.</Text>
+                    </View>
+                  ) : roomQuery.isError || (messagesQuery.isError && !messagesQuery.data) ? (
+                    <View className="flex-1 items-center justify-center px-8 bg-[#FBFDFD]">
+                      <Text className="text-sm text-gray-600 text-center">
+                        {getAxiosErrorMessage(roomQuery.error ?? messagesQuery.error, "대화를 불러오지 못했어요.")}
+                      </Text>
+                      <Pressable
+                        onPress={() => {
+                          if (roomQuery.isError) void roomQuery.refetch();
+                          else void messagesQuery.refetch();
+                        }}
+                        className="mt-4 px-4 py-2 rounded-xl bg-cyan-50"
+                      >
+                        <Text className="font-bold" style={{ color: BRAND }}>다시 시도</Text>
                       </Pressable>
                     </View>
-
-                    {roomQuery.isPending || (roomId && messagesQuery.isPending) ? (
-                      <View className="flex-1 items-center justify-center bg-[#FBFDFD]">
-                        <ActivityIndicator color={BRAND} />
-                        <Text className="text-sm text-gray-500 mt-3">대화를 불러오는 중이에요.</Text>
-                      </View>
-                    ) : roomQuery.isError || (messagesQuery.isError && !messagesQuery.data) ? (
-                      <View className="flex-1 items-center justify-center px-8 bg-[#FBFDFD]">
-                        <Text className="text-sm text-gray-600 text-center">
-                          {getAxiosErrorMessage(roomQuery.error ?? messagesQuery.error, "대화를 불러오지 못했어요.")}
-                        </Text>
-                        <Pressable
-                          onPress={() => {
-                            if (roomQuery.isError) void roomQuery.refetch();
-                            else void messagesQuery.refetch();
-                          }}
-                          className="mt-4 px-4 py-2 rounded-xl bg-cyan-50"
-                        >
-                          <Text className="font-bold" style={{ color: BRAND }}>다시 시도</Text>
-                        </Pressable>
-                      </View>
-                    ) : (
-                      <ScrollView
-                        ref={conversationScrollRef}
-                        className="flex-1 bg-[#FBFDFD]"
-                        contentContainerStyle={{ flexGrow: 1, padding: 16 }}
-                        keyboardShouldPersistTaps="handled"
-                        onScroll={({ nativeEvent }) => {
-                          const { contentOffset, contentSize, layoutMeasurement } = nativeEvent;
-                          shouldAutoScrollRef.current =
-                            contentOffset.y + layoutMeasurement.height >= contentSize.height - 60;
-                        }}
-                        scrollEventThrottle={100}
-                        onContentSizeChange={() => {
-                          if (shouldAutoScrollRef.current) {
-                            conversationScrollRef.current?.scrollToEnd({ animated: false });
-                          }
-                        }}
-                        refreshControl={
-                          <RefreshControl
-                            refreshing={refreshingMessages}
-                            onRefresh={() => {
-                              setRefreshingMessages(true);
-                              void messagesQuery.refetch().finally(() => setRefreshingMessages(false));
-                            }}
-                            tintColor={BRAND}
-                          />
+                  ) : (
+                    <ScrollView
+                      ref={conversationScrollRef}
+                      className="flex-1 bg-[#FBFDFD]"
+                      contentContainerStyle={{ flexGrow: 1, padding: 16 }}
+                      keyboardShouldPersistTaps="handled"
+                      keyboardDismissMode="none"
+                      onScroll={({ nativeEvent }) => {
+                        const { contentOffset, contentSize, layoutMeasurement } = nativeEvent;
+                        shouldAutoScrollRef.current =
+                          contentOffset.y + layoutMeasurement.height >= contentSize.height - 60;
+                      }}
+                      scrollEventThrottle={100}
+                      onLayout={() => {
+                        if (shouldAutoScrollRef.current) {
+                          conversationScrollRef.current?.scrollToEnd({ animated: false });
                         }
-                      >
-                        {(messagesQuery.data ?? []).length === 0 ? (
-                          <View className="flex-1 items-center justify-center px-4">
-                            <View className="w-20 h-20 rounded-full bg-cyan-50 items-center justify-center">
-                              <MessageCircle size={36} color={BRAND} />
-                            </View>
-                            <Text className="text-lg font-extrabold text-gray-800 mt-5">
-                              {selectedFriend.name} 님과의 대화
-                            </Text>
-                            <Text className="text-sm leading-6 text-gray-400 text-center mt-2">
-                              아직 주고받은 쪽지가 없어요.{"\n"}첫 메시지를 보내보세요.
-                            </Text>
+                      }}
+                      onContentSizeChange={() => {
+                        if (shouldAutoScrollRef.current) {
+                          conversationScrollRef.current?.scrollToEnd({ animated: false });
+                        }
+                      }}
+                      refreshControl={
+                        <RefreshControl
+                          refreshing={refreshingMessages}
+                          onRefresh={() => {
+                            setRefreshingMessages(true);
+                            void messagesQuery.refetch().finally(() => setRefreshingMessages(false));
+                          }}
+                          tintColor={BRAND}
+                        />
+                      }
+                    >
+                      {(messagesQuery.data ?? []).length === 0 ? (
+                        <View className="flex-1 items-center justify-center px-4">
+                          <View className="w-20 h-20 rounded-full bg-cyan-50 items-center justify-center">
+                            <MessageCircle size={36} color={BRAND} />
                           </View>
-                        ) : (
-                          messagesQuery.data?.map((message) => {
-                            const mine = message.sender_id === userId;
-                            return (
-                              <View
-                                key={message.id}
-                                className={`mb-3 flex-row items-end ${mine ? "justify-end" : "justify-start"}`}
-                              >
-                                {!mine && <FriendAvatar friend={selectedFriend} size={30} />}
-                                <View className={`max-w-[78%] ${mine ? "items-end" : "items-start ml-2"}`}>
-                                  <View
-                                    className={`px-3.5 py-2.5 rounded-2xl ${mine ? "bg-cyan-700" : "bg-white border border-gray-200"}`}
-                                  >
-                                    <Text className={`text-sm leading-5 ${mine ? "text-white" : "text-gray-900"}`}>
-                                      {message.content}
-                                    </Text>
-                                  </View>
-                                  <Text className="text-[10px] text-gray-400 mt-1 px-1">
-                                    {messageTime(message.created_at)}
+                          <Text className="text-lg font-extrabold text-gray-800 mt-5">
+                            {selectedFriend.name} 님과의 대화
+                          </Text>
+                          <Text className="text-sm leading-6 text-gray-400 text-center mt-2">
+                            아직 주고받은 쪽지가 없어요.{"\n"}첫 메시지를 보내보세요.
+                          </Text>
+                        </View>
+                      ) : (
+                        messagesQuery.data?.map((message) => {
+                          const mine = message.sender_id === userId;
+                          return (
+                            <View
+                              key={message.id}
+                              className={`mb-3 flex-row items-end ${mine ? "justify-end" : "justify-start"}`}
+                            >
+                              {!mine && <FriendAvatar friend={selectedFriend} size={30} />}
+                              <View className={`max-w-[78%] ${mine ? "items-end" : "items-start ml-2"}`}>
+                                <View
+                                  className={`px-3.5 py-2.5 rounded-2xl ${mine ? "bg-cyan-700" : "bg-white border border-gray-200"}`}
+                                >
+                                  <Text className={`text-sm leading-5 ${mine ? "text-white" : "text-gray-900"}`}>
+                                    {message.content}
                                   </Text>
                                 </View>
+                                <Text className="text-[10px] text-gray-400 mt-1 px-1">
+                                  {messageTime(message.created_at)}
+                                </Text>
                               </View>
-                            );
-                          })
-                        )}
-                      </ScrollView>
+                            </View>
+                          );
+                        })
+                      )}
+                    </ScrollView>
                     )}
+                  </View>
 
-                    <View className="px-4 py-3 border-t border-gray-100 bg-white">
-                      <View className="min-h-12 rounded-2xl bg-gray-100 px-4 flex-row items-center">
-                        <TextInput
-                          value={draft}
-                          onChangeText={setDraft}
-                          editable={!!roomId && !roomQuery.isError}
-                          placeholder="메시지를 입력하세요"
-                          placeholderTextColor="#94A3B8"
-                          className="flex-1 text-sm text-gray-900"
-                          multiline
-                          maxLength={10000}
-                        />
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel="메시지 보내기"
-                          onPress={sendMessage}
-                          disabled={!roomId || !draft.trim() || sendMutation.isPending}
-                          className={`w-9 h-9 rounded-xl items-center justify-center ${
-                            roomId && draft.trim() && !sendMutation.isPending ? "bg-cyan-700" : "bg-gray-200"
-                          }`}
-                        >
-                          {sendMutation.isPending ? (
-                            <ActivityIndicator size="small" color="white" />
-                          ) : (
-                            <Send size={17} color={roomId && draft.trim() ? "white" : "#94A3B8"} />
-                          )}
-                        </Pressable>
-                      </View>
-                      {!!sendError && <Text className="mt-2 text-xs text-red-600">{sendError}</Text>}
+                  <View className="shrink-0 px-4 py-3 border-t border-gray-100 bg-white">
+                    <View className="min-h-12 rounded-2xl bg-gray-100 px-4 flex-row items-center">
+                      <TextInput
+                        value={draft}
+                        onChangeText={setDraft}
+                        editable={!!roomId && !roomQuery.isError}
+                        placeholder="메시지를 입력하세요"
+                        placeholderTextColor="#94A3B8"
+                        className="flex-1 text-sm text-gray-900"
+                        multiline
+                        maxLength={10000}
+                      />
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="메시지 보내기"
+                        onPress={sendMessage}
+                        disabled={!roomId || !draft.trim() || sendMutation.isPending}
+                        className={`w-9 h-9 rounded-xl items-center justify-center ${
+                          roomId && draft.trim() && !sendMutation.isPending ? "bg-cyan-700" : "bg-gray-200"
+                        }`}
+                      >
+                        {sendMutation.isPending ? (
+                          <ActivityIndicator size="small" color="white" />
+                        ) : (
+                          <Send size={17} color={roomId && draft.trim() ? "white" : "#94A3B8"} />
+                        )}
+                      </Pressable>
                     </View>
+                    {!!sendError && <Text className="mt-2 text-xs text-red-600">{sendError}</Text>}
+                  </View>
                   </>
                 ) : (
                   <View className="flex-1 items-center justify-center px-8 bg-[#FBFDFD]">
@@ -487,7 +542,7 @@ export const MessagesScreen = () => {
               </View>
             )}
           </View>
-        </View>
+          </View>
         </View>
       </KeyboardAvoidingView>
 

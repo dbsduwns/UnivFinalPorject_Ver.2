@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocalSearchParams, router } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -13,6 +13,7 @@ import {
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -56,6 +57,50 @@ export default function CommunityPostScreen() {
   const [editingComment, setEditingComment] = useState<CommunityComment | null>(null);
   const [editText, setEditText] = useState("");
   const [editAnonymous, setEditAnonymous] = useState(false);
+  const screenContentRef = useRef<View>(null);
+  const keyboardTopRef = useRef<number | null>(null);
+  const [keyboardOverlap, setKeyboardOverlap] = useState(0);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  const measureKeyboardOverlap = useCallback(() => {
+    const keyboardTop = keyboardTopRef.current;
+    if (keyboardTop === null) return;
+
+    screenContentRef.current?.measureInWindow((_x, y, _width, height) => {
+      if (keyboardTopRef.current !== keyboardTop) return;
+      setKeyboardOverlap(Math.max(0, Math.ceil(y + height - keyboardTop)));
+    });
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+
+    let frameId: number | null = null;
+    const scheduleMeasurement = () => {
+      if (frameId !== null) cancelAnimationFrame(frameId);
+      frameId = requestAnimationFrame(() => {
+        frameId = null;
+        measureKeyboardOverlap();
+      });
+    };
+
+    const showSubscription = Keyboard.addListener("keyboardDidShow", (event) => {
+      keyboardTopRef.current = event.endCoordinates.screenY;
+      setKeyboardVisible(true);
+      scheduleMeasurement();
+    });
+    const hideSubscription = Keyboard.addListener("keyboardDidHide", () => {
+      keyboardTopRef.current = null;
+      setKeyboardVisible(false);
+      setKeyboardOverlap(0);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+      if (frameId !== null) cancelAnimationFrame(frameId);
+    };
+  }, [measureKeyboardOverlap]);
 
   const commentsKey = ["community", "comments", post?.id] as const;
   const likeCountKey = ["community", "post-like-count", post?.id] as const;
@@ -190,14 +235,21 @@ export default function CommunityPostScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <ScrollView
+        <View
+          ref={screenContentRef}
           className="flex-1"
-          contentContainerStyle={{ paddingBottom: 24 }}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          style={Platform.OS === "android" ? { paddingBottom: keyboardVisible ? keyboardOverlap + 20 : 0 } : undefined}
+          onLayout={Platform.OS === "android" ? measureKeyboardOverlap : undefined}
         >
+        <View className="flex-1" style={{ minHeight: 0 }}>
+          <ScrollView
+            className="flex-1"
+            contentContainerStyle={{ paddingBottom: 24 }}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="none"
+          >
         <View className="bg-white px-5 pt-6 pb-5 border-b border-gray-200">
           <View className="flex-row items-center">
             <Text className="text-sm font-extrabold text-[#13708D]">{post.author_name}</Text>
@@ -258,10 +310,11 @@ export default function CommunityPostScreen() {
             </View>
           )}
         </View>
-        </ScrollView>
+          </ScrollView>
+        </View>
 
         <View
-          className="bg-white border-t border-gray-200 px-4 pt-3"
+          className="shrink-0 bg-white border-t border-gray-200 px-4 pt-3"
           style={{ paddingBottom: Math.max(insets.bottom, 12) }}
         >
         {replyTarget ? (
@@ -309,6 +362,7 @@ export default function CommunityPostScreen() {
               <Send size={19} color="white" />
             )}
           </Pressable>
+        </View>
         </View>
         </View>
       </KeyboardAvoidingView>
@@ -385,7 +439,7 @@ export default function CommunityPostScreen() {
       >
         <KeyboardAvoidingView
           className="flex-1 bg-black/40 justify-end"
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior="padding"
         >
           <View
             className="bg-white rounded-t-3xl px-5 pt-5"

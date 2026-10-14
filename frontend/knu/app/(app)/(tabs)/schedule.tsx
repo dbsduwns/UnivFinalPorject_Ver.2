@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
@@ -12,14 +11,13 @@ import {
   Modal,
 } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Check, ChevronDown, ChevronUp, Plus, Search, Trash2, Wand2, ChevronLeft, ChevronRight, X, Users } from "lucide-react-native";
+import { CalendarClock, Check, ChevronDown, ChevronUp, Plus, Search, Trash2, Wand2, ChevronLeft, ChevronRight, X } from "lucide-react-native";
 
 import { getAxiosErrorMessage } from "@/api/errors";
 import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
 import { AppScrollContent } from "@/components/ui/AppScrollContent";
 import { getCourses } from "@/features/course/api/course";
 import type { Course, CourseSchedule } from "@/features/course/api/types";
-import { FriendManagementModal } from "@/features/friend/components/FriendManagementModal";
 import {
   addCourseToTimetable,
   createCustomSchedule,
@@ -28,10 +26,14 @@ import {
   deleteTimetable,
   getTimetableDetail,
   getTimetables,
+  getCampusBuildings,
   removeCourseFromTimetable,
+  updateTimetableCourseBuilding,
+  updateCustomScheduleBuilding,
   updateTimetable,
 } from "@/features/timetable/api/timetable";
 import type {
+  CampusBuilding,
   CustomSchedule,
   Timetable,
   TimetableCourseDetail,
@@ -56,6 +58,8 @@ type TimetableEvent = {
   endTime: string;
   id: string;
   courseId?: number;
+  buildingId?: number | null;
+  buildingName?: string | null;
   customId?: number;
   meta?: string | null;
   startTime: string;
@@ -91,7 +95,9 @@ const buildEvents = (
       endTime: schedule.end_time,
       id: `course-${course.id}-${schedule.id}`,
       courseId: course.id,
-      meta: course.professor,
+      buildingId: course.building_id,
+      buildingName: course.building_name,
+      meta: [course.professor, course.building_name].filter(Boolean).join(" · "),
       startTime: schedule.start_time,
       title: course.name ?? "이름 없는 과목",
     }))
@@ -103,7 +109,9 @@ const buildEvents = (
     endTime: schedule.end_time,
     id: `custom-${schedule.id}`,
     customId: schedule.id,
-    meta: schedule.memo,
+    buildingId: schedule.building_id,
+    buildingName: schedule.building_name,
+    meta: [schedule.memo, schedule.building_name].filter(Boolean).join(" · "),
     startTime: schedule.start_time,
     title: schedule.name,
   }));
@@ -260,16 +268,127 @@ const CourseSearchItem = ({
   </View>
 );
 
+const BuildingPicker = ({
+  buildings,
+  value,
+  onChange,
+  isUnavailable = false,
+  onRetry,
+}: {
+  buildings: CampusBuilding[];
+  value: number | null;
+  onChange: (buildingId: number | null) => void;
+  isUnavailable?: boolean;
+  onRetry?: () => void;
+}) => (
+  <View>
+    <Text className="text-gray-500 mb-2 font-bold text-xs">건물 선택 (선택 사항)</Text>
+    {isUnavailable && (
+      <Pressable onPress={onRetry} className="mb-2">
+        <Text className="text-xs text-red-600">건물 목록을 불러오지 못했어요. 다시 시도</Text>
+      </Pressable>
+    )}
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <View className="flex-row gap-2 pb-1">
+        {[{ id: null, name: "없음" }, ...buildings].map((building) => (
+          <Pressable
+            key={building.id ?? "none"}
+            accessibilityRole="button"
+            accessibilityState={{ selected: value === building.id }}
+            onPress={() => onChange(building.id)}
+            className={`px-3 py-2 rounded-xl border ${value === building.id ? "bg-indigo-50 border-indigo-500" : "bg-white border-gray-200"}`}
+          >
+            <Text className={`text-sm font-bold ${value === building.id ? "text-indigo-700" : "text-gray-600"}`}>
+              {building.name}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </ScrollView>
+  </View>
+);
+
+type CourseWithBuilding = { course: Course; color: string; buildingId: number | null };
+
+const CourseBuildingModal = ({
+  courses,
+  buildings,
+  buildingsError,
+  onRetryBuildings,
+  isPending,
+  onClose,
+  onSubmit,
+}: {
+  courses: { course: Course; color: string }[] | null;
+  buildings: CampusBuilding[];
+  buildingsError: boolean;
+  onRetryBuildings: () => void;
+  isPending: boolean;
+  onClose: () => void;
+  onSubmit: (entries: CourseWithBuilding[]) => void;
+}) => {
+  const [buildingByCourseId, setBuildingByCourseId] = useState<Record<number, number | null>>({});
+  useEffect(() => {
+    if (courses) setBuildingByCourseId({});
+  }, [courses]);
+
+  return (
+    <Modal visible={!!courses} transparent animationType="slide" onRequestClose={onClose}>
+      <View className="flex-1 bg-black/50 justify-end">
+        <View className="bg-white rounded-t-3xl p-6" style={{ maxHeight: "85%" }}>
+          <View className="flex-row items-center justify-between mb-4">
+            <Text className="text-xl font-black text-gray-900">강의 건물 선택</Text>
+            <Pressable accessibilityLabel="닫기" onPress={onClose}><X size={22} color="#6B7280" /></Pressable>
+          </View>
+          <Text className="text-sm text-gray-500 mb-4">모르면 ‘없음’으로 두고 나중에 설정할 수 있어요.</Text>
+          <ScrollView keyboardShouldPersistTaps="handled">
+            {courses?.map(({ course }) => (
+              <View key={course.id} className="mb-5">
+                <Text className="font-bold text-gray-900 mb-2">
+                  {course.subject?.name ?? "이름 없는 과목"} · {course.section}분반
+                </Text>
+                <BuildingPicker
+                  buildings={buildings}
+                  value={buildingByCourseId[course.id] ?? null}
+                  onChange={(buildingId) => setBuildingByCourseId((current) => ({ ...current, [course.id]: buildingId }))}
+                  isUnavailable={buildingsError}
+                  onRetry={onRetryBuildings}
+                />
+              </View>
+            ))}
+          </ScrollView>
+          <Pressable
+            disabled={isPending || !courses?.length}
+            onPress={() => onSubmit((courses ?? []).map((entry) => ({
+              ...entry,
+              buildingId: buildingByCourseId[entry.course.id] ?? null,
+            })))}
+            className="bg-indigo-600 rounded-2xl py-4 mt-3 disabled:opacity-40"
+          >
+            <Text className="text-white text-center font-black">{isPending ? "추가 중..." : "시간표에 추가"}</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
 const CustomScheduleModal = ({
   visible,
   onClose,
   onSubmit,
   isPending,
+  buildings,
+  buildingsError,
+  onRetryBuildings,
 }: {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (data: { name: string; day: string; start: string; end: string; color: string }) => void;
+  onSubmit: (data: { name: string; day: string; start: string; end: string; color: string; buildingId: number | null }) => void;
   isPending: boolean;
+  buildings: CampusBuilding[];
+  buildingsError: boolean;
+  onRetryBuildings: () => void;
 }) => {
   const [name, setName] = useState("");
   const [day, setDay] = useState("MON");
@@ -278,6 +397,11 @@ const CustomScheduleModal = ({
   const [endHour, setEndHour] = useState("10");
   const [endMin, setEndMin] = useState("00");
   const [color, setColor] = useState(COLORS[0]);
+  const [buildingId, setBuildingId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (visible) setBuildingId(null);
+  }, [visible]);
 
   const handleSumbit = () => {
     if (!name.trim()) return Alert.alert("입력 필요", "일정 이름을 입력해주세요.");
@@ -287,17 +411,18 @@ const CustomScheduleModal = ({
       start: `${startHour}:${startMin}`,
       end: `${endHour}:${endMin}`,
       color,
+      buildingId,
     });
   };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable className="flex-1 bg-black/50 justify-end" onPress={onClose}>
-        <Pressable className="bg-white rounded-t-3xl p-6" onPress={(e) => e.stopPropagation()}>
+        <Pressable className="bg-white rounded-t-3xl p-6" style={{ maxHeight: "85%" }} onPress={(e) => e.stopPropagation()}>
           <Text style={{ fontSize: 20, fontWeight: "900", color: "#111827", marginBottom: 20 }}>
             직접 일정 추가
           </Text>
-          
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <View className="gap-4">
             <View>
               <Text className="text-gray-500 mb-2 font-bold text-xs">일정 이름</Text>
@@ -370,6 +495,16 @@ const CustomScheduleModal = ({
             </View>
 
             <View>
+              <BuildingPicker
+                buildings={buildings}
+                value={buildingId}
+                onChange={setBuildingId}
+                isUnavailable={buildingsError}
+                onRetry={onRetryBuildings}
+              />
+            </View>
+
+            <View>
               <Text className="text-gray-500 mb-2 font-bold text-xs">색상 선택</Text>
               <View className="flex-row gap-3">
                 {COLORS.map((c) => (
@@ -393,6 +528,7 @@ const CustomScheduleModal = ({
               </Text>
             </Pressable>
           </View>
+          </ScrollView>
         </Pressable>
       </Pressable>
     </Modal>
@@ -591,11 +727,13 @@ const generateCombinations = (groups: Course[][], currentIdx: number, currentSel
 const TimetableWizardModal = ({
   visible,
   onClose,
+  onDismiss,
   currentTimetableId,
   onSaveCombination,
 }: {
   visible: boolean;
   onClose: () => void;
+  onDismiss: () => void;
   currentTimetableId: number | null | undefined;
   onSaveCombination: (courses: Course[]) => void;
 }) => {
@@ -692,7 +830,7 @@ const TimetableWizardModal = ({
   }, [combinations, currentComboIdx]);
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose} onDismiss={onDismiss}>
       <View className="flex-1 bg-gray-50 pt-12">
         <View className="px-5 pb-4 flex-row justify-between items-center border-b border-gray-200 bg-white">
           <Text style={{ fontSize: 20, fontWeight: "900", color: "#111827" }}>
@@ -841,10 +979,10 @@ export default function ScheduleScreen() {
   const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [coursesToAdd, setCoursesToAdd] = useState<{ course: Course; color: string }[] | null>(null);
+  const [wizardCoursesToAdd, setWizardCoursesToAdd] = useState<{ course: Course; color: string }[] | null>(null);
   const [timetableToEdit, setTimetableToEdit] = useState<Timetable | undefined>(undefined);
   
-  const [newName, setNewName] = useState("나의 시간표");
-  const [semester, setSemester] = useState("2026-1");
   const [keyword, setKeyword] = useState("");
   const [submittedKeyword, setSubmittedKeyword] = useState("");
 
@@ -869,6 +1007,11 @@ export default function ScheduleScreen() {
     queryKey: ["timetables", currentTimetableId],
     queryFn: () => getTimetableDetail(currentTimetableId!),
     enabled: Boolean(currentTimetableId),
+  });
+
+  const buildingsQuery = useQuery({
+    queryKey: ["campusBuildings"],
+    queryFn: getCampusBuildings,
   });
 
   const coursesQuery = useQuery({
@@ -914,12 +1057,22 @@ export default function ScheduleScreen() {
   });
 
   const addCourseMutation = useMutation({
-    mutationFn: ({ courseId, color }: { courseId: number; color: string }) =>
-      addCourseToTimetable(currentTimetableId!, { course_id: courseId, color }),
+    mutationFn: async (entries: CourseWithBuilding[]) => {
+      for (const { course, color, buildingId } of entries) {
+        await addCourseToTimetable(currentTimetableId!, {
+          course_id: course.id,
+          color,
+          building_id: buildingId,
+        });
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["timetables", currentTimetableId] });
+      setCoursesToAdd(null);
     },
     onError: (err) => {
+      void queryClient.invalidateQueries({ queryKey: ["timetables", currentTimetableId] });
+      setCoursesToAdd(null);
       Alert.alert("과목 추가 실패", getAxiosErrorMessage(err));
     },
   });
@@ -937,7 +1090,7 @@ export default function ScheduleScreen() {
   });
 
   const addCustomMutation = useMutation({
-    mutationFn: (data: { name: string; day_of_week: string; start_time: string; end_time: string; color: string }) =>
+    mutationFn: (data: { name: string; day_of_week: string; start_time: string; end_time: string; color: string; building_id: number | null }) =>
       createCustomSchedule(currentTimetableId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["timetables", currentTimetableId] });
@@ -946,6 +1099,25 @@ export default function ScheduleScreen() {
     onError: (err) => {
       Alert.alert("일정 추가 실패", getAxiosErrorMessage(err));
     },
+  });
+
+  const updateEventBuildingMutation = useMutation({
+    mutationFn: async ({ event, buildingId }: { event: TimetableEvent; buildingId: number | null }) => {
+      if (event.courseId) {
+        await updateTimetableCourseBuilding(currentTimetableId!, event.courseId, buildingId);
+      } else {
+        await updateCustomScheduleBuilding(currentTimetableId!, event.customId!, buildingId);
+      }
+    },
+    onSuccess: (_result, { buildingId }) => {
+      void queryClient.invalidateQueries({ queryKey: ["timetables", currentTimetableId] });
+      setSelectedEvent((event) => event ? {
+        ...event,
+        buildingId,
+        buildingName: buildingsQuery.data?.find((building) => building.id === buildingId)?.name ?? null,
+      } : null);
+    },
+    onError: (err) => Alert.alert("건물 변경 실패", getAxiosErrorMessage(err)),
   });
 
   const removeCustomMutation = useMutation({
@@ -1003,19 +1175,11 @@ export default function ScheduleScreen() {
       return;
     }
 
-    courses.forEach((course, index) => {
-      addCourseMutation.mutate({
-        courseId: course.id,
-        color: COLORS[index % COLORS.length],
-      });
-    });
-
     setIsWizardOpen(false);
-
-    Alert.alert(
-      "완료",
-      `${courses.length}개 과목이 시간표에 추가되었습니다.`
-    );
+    setWizardCoursesToAdd(courses.map((course, index) => ({
+      course,
+      color: COLORS[index % COLORS.length],
+    })));
   };
 
   return (
@@ -1166,6 +1330,14 @@ export default function ScheduleScreen() {
                       </Text>
                     </View>
 
+                    <BuildingPicker
+                      buildings={buildingsQuery.data ?? []}
+                      value={selectedEvent.buildingId ?? null}
+                      onChange={(buildingId) => updateEventBuildingMutation.mutate({ event: selectedEvent, buildingId })}
+                      isUnavailable={buildingsQuery.isError}
+                      onRetry={() => void buildingsQuery.refetch()}
+                    />
+
                     <View className="flex-row gap-2 mt-4">
                       <Pressable
                         onPress={() => setSelectedEvent(null)}
@@ -1215,6 +1387,9 @@ export default function ScheduleScreen() {
             visible={isCustomModalOpen}
             onClose={() => setIsCustomModalOpen(false)}
             isPending={addCustomMutation.isPending}
+            buildings={buildingsQuery.data ?? []}
+            buildingsError={buildingsQuery.isError}
+            onRetryBuildings={() => void buildingsQuery.refetch()}
             onSubmit={(data) => {
               addCustomMutation.mutate({
                 name: data.name,
@@ -1222,8 +1397,19 @@ export default function ScheduleScreen() {
                 start_time: data.start,
                 end_time: data.end,
                 color: data.color,
+                building_id: data.buildingId,
               });
             }}
+          />
+
+          <CourseBuildingModal
+            courses={coursesToAdd}
+            buildings={buildingsQuery.data ?? []}
+            buildingsError={buildingsQuery.isError}
+            onRetryBuildings={() => void buildingsQuery.refetch()}
+            isPending={addCourseMutation.isPending}
+            onClose={() => setCoursesToAdd(null)}
+            onSubmit={(entries) => addCourseMutation.mutate(entries)}
           />
 
           {/* 시간표 삭제 및 수정 모달 */}
@@ -1239,6 +1425,12 @@ export default function ScheduleScreen() {
           <TimetableWizardModal
             visible={isWizardOpen}
             onClose={() => setIsWizardOpen(false)}
+            onDismiss={() => {
+              if (wizardCoursesToAdd) {
+                setCoursesToAdd(wizardCoursesToAdd);
+                setWizardCoursesToAdd(null);
+              }
+            }}
             currentTimetableId={currentTimetableId}
             onSaveCombination={handleSaveWizardCombination}
           />
@@ -1280,12 +1472,7 @@ export default function ScheduleScreen() {
                     key={course.id}
                     course={course}
                     isDisabled={!currentTimetableId || addCourseMutation.isPending}
-                    onAdd={() =>
-                      addCourseMutation.mutate({
-                        courseId: course.id,
-                        color: COLORS[index % COLORS.length],
-                      })
-                    }
+                    onAdd={() => setCoursesToAdd([{ course, color: COLORS[index % COLORS.length] }])}
                   />
                 ))}
               </View>

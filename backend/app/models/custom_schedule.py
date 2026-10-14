@@ -8,6 +8,7 @@ class CustomSchedule(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     timetable_id = Column(Integer, ForeignKey("timetables.id"), nullable=False)
+    building_id = Column(Integer, ForeignKey("buildings.id"), nullable=True)
     name = Column(String(100), nullable=False)
     day_of_week = Column(String(10), nullable=False)
     start_time = Column(Time, nullable=False)
@@ -16,3 +17,8 @@ class CustomSchedule(Base):
     memo = Column(String(200))
 
     timetable = relationship("Timetable", back_populates="custom_schedules")
+    building = relationship("Building")
+
+    @property
+    def building_name(self) -> str | None:
+        return self.building.name if self.building else None

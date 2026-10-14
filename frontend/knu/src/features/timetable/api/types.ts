@@ -14,6 +14,7 @@ export type TimetableCourse = {
   id: number;
   timetable_id: number;
   course_id: number;
+  building_id: number | null;
   color: string;
   created_at: string | null;
 };
@@ -27,7 +28,19 @@ export type TimetableCourseDetail = {
   section: string;
   professor: string | null;
   color: string | null;
+  building_id: number | null;
+  building_name: string | null;
+  room_name: string | null;
+  latitude: number | null;
+  longitude: number | null;
   schedules: CourseSchedule[];
+};
+
+export type CampusBuilding = {
+  id: number;
+  name: string;
+  latitude: number;
+  longitude: number;
 };
 
 export type CustomSchedule = {
@@ -39,6 +52,8 @@ export type CustomSchedule = {
   end_time: string;
   color: string;
   memo: string | null;
+  building_id: number | null;
+  building_name: string | null;
 };
 
 export type TimetableDetail = Timetable & {
@@ -62,6 +77,7 @@ export type TimetableUpdateBody = {
 export type TimetableCourseCreateBody = {
   course_id: number;
   color?: string;
+  building_id?: number | null;
 };
 
 export type CustomScheduleCreateBody = {
@@ -71,4 +87,5 @@ export type CustomScheduleCreateBody = {
   end_time: string;
   color?: string;
   memo?: string;
+  building_id?: number | null;
 };

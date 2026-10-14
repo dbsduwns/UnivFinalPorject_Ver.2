@@ -29,6 +29,20 @@ class TimetableResponse(BaseModel):
 class TimetableCourseCreate(BaseModel):
     course_id: int
     color: str = "#3B82F6"
+    building_id: int | None = None
+
+
+class TimetableCourseUpdate(BaseModel):
+    building_id: int | None
+
+
+class BuildingResponse(BaseModel):
+    id: int
+    name: str
+    latitude: float
+    longitude: float
+
+    model_config = {"from_attributes": True}
 
 
 class TimetableCourseResponse(BaseModel):
@@ -36,6 +50,7 @@ class TimetableCourseResponse(BaseModel):
     timetable_id: int
     course_id: int
     color: str
+    building_id: int | None = None
     created_at: datetime | None = None
 
     model_config = {
@@ -64,6 +79,7 @@ class CourseDetailResponse(BaseModel):
     section: str
     professor: str | None = None
     color: str | None = None
+    building_id: int | None = None
     room_name: str | None = None
     building_name: str | None = None
     latitude: float | None = None
@@ -82,6 +98,7 @@ class CustomScheduleCreate(BaseModel):
     end_time: time
     color: str = "#3B82F6"
     memo: str | None = None
+    building_id: int | None = None
 
 class CustomScheduleUpdate(BaseModel):
     name: str | None = None
@@ -90,6 +107,7 @@ class CustomScheduleUpdate(BaseModel):
     end_time: time | None = None
     color: str | None = None
     memo: str | None = None
+    building_id: int | None = None
 
 class CustomScheduleResponse(BaseModel):
     id: int
@@ -100,6 +118,8 @@ class CustomScheduleResponse(BaseModel):
     end_time: time
     color: str
     memo: str | None = None
+    building_id: int | None = None
+    building_name: str | None = None
 
     model_config = {
         "from_attributes": True
