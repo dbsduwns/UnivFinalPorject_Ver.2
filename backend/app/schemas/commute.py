@@ -19,6 +19,8 @@ DisplayMode = Literal["departure_recommendation", "travel_time_only"]
 class CommuteProfileCreate(BaseModel):
     home_address: str = Field(min_length=1, max_length=255)
     home_road_address: str | None = Field(default=None, max_length=255)
+    home_latitude: float | None = Field(default=None, ge=-90, le=90)
+    home_longitude: float | None = Field(default=None, ge=-180, le=180)
     use_shuttle: bool = False
     departure_buffer_minutes: int = Field(default=10, ge=0, le=120)
 
@@ -26,6 +28,8 @@ class CommuteProfileCreate(BaseModel):
 class CommuteProfileUpdate(BaseModel):
     home_address: str | None = Field(default=None, min_length=1, max_length=255)
     home_road_address: str | None = Field(default=None, max_length=255)
+    home_latitude: float | None = Field(default=None, ge=-90, le=90)
+    home_longitude: float | None = Field(default=None, ge=-180, le=180)
     use_shuttle: bool | None = None
     shuttle_destination: str | None = Field(default=None, max_length=100)
     departure_buffer_minutes: int | None = Field(default=None, ge=0, le=120)

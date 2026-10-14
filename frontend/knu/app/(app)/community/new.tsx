@@ -52,7 +52,7 @@ export default function CreateCommunityPostScreen() {
   return (
     <KeyboardAvoidingView
       className="flex-1 bg-[#F4F6F8]"
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <View
         className="bg-white border-b border-gray-200 px-4 flex-row items-end pb-4"
@@ -85,6 +85,7 @@ export default function CreateCommunityPostScreen() {
       <ScrollView
         className="flex-1"
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
         contentContainerStyle={{ padding: 20, paddingBottom: Math.max(insets.bottom, 24) }}
       >
         <Text className="text-sm font-extrabold text-gray-700 mb-2">제목</Text>

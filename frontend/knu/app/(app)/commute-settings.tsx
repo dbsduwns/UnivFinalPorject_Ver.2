@@ -90,6 +90,8 @@ export default function CommuteSettingsScreen() {
         if (selectedAddress) {
           body.home_address = selectedAddress.address;
           body.home_road_address = selectedAddress.road_address;
+          body.home_latitude = selectedAddress.latitude;
+          body.home_longitude = selectedAddress.longitude;
         }
         return updateCommuteProfile(body);
       }
@@ -97,6 +99,8 @@ export default function CommuteSettingsScreen() {
       const body: CommuteProfileCreate = {
         home_address: selectedAddress!.address,
         home_road_address: selectedAddress!.road_address,
+        home_latitude: selectedAddress!.latitude,
+        home_longitude: selectedAddress!.longitude,
         use_shuttle: useShuttle,
         departure_buffer_minutes: bufferMinutes,
       };

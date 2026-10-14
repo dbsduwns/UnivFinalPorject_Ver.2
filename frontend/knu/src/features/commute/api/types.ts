@@ -25,6 +25,8 @@ export type CommuteProfile = {
 export type CommuteProfileCreate = {
   home_address: string;
   home_road_address?: string | null;
+  home_latitude?: number;
+  home_longitude?: number;
   use_shuttle?: boolean;
   departure_buffer_minutes?: number;
 };
@@ -34,6 +36,8 @@ export type CommuteProfileUpdate = Partial<
     CommuteProfile,
     | "home_address"
     | "home_road_address"
+    | "home_latitude"
+    | "home_longitude"
     | "use_shuttle"
     | "shuttle_destination"
     | "departure_buffer_minutes"

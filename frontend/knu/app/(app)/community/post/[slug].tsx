@@ -173,7 +173,7 @@ export default function CommunityPostScreen() {
   return (
     <KeyboardAvoidingView
       className="flex-1 bg-[#F4F6F8]"
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <View
         className="bg-white border-b border-gray-200 px-4 flex-row items-end pb-4"
@@ -191,7 +191,12 @@ export default function CommunityPostScreen() {
         </View>
       </View>
 
-      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 24 }}>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: 24 }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+      >
         <View className="bg-white px-5 pt-6 pb-5 border-b border-gray-200">
           <View className="flex-row items-center">
             <Text className="text-sm font-extrabold text-[#13708D]">{post.author_name}</Text>
@@ -378,7 +383,7 @@ export default function CommunityPostScreen() {
       >
         <KeyboardAvoidingView
           className="flex-1 bg-black/40 justify-end"
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
           <View
             className="bg-white rounded-t-3xl px-5 pt-5"

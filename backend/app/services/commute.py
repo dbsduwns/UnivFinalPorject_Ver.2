@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
+import logging
 import math
 import re
 from urllib.parse import unquote
@@ -11,6 +12,8 @@ from sqlalchemy.orm import Session
 import os
 import requests
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 from app.models.commute import CommuteProfile
 from app.models.building import Building
@@ -41,8 +44,39 @@ class GeocodingError(Exception):
 class TransitRouteError(Exception):
     pass
 
+
+def _raise_tmap_geocoding_error(
+    exc: requests.RequestException,
+    operation: str,
+) -> None:
+    """TMAP 오류를 키를 노출하지 않는 진단 로그와 사용자 메시지로 변환한다."""
+    response = exc.response
+    status_code = response.status_code if response is not None else None
+    response_text = response.text[:500] if response is not None else str(exc)
+    logger.warning(
+        "TMAP %s failed: status=%s response=%s",
+        operation,
+        status_code,
+        response_text,
+    )
+
+    if status_code in {401, 403}:
+        raise GeocodingError(
+            "TMAP API 인증에 실패했습니다. 앱 키와 TMAP API 상품 권한을 확인해주세요."
+        ) from exc
+    if status_code == 429:
+        raise GeocodingError(
+            "TMAP API 호출 한도를 초과했습니다. 잠시 후 다시 시도해주세요."
+        ) from exc
+    if status_code == 400:
+        raise GeocodingError(
+            "TMAP에서 주소를 찾지 못했거나 요청 형식이 올바르지 않습니다."
+        ) from exc
+    raise GeocodingError(f"TMAP {operation} 요청에 실패했습니다.") from exc
+
 TMAP_API_KEY = os.getenv("TMAP_API_KEY")
 TMAP_GEOCODING_URL = "https://apis.openapi.sk.com/tmap/geo/fullAddrGeo"
+TMAP_POI_SEARCH_URL = "https://apis.openapi.sk.com/tmap/pois"
 
 PUBLIC_API_KEY = os.getenv("PUBLIC_API_KEY")
 TAGO_STOP_API_URL = (
@@ -76,14 +110,20 @@ def create_commute_profile(
 ) -> CommuteProfile:
     """사용자의 통학 프로필을 생성한다."""
 
-    coordinates = geocode_address(data.home_address)
+    if data.home_latitude is not None and data.home_longitude is not None:
+        latitude = data.home_latitude
+        longitude = data.home_longitude
+    else:
+        coordinates = geocode_address(data.home_address)
+        latitude = coordinates["latitude"]
+        longitude = coordinates["longitude"]
 
     profile = CommuteProfile(
         user_id=user.id,
         home_address=data.home_address,
         home_road_address=data.home_road_address,
-        home_latitude=coordinates["latitude"],
-        home_longitude=coordinates["longitude"],
+        home_latitude=latitude,
+        home_longitude=longitude,
         use_shuttle=data.use_shuttle,
         shuttle_destination="이공관",
         departure_buffer_minutes=data.departure_buffer_minutes,
@@ -112,8 +152,18 @@ def update_commute_profile(
 
     update_data = data.model_dump(exclude_unset=True)
 
+    has_selected_coordinates = (
+        update_data.get("home_latitude") is not None
+        and update_data.get("home_longitude") is not None
+    )
+    if not has_selected_coordinates:
+        # 좌표는 반드시 한 쌍으로만 갱신한다. 일부만 전달되면 주소를 다시 지오코딩한다.
+        update_data.pop("home_latitude", None)
+        update_data.pop("home_longitude", None)
     if (
-        "home_address" in update_data and update_data["home_address"] != profile.home_address
+        "home_address" in update_data
+        and update_data["home_address"] != profile.home_address
+        and not has_selected_coordinates
     ):
         coordinates = geocode_address(update_data["home_address"])
 
@@ -865,7 +915,6 @@ def geocode_address(address: str) -> dict:
         "fullAddr": address,
         "page": 1,
         "count": 20,
-        "appKey": TMAP_API_KEY,
     }
     try:
         response = requests.get(
@@ -873,6 +922,7 @@ def geocode_address(address: str) -> dict:
             params=params,
             headers={
                 "Accept": "application/json",
+                "appKey": TMAP_API_KEY,
             },
             timeout=10,
         )
@@ -880,7 +930,7 @@ def geocode_address(address: str) -> dict:
         data = response.json()
 
     except requests.RequestException as exc:
-        raise GeocodingError("TMAP 지오코딩 요청에 실패했습니다.") from exc
+        _raise_tmap_geocoding_error(exc, "지오코딩")
     except ValueError as exc:
         raise GeocodingError("TMAP 응답을 해석할 수 없습니다.") from exc
 
@@ -909,7 +959,7 @@ def geocode_address(address: str) -> dict:
 
 
 def search_addresses(query: str, limit: int = 10) -> list[dict]:
-    """TMAP 통합주소검색 결과를 통학 주소 선택용 목록으로 반환한다."""
+    """TMAP POI 통합검색 결과를 통학 주소 선택용 목록으로 반환한다."""
     if not TMAP_API_KEY:
         raise GeocodingError("TMAP_API_KEY가 설정되지 않았습니다.")
 
@@ -919,33 +969,47 @@ def search_addresses(query: str, limit: int = 10) -> list[dict]:
 
     try:
         response = requests.get(
-            TMAP_GEOCODING_URL,
+            TMAP_POI_SEARCH_URL,
             params={
                 "version": 1,
-                "addressFlag": "F00",
-                "coordType": "WGS84GEO",
-                "fullAddr": normalized_query,
+                "searchKeyword": normalized_query,
+                "searchType": "all",
+                "searchtypCd": "A",
                 "page": 1,
                 "count": max(1, min(limit, 20)),
+                "reqCoordType": "WGS84GEO",
+                "resCoordType": "WGS84GEO",
+                "multiPoint": "N",
+                "poiGroupYn": "N",
+            },
+            headers={
+                "Accept": "application/json",
                 "appKey": TMAP_API_KEY,
             },
-            headers={"Accept": "application/json"},
             timeout=10,
         )
         response.raise_for_status()
         data = response.json()
     except requests.RequestException as exc:
-        raise GeocodingError("TMAP 주소 검색 요청에 실패했습니다.") from exc
+        _raise_tmap_geocoding_error(exc, "POI 통합검색")
     except ValueError as exc:
-        raise GeocodingError("TMAP 주소 검색 응답을 해석할 수 없습니다.") from exc
+        raise GeocodingError("TMAP POI 검색 응답을 해석할 수 없습니다.") from exc
 
-    coordinates = data.get("coordinateInfo", {}).get("coordinate", [])
+    pois = data.get("searchPoiInfo", {}).get("pois", {}).get("poi", [])
+    if isinstance(pois, dict):
+        pois = [pois]
+    if not isinstance(pois, list):
+        pois = []
+
     results: list[dict] = []
     seen: set[tuple[str, float, float]] = set()
 
-    for item in coordinates:
-        latitude = item.get("latEntr") or item.get("lat")
-        longitude = item.get("lonEntr") or item.get("lon")
+    for item in pois:
+        if not isinstance(item, dict):
+            continue
+
+        latitude = item.get("frontLat") or item.get("noorLat")
+        longitude = item.get("frontLon") or item.get("noorLon")
         if latitude is None or longitude is None:
             continue
 
@@ -955,30 +1019,24 @@ def search_addresses(query: str, limit: int = 10) -> list[dict]:
         except (TypeError, ValueError):
             continue
 
-        region = " ".join(
+        region_parts = [
             str(item.get(key) or "").strip()
-            for key in ("city_do", "gu_gun")
+            for key in ("upperAddrName", "middleAddrName")
             if item.get(key)
+        ]
+        lot_address = " ".join(
+            part
+            for part in (
+                *region_parts,
+                str(item.get("lowerAddrName") or "").strip(),
+                str(item.get("detailAddrName") or "").strip(),
+            )
+            if part
         )
-        road_detail = " ".join(
-            str(item.get(key) or "").strip()
-            for key in ("newRoadName", "newBuildingIndex")
-            if item.get(key)
-        )
-        road_address = " ".join(part for part in (region, road_detail) if part)
 
-        lot_detail = " ".join(
-            str(item.get(key) or "").strip()
-            for key in ("legalDong", "ri", "bunji")
-            if item.get(key)
-        )
-        lot_address = " ".join(part for part in (region, lot_detail) if part)
-        address = (
-            str(item.get("fullAddress") or "").strip()
-            or road_address
-            or lot_address
-            or normalized_query
-        )
+        road_address = _get_poi_road_address(item, region_parts)
+        building_name = str(item.get("name") or "").strip() or None
+        address = road_address or lot_address or building_name or normalized_query
         key = (address, latitude_value, longitude_value)
         if key in seen:
             continue
@@ -987,10 +1045,58 @@ def search_addresses(query: str, limit: int = 10) -> list[dict]:
             {
                 "address": address,
                 "road_address": road_address or None,
-                "building_name": item.get("newBuildingName") or None,
+                "building_name": building_name,
                 "latitude": latitude_value,
                 "longitude": longitude_value,
             }
         )
 
+    # POI 검색이 놓치는 완전한 도로명/지번 주소는 Full Text Geocoding으로 보완한다.
+    if not results:
+        try:
+            coordinate = geocode_address(normalized_query)
+        except GeocodingError as exc:
+            if "좌표를 찾을 수 없습니다" in str(exc):
+                return []
+            raise
+        results.append(
+            {
+                "address": coordinate.get("road_address") or normalized_query,
+                "road_address": coordinate.get("road_address"),
+                "building_name": coordinate.get("building_name"),
+                "latitude": coordinate["latitude"],
+                "longitude": coordinate["longitude"],
+            }
+        )
+
     return results
+
+
+def _get_poi_road_address(item: dict, region_parts: list[str]) -> str:
+    """TMAP POI 응답의 여러 도로명 주소 형식을 하나의 문자열로 정규화한다."""
+    new_address_list = item.get("newAddressList") or {}
+    if isinstance(new_address_list, dict):
+        new_addresses = new_address_list.get("newAddress") or []
+    else:
+        new_addresses = new_address_list
+    if isinstance(new_addresses, dict):
+        new_addresses = [new_addresses]
+    if not isinstance(new_addresses, list):
+        new_addresses = []
+
+    for new_address in new_addresses:
+        if not isinstance(new_address, dict):
+            continue
+        full_address = str(new_address.get("fullAddressRoad") or "").strip()
+        if full_address:
+            return full_address
+
+    road_name = str(item.get("roadName") or "").strip()
+    building_number = str(item.get("firstBuildNo") or "").strip()
+    second_building_number = str(item.get("secondBuildNo") or "").strip()
+    if building_number and second_building_number and second_building_number != "0":
+        building_number = f"{building_number}-{second_building_number}"
+
+    return " ".join(
+        part for part in (*region_parts, road_name, building_number) if part
+    )

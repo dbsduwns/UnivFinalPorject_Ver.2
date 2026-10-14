@@ -325,7 +325,6 @@ export default function AIChatScreen() {
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={{ flex: 1 }}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
     >
       <AppScreenLayout>
         <View style={{ flex: 1, backgroundColor: 'white' }}>
@@ -458,7 +457,10 @@ export default function AIChatScreen() {
           animationType="fade"
           onRequestClose={() => setIsSetModalOpen(false)}
         >
-          <View className="flex-1 justify-center items-center bg-black/50 px-6">
+          <KeyboardAvoidingView
+            className="flex-1 justify-center items-center bg-black/50 px-6"
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+          >
             <View className="bg-white w-full rounded-3xl p-6 shadow-xl">
               <View className="flex-row justify-between items-center mb-6">
                 <Text className="text-xl font-bold text-gray-900">채팅방 설정</Text>
@@ -498,7 +500,7 @@ export default function AIChatScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
       </AppScreenLayout>
     </KeyboardAvoidingView>
