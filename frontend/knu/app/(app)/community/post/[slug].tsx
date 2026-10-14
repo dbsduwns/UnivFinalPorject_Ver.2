@@ -171,10 +171,7 @@ export default function CommunityPostScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-[#F4F6F8]"
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <View className="flex-1 bg-[#F4F6F8]">
       <View
         className="bg-white border-b border-gray-200 px-4 flex-row items-end pb-4"
         style={{ paddingTop: insets.top, height: insets.top + 76 }}
@@ -191,12 +188,16 @@ export default function CommunityPostScreen() {
         </View>
       </View>
 
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ paddingBottom: 24 }}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ paddingBottom: 24 }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+        >
         <View className="bg-white px-5 pt-6 pb-5 border-b border-gray-200">
           <View className="flex-row items-center">
             <Text className="text-sm font-extrabold text-[#13708D]">{post.author_name}</Text>
@@ -257,12 +258,12 @@ export default function CommunityPostScreen() {
             </View>
           )}
         </View>
-      </ScrollView>
+        </ScrollView>
 
-      <View
-        className="bg-white border-t border-gray-200 px-4 pt-3"
-        style={{ paddingBottom: Math.max(insets.bottom, 12) }}
-      >
+        <View
+          className="bg-white border-t border-gray-200 px-4 pt-3"
+          style={{ paddingBottom: Math.max(insets.bottom, 12) }}
+        >
         {replyTarget ? (
           <View className="flex-row items-center justify-between mb-2 px-1">
             <Text className="flex-1 text-xs font-bold text-[#13708D]" numberOfLines={1}>
@@ -309,7 +310,8 @@ export default function CommunityPostScreen() {
             )}
           </Pressable>
         </View>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
 
       <Modal
         visible={Boolean(menuComment)}
@@ -435,7 +437,7 @@ export default function CommunityPostScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

@@ -149,12 +149,12 @@ export const MessagesScreen = () => {
   const showConversation = isWide || !!selectedFriend;
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1"
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <AppScreenLayout>
-      <View className="flex-1 bg-[#F4F7F8] px-4 pb-4 pt-3 md:px-7 md:pb-7">
+    <AppScreenLayout>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <View className="flex-1 bg-[#F4F7F8] px-4 pb-4 pt-3 md:px-7 md:pb-7">
         <View className="self-center w-full max-w-[1080px] flex-1">
           <View className="flex-row items-center justify-between mb-4">
             <View>
@@ -488,7 +488,8 @@ export const MessagesScreen = () => {
             )}
           </View>
         </View>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
 
       <FriendInviteModal
         visible={inviteModalVisible}
@@ -500,7 +501,6 @@ export const MessagesScreen = () => {
         friendName={timetableFriend?.name}
         onClose={() => setTimetableFriend(null)}
       />
-      </AppScreenLayout>
-    </KeyboardAvoidingView>
+    </AppScreenLayout>
   );
 };
