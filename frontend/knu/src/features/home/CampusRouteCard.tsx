@@ -2,7 +2,15 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { ChevronRight, Clock3, Home, MapPin, Navigation } from "lucide-react-native";
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 import { getTodayCommute } from "@/features/commute/api/commute";
 import type { CommuteToday, RouteSummary } from "@/features/commute/api/types";
@@ -77,22 +85,40 @@ function getSecondaryInfo(route: RouteSummary | null | undefined) {
 
 export const CampusRouteCard = () => {
   const [isSetupModalVisible, setIsSetupModalVisible] = useState(false);
+  const [hasRequestedCommute, setHasRequestedCommute] = useState(false);
   const commuteQuery = useQuery({
     queryKey: ["commute", "today"],
     queryFn: getTodayCommute,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
-    retry: 1,
+    enabled: false,
+    retry: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
   });
 
-  const copy = getCardCopy(commuteQuery.data);
-  const route = commuteQuery.data?.recommended_route;
-  const hasRequestError = commuteQuery.isError;
-  const shouldRetry = hasRequestError || commuteQuery.data?.status === "provider_error";
+  const copy = hasRequestedCommute
+    ? getCardCopy(commuteQuery.data)
+    : {
+        title: "오늘의 등교 시간을 확인해보세요",
+        description: "버튼을 누르면 첫 수업에 맞춰 추천 출발 시간을 계산해드려요",
+        action: "등교 시간 계산하기",
+      };
+  const route = hasRequestedCommute ? commuteQuery.data?.recommended_route : undefined;
+  const hasRequestError = hasRequestedCommute && commuteQuery.isError;
+  const shouldRetry =
+    hasRequestedCommute &&
+    (hasRequestError || commuteQuery.data?.status === "provider_error");
+  const isCalculating = hasRequestedCommute && commuteQuery.isFetching;
+
+  const calculateCommute = () => {
+    if (commuteQuery.isFetching) return;
+    setHasRequestedCommute(true);
+    void commuteQuery.refetch();
+  };
 
   const handlePress = () => {
     if (shouldRetry) {
-      void commuteQuery.refetch();
+      calculateCommute();
       return;
     }
     if (commuteQuery.data?.status === "setup_required") {
@@ -102,6 +128,14 @@ export const CampusRouteCard = () => {
     router.push("/(app)/(tabs)/campus-map");
   };
 
+  const handleActionPress = () => {
+    if (!hasRequestedCommute || shouldRetry) {
+      calculateCommute();
+      return;
+    }
+    handlePress();
+  };
+
   const openCommuteSettings = () => {
     setIsSetupModalVisible(false);
     router.push("/(app)/commute-settings");
@@ -109,19 +143,20 @@ export const CampusRouteCard = () => {
 
   return (
     <View style={styles.section}>
-      <Pressable
-        style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-        onPress={handlePress}
-      >
+      <View style={styles.card}>
         <View style={styles.cardHeader}>
           <View style={styles.headerTitleWrap}>
             <Navigation size={22} color="#13708D" />
             <Text style={styles.sectionTitle}>오늘의 등교 길찾기</Text>
           </View>
-          <View style={styles.headerLink}>
+          <TouchableOpacity
+            style={styles.headerLink}
+            activeOpacity={0.6}
+            onPress={() => router.push("/(app)/(tabs)/campus-map")}
+          >
             <Text style={styles.moreText}>캠퍼스맵</Text>
             <ChevronRight size={16} color="#13708D" />
-          </View>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.cardTopRow}>
@@ -135,7 +170,7 @@ export const CampusRouteCard = () => {
             </View>
           </View>
           <View style={styles.routeTitleWrap}>
-            {commuteQuery.isLoading ? (
+            {isCalculating ? (
               <View style={styles.loadingRow}>
                 <ActivityIndicator size="small" color="#13708D" />
                 <Text style={styles.loadingText}>등교 시간을 계산하고 있어요</Text>
@@ -168,11 +203,24 @@ export const CampusRouteCard = () => {
             <Navigation size={16} color="#13708D" />
             <Text style={styles.infoText}>{getSecondaryInfo(route)}</Text>
           </View>
-          <Text style={styles.actionText}>
-            {shouldRetry ? "다시 확인" : copy.action}
-          </Text>
+          <TouchableOpacity
+            style={styles.actionButton}
+            activeOpacity={0.6}
+            disabled={isCalculating}
+            onPress={handleActionPress}
+          >
+            <Text style={styles.actionText}>
+              {isCalculating
+                ? "계산 중"
+                : !hasRequestedCommute
+                  ? "계산하기"
+                  : shouldRetry
+                    ? "다시 계산"
+                    : copy.action}
+            </Text>
+          </TouchableOpacity>
         </View>
-      </Pressable>
+      </View>
 
       <Modal
         visible={isSetupModalVisible}
@@ -234,7 +282,8 @@ const styles = StyleSheet.create({
   cardBottomRow: { flexDirection: "row", alignItems: "center", marginHorizontal: 24, marginBottom: 20 },
   infoItem: { flexDirection: "row", alignItems: "center", marginRight: 14 },
   infoText: { marginLeft: 5, fontSize: 11, color: "#475569" },
-  actionText: { marginLeft: "auto", fontSize: 12, fontWeight: "700", color: "#13708D" },
+  actionButton: { marginLeft: "auto", paddingVertical: 4, paddingLeft: 8 },
+  actionText: { fontSize: 12, fontWeight: "700", color: "#13708D" },
   modalBackdrop: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: "rgba(15, 23, 42, 0.45)" },
   modalCard: { width: "100%", maxWidth: 360, padding: 24, borderRadius: 22, alignItems: "center", backgroundColor: "#FFFFFF" },
   modalIcon: { width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center", backgroundColor: "#EAF8FC", marginBottom: 16 },
