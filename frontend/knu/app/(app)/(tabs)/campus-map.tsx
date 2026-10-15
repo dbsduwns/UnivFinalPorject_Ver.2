@@ -232,13 +232,17 @@ export default function CampusMapScreen() {
   const handleFindRoute = async () => {
     if (!selectedLoc) return;
     setIsRouting(true);
+    let routeStage = "시작";
+
     try {
+      routeStage = "위치 권한 요청";
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert("권한 필요", "위치 정보 권한이 필요합니다.");
         return setIsRouting(false);
       }
 
+      routeStage = "현재 위치 조회";
       const location = await Location.getCurrentPositionAsync({
         accuracy: Platform.OS === 'android' ? Location.Accuracy.Low : Location.Accuracy.Balanced,
       });
@@ -246,6 +250,7 @@ export default function CampusMapScreen() {
       let startX = location.coords.longitude;
       let startY = location.coords.latitude;
 
+      routeStage = "TMAP 보행자 경로 요청";
       const features = await fetchPedestrianRoute(startX, startY, selectedLoc.lng, selectedLoc.lat);
       const points: { lat: number; lng: number }[] = [];
       const guidance: { lat: number, lng: number, description: string }[] = [];
@@ -267,10 +272,28 @@ export default function CampusMapScreen() {
         }
       });
 
+      routeStage = "경로 데이터 표시";
       setRouteData({ totalDistance, totalTime, instructions });
       webViewRef.current?.postMessage(JSON.stringify({ type: "DRAW_ROUTE", points, guidance }));
       toggleDrawer(true);
-    } catch (e) { Alert.alert("오류", "길찾기 실패"); } finally { setIsRouting(false); }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("[CampusMap] 길찾기 실패", {
+        stage: routeStage,
+        message: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined,
+        destination: selectedLoc?.name,
+      });
+
+      Alert.alert(
+        "길찾기 실패",
+        __DEV__
+          ? `[${routeStage}] ${errorMessage}`
+          : "현재 길찾기를 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+      );
+    } finally {
+      setIsRouting(false);
+    }
   };
 
   const onMessage = (event: any) => {

@@ -21,3 +21,13 @@ static/shuttle/*.pdf
 *.png
 data/*.html
 !data/*.json
+
+# OpenTripPlanner generated data and downloaded routing inputs
+otp/*.jar
+otp/*.pbf
+otp/*.zip
+otp/graph.obj
+otp/otp-config.json
+otp/build-config.json
+otp/router-config.json
+otp/logs/

@@ -1,14 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Alert,
+  PanResponder,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   View,
   useWindowDimensions,
   Modal,
+  KeyboardAvoidingView,
+  Keyboard,
+  Platform,
 } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarClock, Check, ChevronDown, ChevronUp, Plus, Search, Trash2, Wand2, ChevronLeft, ChevronRight, X } from "lucide-react-native";
@@ -51,6 +57,7 @@ const COLORS = ["#60A5FA", "#34D399", "#F59E0B", "#A78BFA", "#F87171", "#22D3EE"
 const START_HOUR = 9;
 const END_HOUR = 19;
 const HOUR_HEIGHT = 56;
+const COLLAPSED_SEARCH_PANEL_HEIGHT = 104;
 
 type TimetableEvent = {
   color: string;
@@ -267,6 +274,186 @@ const CourseSearchItem = ({
     </View>
   </View>
 );
+
+const CourseSearchPanel = ({
+  keyword,
+  onKeywordChange,
+  onSearch,
+  currentTimetableId,
+  isLoading,
+  courses,
+  submittedKeyword,
+  isAdding,
+  onAddCourse,
+}: {
+  keyword: string;
+  onKeywordChange: (value: string) => void;
+  onSearch: () => void;
+  currentTimetableId?: number;
+  isLoading: boolean;
+  courses?: Course[];
+  submittedKeyword: string;
+  isAdding: boolean;
+  onAddCourse: (course: Course, index: number) => void;
+}) => {
+  const [panelHeight, setPanelHeight] = useState(0);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const isExpandedRef = useRef(false);
+  const dragStartRef = useRef(0);
+  const translateY = useRef(new Animated.Value(0)).current;
+  const collapsedOffset = Math.max(panelHeight - COLLAPSED_SEARCH_PANEL_HEIGHT, 0);
+
+  const animatePanel = useCallback((expanded: boolean) => {
+    isExpandedRef.current = expanded;
+    setIsExpanded(expanded);
+    if (!expanded) Keyboard.dismiss();
+
+    Animated.spring(translateY, {
+      toValue: expanded ? 0 : collapsedOffset,
+      damping: 24,
+      stiffness: 220,
+      mass: 0.9,
+      useNativeDriver: true,
+    }).start();
+  }, [collapsedOffset, translateY]);
+
+  useEffect(() => {
+    translateY.setValue(isExpandedRef.current ? 0 : collapsedOffset);
+  }, [collapsedOffset, translateY]);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gesture) =>
+          Math.abs(gesture.dy) > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+        onPanResponderGrant: () => {
+          translateY.stopAnimation((value) => {
+            dragStartRef.current = value;
+          });
+        },
+        onPanResponderMove: (_event, gesture) => {
+          const nextValue = Math.min(
+            Math.max(dragStartRef.current + gesture.dy, 0),
+            collapsedOffset
+          );
+          translateY.setValue(nextValue);
+        },
+        onPanResponderRelease: (_event, gesture) => {
+          const releasedAt = Math.min(
+            Math.max(dragStartRef.current + gesture.dy, 0),
+            collapsedOffset
+          );
+          const shouldExpand =
+            gesture.vy < -0.45 ||
+            (gesture.vy <= 0.45 && releasedAt < collapsedOffset / 2);
+          animatePanel(shouldExpand);
+        },
+        onPanResponderTerminate: () => {
+          animatePanel(isExpandedRef.current);
+        },
+      }),
+    [animatePanel, collapsedOffset, translateY]
+  );
+
+  return (
+    <KeyboardAvoidingView
+      pointerEvents="box-none"
+      style={StyleSheet.absoluteFill}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <View
+        pointerEvents="box-none"
+        style={{ flex: 1, overflow: "hidden" }}
+        onLayout={({ nativeEvent }) => setPanelHeight(nativeEvent.layout.height)}
+      >
+        <Animated.View
+          style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            backgroundColor: "white",
+            borderTopLeftRadius: isExpanded ? 0 : 24,
+            borderTopRightRadius: isExpanded ? 0 : 24,
+            elevation: 24,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.14,
+            shadowRadius: 12,
+            opacity: panelHeight > 0 ? 1 : 0,
+            transform: [{ translateY }],
+          }}
+        >
+          <View
+            className="px-5 pt-2 pb-3 border-b border-gray-100"
+            {...panResponder.panHandlers}
+          >
+            <View className="w-10 h-1 rounded-full bg-gray-300 self-center mb-3" />
+            <View className="flex-row gap-2 items-center">
+              <TextInput
+                value={keyword}
+                onChangeText={onKeywordChange}
+                onFocus={() => animatePanel(true)}
+                onSubmitEditing={onSearch}
+                placeholder="과목명, 교수명, 학수번호"
+                className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4"
+                style={{ height: 48 }}
+              />
+              <Pressable
+                onPress={onSearch}
+                className="items-center justify-center rounded-xl"
+                style={{ backgroundColor: "#13708d", height: 48, width: 48 }}
+              >
+                <Search color="white" size={20} />
+              </Pressable>
+            </View>
+          </View>
+
+          <ScrollView
+            className="flex-1"
+            contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+            keyboardDismissMode="none"
+            keyboardShouldPersistTaps="always"
+          >
+            {!currentTimetableId ? (
+              <Text style={{ color: "#6B7280", marginBottom: 12 }}>
+                과목을 추가하려면 먼저 시간표를 만들어주세요.
+              </Text>
+            ) : null}
+
+            {isLoading ? (
+              <View className="py-8 items-center">
+                <ActivityIndicator color="#13708d" />
+                <Text className="text-gray-500 mt-3">과목을 검색하는 중...</Text>
+              </View>
+            ) : courses && courses.length > 0 ? (
+              <View className="gap-3">
+                {courses.slice(0, 20).map((course, index) => (
+                  <CourseSearchItem
+                    key={course.id}
+                    course={course}
+                    isDisabled={!currentTimetableId || isAdding}
+                    onAdd={() => onAddCourse(course, index)}
+                  />
+                ))}
+              </View>
+            ) : submittedKeyword ? (
+              <Text style={{ color: "#6B7280" }}>검색 결과가 없습니다.</Text>
+            ) : (
+              <View className="py-8 items-center">
+                <Search color="#9CA3AF" size={28} />
+                <Text style={{ color: "#6B7280", marginTop: 12 }}>
+                  검색어를 입력하면 개설 과목을 찾을 수 있습니다.
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+        </Animated.View>
+      </View>
+    </KeyboardAvoidingView>
+  );
+};
 
 const BuildingPicker = ({
   buildings,
@@ -1183,309 +1370,278 @@ export default function ScheduleScreen() {
   };
 
   return (
-    <AppScreenLayout>
-      <AppScrollContent>
-        <View className="gap-4">
-          <View className="bg-white border border-gray-200 rounded-2xl p-5">
-            <View className="flex-row justify-between items-start">
-              <View className="flex-1">
-                <Text style={{ fontSize: 22, fontWeight: "900", color: "#111827" }}>
-                  시간표
-                </Text>
-                <Text style={{ color: "#6B7280", marginTop: 6 }}>
-                  {detailQuery.data
-                    ? `${detailQuery.data.name} · ${detailQuery.data.semester} · ${detailQuery.data.total_credits}학점`
-                    : "아직 만든 시간표가 없습니다."}
-                </Text>
-              </View>
-              <View className="flex-row gap-2">
-                <Pressable
-                  onPress={() => setIsCustomModalOpen(true)}
-                  disabled={!currentTimetableId}
-                  className="p-2.5 bg-gray-100 rounded-xl"
-                >
-                  <CalendarClock color={currentTimetableId ? "#4B5563" : "#D1D5DB"} size={20} />
-                </Pressable>
-                <Pressable
-                  onPress={handleWizard}
-                  className="flex-row items-center bg-indigo-50 px-3 py-2 rounded-xl"
-                >
-                  <Wand2 color="#6366F1" size={16} />
-                  <Text className="ml-1.5 font-bold text-indigo-600 text-xs">마법사</Text>
-                </Pressable>
-              </View>
-            </View>
-
-            {/* 시간표 선택기 */}
-            {sortedTimetables.length > 0 && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-4">
+    <View style={{ flex: 1 }}>
+      <AppScreenLayout>
+        <AppScrollContent
+          contentContainerStyle={{ paddingBottom: COLLAPSED_SEARCH_PANEL_HEIGHT + 24 }}
+        >
+          <View className="gap-4">
+            <View className="bg-white border border-gray-200 rounded-2xl p-5">
+              <View className="flex-row justify-between items-start">
+                <View className="flex-1">
+                  <Text style={{ fontSize: 22, fontWeight: "900", color: "#111827" }}>
+                    시간표
+                  </Text>
+                  <Text style={{ color: "#6B7280", marginTop: 6 }}>
+                    {detailQuery.data
+                      ? `${detailQuery.data.name} · ${detailQuery.data.semester} · ${detailQuery.data.total_credits}학점`
+                      : "아직 만든 시간표가 없습니다."}
+                  </Text>
+                </View>
                 <View className="flex-row gap-2">
-                  {sortedTimetables.map((t) => (
+                  <Pressable
+                    onPress={() => setIsCustomModalOpen(true)}
+                    disabled={!currentTimetableId}
+                    className="p-2.5 bg-gray-100 rounded-xl"
+                  >
+                    <CalendarClock color={currentTimetableId ? "#4B5563" : "#D1D5DB"} size={20} />
+                  </Pressable>
+                  <Pressable
+                    onPress={handleWizard}
+                    className="flex-row items-center bg-indigo-50 px-3 py-2 rounded-xl"
+                  >
+                    <Wand2 color="#6366F1" size={16} />
+                    <Text className="ml-1.5 font-bold text-indigo-600 text-xs">마법사</Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              {/* 시간표 선택기 */}
+              {sortedTimetables.length > 0 && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mt-4">
+                  <View className="flex-row gap-2">
+                    {sortedTimetables.map((t) => (
+                      <Pressable
+                        key={t.id}
+                        onPress={() => setSelectedTimetableId(t.id)}
+                        onLongPress={() => {
+                          setTimetableToEdit(t);
+                          setIsEditModalOpen(true);
+                        }}
+                        className={`px-4 py-2 rounded-xl border ${currentTimetableId === t.id ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-gray-200'}`}
+                      >
+                        <View className="flex-row items-center gap-1.5">
+                          {t.is_main && (
+                            <View className={`w-3 h-3 rounded-full ${currentTimetableId === t.id ? 'bg-white' : 'bg-indigo-500'}`} />
+                          )}
+                          <Text className={`font-bold ${currentTimetableId === t.id ? 'text-white' : 'text-gray-500'}`}>
+                            {t.name}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    ))}
                     <Pressable
-                      key={t.id}
-                      onPress={() => setSelectedTimetableId(t.id)}
-                      onLongPress={() => {
-                        setTimetableToEdit(t);
+                      onPress={() => {
+                        setTimetableToEdit(undefined);
                         setIsEditModalOpen(true);
                       }}
-                      className={`px-4 py-2 rounded-xl border ${currentTimetableId === t.id ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-gray-200'}`}
+                      className="px-4 py-2 rounded-xl border border-dashed border-gray-300 bg-gray-50"
                     >
-                      <View className="flex-row items-center gap-1.5">
-                        {t.is_main && (
-                          <View className={`w-3 h-3 rounded-full ${currentTimetableId === t.id ? 'bg-white' : 'bg-indigo-500'}`} />
-                        )}
-                        <Text className={`font-bold ${currentTimetableId === t.id ? 'text-white' : 'text-gray-500'}`}>
-                          {t.name}
-                        </Text>
-                      </View>
+                      <Text className="text-gray-400 font-bold">+ 추가</Text>
                     </Pressable>
-                  ))}
+                  </View>
+                </ScrollView>
+              )}
+
+              {!currentTimetableId && (
+                <View className="mt-4">
                   <Pressable
                     onPress={() => {
                       setTimetableToEdit(undefined);
                       setIsEditModalOpen(true);
                     }}
-                    className="px-4 py-2 rounded-xl border border-dashed border-gray-300 bg-gray-50"
+                    disabled={createMutation.isPending}
+                    className="items-center justify-center rounded-xl mt-3"
+                    style={{ backgroundColor: "#1aaedb", height: 44 }}
                   >
-                    <Text className="text-gray-400 font-bold">+ 추가</Text>
+                    <Text style={{ color: "white", fontWeight: "800" }}>
+                      나만의 시간표 만들기
+                    </Text>
                   </Pressable>
                 </View>
-              </ScrollView>
-            )}
+              )}
+            </View>
 
-            {!currentTimetableId && (
-              <View className="mt-4">
-                <Pressable
-                  onPress={() => {
-                    setTimetableToEdit(undefined);
-                    setIsEditModalOpen(true);
-                  }}
-                  disabled={createMutation.isPending}
-                  className="items-center justify-center rounded-xl mt-3"
-                  style={{ backgroundColor: "#1aaedb", height: 44 }}
-                >
-                  <Text style={{ color: "white", fontWeight: "800" }}>
-                    나만의 시간표 만들기
-                  </Text>
-                </Pressable>
+            {timetablesQuery.isLoading ? (
+              <View className="bg-white border border-gray-200 rounded-2xl p-5">
+                <Text>시간표를 불러오는 중...</Text>
+              </View>
+            ) : currentTimetableId ? (
+              <TimetableGrid
+                events={events}
+                onEventPress={(event) => setSelectedEvent(event)}
+              />
+            ) : (
+              <View className="bg-white border border-gray-200 rounded-2xl p-5">
+                <Text style={{ color: "#6B7280" }}>
+                  시간표를 만들면 여기에 주간 시간표가 표시됩니다.
+                </Text>
               </View>
             )}
-          </View>
 
-          {timetablesQuery.isLoading ? (
-            <View className="bg-white border border-gray-200 rounded-2xl p-5">
-              <Text>시간표를 불러오는 중...</Text>
-            </View>
-          ) : currentTimetableId ? (
-            <TimetableGrid 
-              events={events} 
-              onEventPress={(event) => setSelectedEvent(event)}
-            />
-          ) : (
-            <View className="bg-white border border-gray-200 rounded-2xl p-5">
-              <Text style={{ color: "#6B7280" }}>
-                시간표를 만들면 여기에 주간 시간표가 표시됩니다.
-              </Text>
-            </View>
-          )}
-
-          {/* 이벤트 상세 정보 모달 */}
-          <Modal
-            visible={selectedEvent !== null}
-            transparent={true}
-            animationType="fade"
-            onRequestClose={() => setSelectedEvent(null)}
-          >
-            <Pressable
-              className="flex-1 justify-center items-center bg-black/50 px-5"
-              onPress={() => setSelectedEvent(null)}
+            {/* 이벤트 상세 정보 모달 */}
+            <Modal
+              visible={selectedEvent !== null}
+              transparent={true}
+              animationType="fade"
+              onRequestClose={() => setSelectedEvent(null)}
             >
-              <Pressable 
-                className="bg-white rounded-2xl p-6 w-full shadow-lg" 
-                onPress={() => {}}
+              <Pressable
+                className="flex-1 justify-center items-center bg-black/50 px-5"
+                onPress={() => setSelectedEvent(null)}
               >
-                {selectedEvent && (
-                  <View className="gap-2">
-                    <View className="flex-row justify-between items-start">
-                      <View className="flex-1 mr-2">
-                        <Text style={{ fontSize: 20, fontWeight: "900", color: "#111827" }}>
-                          {selectedEvent.title}
+                <Pressable
+                  className="bg-white rounded-2xl p-6 w-full shadow-lg"
+                  onPress={() => {}}
+                >
+                  {selectedEvent && (
+                    <View className="gap-2">
+                      <View className="flex-row justify-between items-start">
+                        <View className="flex-1 mr-2">
+                          <Text style={{ fontSize: 20, fontWeight: "900", color: "#111827" }}>
+                            {selectedEvent.title}
+                          </Text>
+                          <Text style={{ fontSize: 15, color: "#6B7280", marginTop: 4 }}>
+                            {selectedEvent.meta || "정보 없음"}
+                          </Text>
+                        </View>
+                        <View
+                          className="w-4 h-4 rounded-full"
+                          style={{ backgroundColor: selectedEvent.color }}
+                        />
+                      </View>
+
+                      <View className="bg-gray-50 p-4 rounded-xl mt-2">
+                        <Text style={{ fontSize: 14, color: "#374151", fontWeight: "600" }}>
+                          시간 정보
                         </Text>
-                        <Text style={{ fontSize: 15, color: "#6B7280", marginTop: 4 }}>
-                          {selectedEvent.meta || "정보 없음"}
+                        <Text style={{ fontSize: 14, color: "#6B7280", marginTop: 4 }}>
+                          {DAYS.find(d => d.key === selectedEvent.day)?.label}요일 {formatTime(selectedEvent.startTime)} - {formatTime(selectedEvent.endTime)}
                         </Text>
                       </View>
-                      <View 
-                        className="w-4 h-4 rounded-full" 
-                        style={{ backgroundColor: selectedEvent.color }} 
+
+                      <BuildingPicker
+                        buildings={buildingsQuery.data ?? []}
+                        value={selectedEvent.buildingId ?? null}
+                        onChange={(buildingId) => updateEventBuildingMutation.mutate({ event: selectedEvent, buildingId })}
+                        isUnavailable={buildingsQuery.isError}
+                        onRetry={() => void buildingsQuery.refetch()}
                       />
-                    </View>
 
-                    <View className="bg-gray-50 p-4 rounded-xl mt-2">
-                      <Text style={{ fontSize: 14, color: "#374151", fontWeight: "600" }}>
-                        시간 정보
-                      </Text>
-                      <Text style={{ fontSize: 14, color: "#6B7280", marginTop: 4 }}>
-                        {DAYS.find(d => d.key === selectedEvent.day)?.label}요일 {formatTime(selectedEvent.startTime)} - {formatTime(selectedEvent.endTime)}
-                      </Text>
-                    </View>
-
-                    <BuildingPicker
-                      buildings={buildingsQuery.data ?? []}
-                      value={selectedEvent.buildingId ?? null}
-                      onChange={(buildingId) => updateEventBuildingMutation.mutate({ event: selectedEvent, buildingId })}
-                      isUnavailable={buildingsQuery.isError}
-                      onRetry={() => void buildingsQuery.refetch()}
-                    />
-
-                    <View className="flex-row gap-2 mt-4">
-                      <Pressable
-                        onPress={() => setSelectedEvent(null)}
-                        className="flex-1 items-center justify-center rounded-xl bg-gray-100"
-                        style={{ height: 48 }}
-                      >
-                        <Text style={{ color: "#374151", fontWeight: "700" }}>닫기</Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => {
-                          Alert.alert(
-                            "일정 삭제",
-                            `'${selectedEvent.title}' 일정을 시간표에서 삭제하시겠습니까?`,
-                            [
-                              { text: "취소", style: "cancel" },
-                              { 
-                                text: "삭제", 
-                                style: "destructive", 
-                                onPress: () => {
-                                  if (selectedEvent.courseId) {
-                                    removeCourseMutation.mutate(selectedEvent.courseId);
-                                  } else if (selectedEvent.customId) {
-                                    removeCustomMutation.mutate(selectedEvent.customId);
+                      <View className="flex-row gap-2 mt-4">
+                        <Pressable
+                          onPress={() => setSelectedEvent(null)}
+                          className="flex-1 items-center justify-center rounded-xl bg-gray-100"
+                          style={{ height: 48 }}
+                        >
+                          <Text style={{ color: "#374151", fontWeight: "700" }}>닫기</Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => {
+                            Alert.alert(
+                              "일정 삭제",
+                              `'${selectedEvent.title}' 일정을 시간표에서 삭제하시겠습니까?`,
+                              [
+                                { text: "취소", style: "cancel" },
+                                {
+                                  text: "삭제",
+                                  style: "destructive",
+                                  onPress: () => {
+                                    if (selectedEvent.courseId) {
+                                      removeCourseMutation.mutate(selectedEvent.courseId);
+                                    } else if (selectedEvent.customId) {
+                                      removeCustomMutation.mutate(selectedEvent.customId);
+                                    }
                                   }
-                                } 
-                              },
-                            ]
-                          );
-                        }}
-                        className="flex-1 flex-row items-center justify-center rounded-xl bg-red-50"
-                        style={{ height: 48 }}
-                      >
-                        <Trash2 color="#EF4444" size={18} />
-                        <Text style={{ color: "#EF4444", fontWeight: "700", marginLeft: 6 }}>
-                          삭제
-                        </Text>
-                      </Pressable>
+                                },
+                              ]
+                            );
+                          }}
+                          className="flex-1 flex-row items-center justify-center rounded-xl bg-red-50"
+                          style={{ height: 48 }}
+                        >
+                          <Trash2 color="#EF4444" size={18} />
+                          <Text style={{ color: "#EF4444", fontWeight: "700", marginLeft: 6 }}>
+                            삭제
+                          </Text>
+                        </Pressable>
+                      </View>
                     </View>
-                  </View>
-                )}
+                  )}
+                </Pressable>
               </Pressable>
-            </Pressable>
-          </Modal>
+            </Modal>
 
-          {/* 커스텀 일정 추가 모달 */}
-          <CustomScheduleModal
-            visible={isCustomModalOpen}
-            onClose={() => setIsCustomModalOpen(false)}
-            isPending={addCustomMutation.isPending}
-            buildings={buildingsQuery.data ?? []}
-            buildingsError={buildingsQuery.isError}
-            onRetryBuildings={() => void buildingsQuery.refetch()}
-            onSubmit={(data) => {
-              addCustomMutation.mutate({
-                name: data.name,
-                day_of_week: data.day,
-                start_time: data.start,
-                end_time: data.end,
-                color: data.color,
-                building_id: data.buildingId,
-              });
-            }}
-          />
+            {/* 커스텀 일정 추가 모달 */}
+            <CustomScheduleModal
+              visible={isCustomModalOpen}
+              onClose={() => setIsCustomModalOpen(false)}
+              isPending={addCustomMutation.isPending}
+              buildings={buildingsQuery.data ?? []}
+              buildingsError={buildingsQuery.isError}
+              onRetryBuildings={() => void buildingsQuery.refetch()}
+              onSubmit={(data) => {
+                addCustomMutation.mutate({
+                  name: data.name,
+                  day_of_week: data.day,
+                  start_time: data.start,
+                  end_time: data.end,
+                  color: data.color,
+                  building_id: data.buildingId,
+                });
+              }}
+            />
 
-          <CourseBuildingModal
-            courses={coursesToAdd}
-            buildings={buildingsQuery.data ?? []}
-            buildingsError={buildingsQuery.isError}
-            onRetryBuildings={() => void buildingsQuery.refetch()}
-            isPending={addCourseMutation.isPending}
-            onClose={() => setCoursesToAdd(null)}
-            onSubmit={(entries) => addCourseMutation.mutate(entries)}
-          />
+            <CourseBuildingModal
+              courses={coursesToAdd}
+              buildings={buildingsQuery.data ?? []}
+              buildingsError={buildingsQuery.isError}
+              onRetryBuildings={() => void buildingsQuery.refetch()}
+              isPending={addCourseMutation.isPending}
+              onClose={() => setCoursesToAdd(null)}
+              onSubmit={(entries) => addCourseMutation.mutate(entries)}
+            />
 
-          {/* 시간표 삭제 및 수정 모달 */}
-          <EditTimetableModal
-            visible={isEditModalOpen}
-            onClose={() => setIsEditModalOpen(false)}
-            initialData={timetableToEdit}
-            onSubmit={handleCreateOrUpdate}
-            onDelete={handleDeleteTimetable}
-          />
+            {/* 시간표 삭제 및 수정 모달 */}
+            <EditTimetableModal
+              visible={isEditModalOpen}
+              onClose={() => setIsEditModalOpen(false)}
+              initialData={timetableToEdit}
+              onSubmit={handleCreateOrUpdate}
+              onDelete={handleDeleteTimetable}
+            />
 
-          {/* 시간표 마법사 모달 */}
-          <TimetableWizardModal
-            visible={isWizardOpen}
-            onClose={() => setIsWizardOpen(false)}
-            onDismiss={() => {
-              if (wizardCoursesToAdd) {
-                setCoursesToAdd(wizardCoursesToAdd);
-                setWizardCoursesToAdd(null);
-              }
-            }}
-            currentTimetableId={currentTimetableId}
-            onSaveCombination={handleSaveWizardCombination}
-          />
+            {/* 시간표 마법사 모달 */}
+            <TimetableWizardModal
+              visible={isWizardOpen}
+              onClose={() => setIsWizardOpen(false)}
+              onDismiss={() => {
+                if (wizardCoursesToAdd) {
+                  setCoursesToAdd(wizardCoursesToAdd);
+                  setWizardCoursesToAdd(null);
+                }
+              }}
+              currentTimetableId={currentTimetableId}
+              onSaveCombination={handleSaveWizardCombination}
+            />
 
-          <View className="bg-white border border-gray-200 rounded-2xl p-5 gap-3">
-            <Text style={{ fontSize: 18, fontWeight: "900", color: "#111827" }}>
-              과목 검색
-            </Text>
-            <View className="flex-row gap-2">
-              <TextInput
-                value={keyword}
-                onChangeText={setKeyword}
-                placeholder="과목명, 교수명, 학수번호"
-                className="flex-1 border border-gray-200 rounded-xl px-3"
-                style={{ height: 44 }}
-                onSubmitEditing={handleSearch}
-              />
-              <Pressable
-                onPress={handleSearch}
-                className="items-center justify-center rounded-xl"
-                style={{ backgroundColor: "#13708d", height: 44, width: 48 }}
-              >
-                <Search color="white" size={20}/>
-              </Pressable>
-            </View>
-
-            {!currentTimetableId ? (
-              <Text style={{ color: "#6B7280" }}>
-                과목을 추가하려면 먼저 시간표를 만들어주세요.
-              </Text>
-            ) : null}
-
-            {coursesQuery.isLoading ? (
-              <Text>과목을 검색하는 중...</Text>
-            ) : coursesQuery.data && coursesQuery.data.length > 0 ? (
-              <View className="gap-3">
-                {coursesQuery.data.slice(0, 20).map((course, index) => (
-                  <CourseSearchItem
-                    key={course.id}
-                    course={course}
-                    isDisabled={!currentTimetableId || addCourseMutation.isPending}
-                    onAdd={() => setCoursesToAdd([{ course, color: COLORS[index % COLORS.length] }])}
-                  />
-                ))}
-              </View>
-            ) : submittedKeyword ? (
-              <Text style={{ color: "#6B7280" }}>검색 결과가 없습니다.</Text>
-            ) : (
-              <Text style={{ color: "#6B7280" }}>
-                검색어를 입력하면 개설 과목을 찾을 수 있습니다.
-              </Text>
-            )}
           </View>
-        </View>
-      </AppScrollContent>
-    </AppScreenLayout>
+        </AppScrollContent>
+      </AppScreenLayout>
+
+      <CourseSearchPanel
+        keyword={keyword}
+        onKeywordChange={setKeyword}
+        onSearch={handleSearch}
+        currentTimetableId={currentTimetableId}
+        isLoading={coursesQuery.isLoading}
+        courses={coursesQuery.data}
+        submittedKeyword={submittedKeyword}
+        isAdding={addCourseMutation.isPending}
+        onAddCourse={(course, index) =>
+          setCoursesToAdd([{ course, color: COLORS[index % COLORS.length] }])
+        }
+      />
+    </View>
   );
 }

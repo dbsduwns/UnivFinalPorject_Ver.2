@@ -43,6 +43,7 @@ export default function TabLayout() {
         name="schedule"
         options={{
           title: "시간표",
+          tabBarHideOnKeyboard: true,
           tabBarIcon: ({ color }) => (
             <Calendar size={28} color={color} />
           ),
