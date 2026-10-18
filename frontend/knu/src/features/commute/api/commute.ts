@@ -8,11 +8,23 @@ import type {
   CommuteProfileUpdate,
   CommuteSettingsUpdate,
   CommuteToday,
+  LiveBusPositions,
 } from "./types";
 
 
 export async function getTodayCommute(): Promise<CommuteToday> {
   const { data } = await apiClient.get<CommuteToday>("/api/commute/today");
+  return data;
+}
+
+export async function getLiveBusPositions(
+  cityCode: string,
+  routeId: string,
+): Promise<LiveBusPositions> {
+  const { data } = await apiClient.get<LiveBusPositions>(
+    "/api/commute/live-buses",
+    { params: { city_code: cityCode, route_id: routeId } },
+  );
   return data;
 }
 

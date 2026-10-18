@@ -12,6 +12,7 @@ from app.schemas.commute import (
     CommuteProfileUpdate,
     CommuteSettingsUpdate,
     CommuteTodayResponse,
+    LiveBusPositionsResponse,
 )
 from app.services import commute as commute_service
 
@@ -106,3 +107,19 @@ def get_today_commute(
     current_user: User = Depends(get_current_user),
 ):
     return commute_service.get_today_commute(db, current_user)
+
+
+@router.get("/live-buses", response_model=LiveBusPositionsResponse)
+def get_live_bus_positions(
+    city_code: str = Query(min_length=1, max_length=20),
+    route_id: str = Query(min_length=1, max_length=50),
+    current_user: User = Depends(get_current_user),
+):
+    del current_user
+    try:
+        return commute_service.get_live_bus_positions(
+            city_code=city_code.strip(),
+            route_id=route_id.strip(),
+        )
+    except commute_service.TransitRouteError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc

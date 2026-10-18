@@ -7,6 +7,11 @@ export type CommuteStatus =
   | "no_route"
   | "provider_error";
 export type DisplayMode = "departure_recommendation" | "travel_time_only";
+export type RouteCategory =
+  | "google_recommended"
+  | "fastest"
+  | "least_walking"
+  | "fewest_transfers";
 
 export type CommuteProfile = {
   id: number;
@@ -76,6 +81,7 @@ export type CommuteDestination = {
 
 export type RouteSummary = {
   transport_type: TransportType;
+  route_category: RouteCategory | null;
   route_name: string | null;
   departure_time: string | null;
   arrival_time: string | null;
@@ -116,7 +122,30 @@ export type RouteStep = {
   distance_meters: number;
   instruction: string | null;
   transit_line_name: string | null;
+  transit_line_color: string | null;
+  vehicle_type: string | null;
   departure_stop_name: string | null;
   arrival_stop_name: string | null;
+  tago_city_code: string | null;
+  tago_route_id: string | null;
+  tago_boarding_stop_id: string | null;
   route_path: RouteCoordinate[];
+};
+
+export type LiveBusPosition = {
+  vehicle_number: string;
+  route_name: string | null;
+  latitude: number;
+  longitude: number;
+  current_stop_order: number | null;
+  current_stop_id: string | null;
+  current_stop_name: string | null;
+};
+
+export type LiveBusPositions = {
+  city_code: string;
+  route_id: string;
+  cached_at: string;
+  cache_ttl_seconds: number;
+  vehicles: LiveBusPosition[];
 };

@@ -14,6 +14,12 @@ CommuteStatus = Literal[
     "provider_error",
 ]
 DisplayMode = Literal["departure_recommendation", "travel_time_only"]
+RouteCategory = Literal[
+    "google_recommended",
+    "fastest",
+    "least_walking",
+    "fewest_transfers",
+]
 
 
 class CommuteProfileCreate(BaseModel):
@@ -95,13 +101,37 @@ class RouteStepResponse(BaseModel):
     distance_meters: int = Field(default=0, ge=0)
     instruction: str | None = None
     transit_line_name: str | None = None
+    transit_line_color: str | None = None
+    vehicle_type: str | None = None
     departure_stop_name: str | None = None
     arrival_stop_name: str | None = None
+    tago_city_code: str | None = None
+    tago_route_id: str | None = None
+    tago_boarding_stop_id: str | None = None
     route_path: list[RouteCoordinateResponse] = Field(default_factory=list)
+
+
+class LiveBusPositionResponse(BaseModel):
+    vehicle_number: str
+    route_name: str | None = None
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    current_stop_order: int | None = Field(default=None, ge=0)
+    current_stop_id: str | None = None
+    current_stop_name: str | None = None
+
+
+class LiveBusPositionsResponse(BaseModel):
+    city_code: str
+    route_id: str
+    cached_at: datetime
+    cache_ttl_seconds: int = Field(default=15, ge=1)
+    vehicles: list[LiveBusPositionResponse] = Field(default_factory=list)
 
 
 class RouteSummaryResponse(BaseModel):
     transport_type: TransportType
+    route_category: RouteCategory | None = None
     route_name: str | None = None
     departure_time: time | None = None
     arrival_time: time | None = None

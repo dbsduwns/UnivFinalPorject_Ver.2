@@ -209,7 +209,7 @@ def test_get_transit_route_adds_matching_tago_arrival(monkeypatch):
 
     assert google_request["url"] == commute.GOOGLE_ROUTES_API_URL
     assert google_request["json"]["travelMode"] == "TRANSIT"
-    assert google_request["json"]["computeAlternativeRoutes"] is False
+    assert google_request["json"]["computeAlternativeRoutes"] is True
     assert "routingPreference" not in google_request["json"]
     assert google_request["json"]["arrivalTime"] == "2026-10-19T00:00:00Z"
     assert google_request["headers"]["X-Goog-FieldMask"] == (
@@ -231,7 +231,49 @@ def test_get_transit_route_adds_matching_tago_arrival(monkeypatch):
     assert result.route_steps[0].instruction == "기흥역까지 걷기"
     assert result.route_steps[1].transit_line_name == "5000"
     assert result.route_steps[1].departure_stop_name == "기흥역"
+    assert result.route_steps[1].tago_city_code == "31190"
+    assert result.route_steps[1].tago_route_id == "GGB_5000"
+    assert result.route_steps[1].tago_boarding_stop_id == "GGB123"
     assert result.route_steps[1].route_path[-1].longitude == 127.19
+
+
+def test_get_live_bus_positions_uses_fifteen_second_cache(monkeypatch):
+    monkeypatch.setattr(commute, "PUBLIC_API_KEY", "public-key")
+    commute._tago_bus_location_cache.clear()
+    request_count = 0
+
+    def fake_get(url, **kwargs):
+        nonlocal request_count
+        request_count += 1
+        assert url == commute.TAGO_BUS_LOCATION_API_URL
+        assert kwargs["params"]["cityCode"] == "31190"
+        assert kwargs["params"]["routeId"] == "GGB_5000"
+        return FakeResponse(
+            tago_response(
+                [
+                    {
+                        "vehicleno": "경기70아1234",
+                        "routenm": "5000",
+                        "gpslati": "37.2701",
+                        "gpslong": "127.1201",
+                        "nodeord": "12",
+                        "nodeid": "GGB456",
+                        "nodenm": "구갈역",
+                    }
+                ]
+            )
+        )
+
+    monkeypatch.setattr(commute.requests, "get", fake_get)
+
+    first = commute.get_live_bus_positions("31190", "GGB_5000")
+    second = commute.get_live_bus_positions("31190", "GGB_5000")
+
+    assert request_count == 1
+    assert first.cached_at == second.cached_at
+    assert first.cache_ttl_seconds == 15
+    assert first.vehicles[0].vehicle_number == "경기70아1234"
+    assert first.vehicles[0].current_stop_order == 12
 
 
 def test_get_today_commute_returns_campus_travel_time_without_class(monkeypatch):
@@ -258,7 +300,11 @@ def test_get_today_commute_returns_campus_travel_time_without_class(monkeypatch)
         route_request.update(kwargs)
         return route
 
-    monkeypatch.setattr(commute, "get_transit_route", fake_get_transit_route)
+    monkeypatch.setattr(
+        commute,
+        "get_transit_routes",
+        lambda **kwargs: [fake_get_transit_route(**kwargs)],
+    )
 
     result = commute.get_today_commute(db=object(), user=object())
 
@@ -269,8 +315,14 @@ def test_get_today_commute_returns_campus_travel_time_without_class(monkeypatch)
     assert result.destination is not None
     assert result.destination.destination_type == "campus_gate"
     assert result.destination.destination_name == "강남대학교"
-    assert result.recommended_route is route
+    assert result.recommended_route is not None
+    assert result.recommended_route.route_category == "google_recommended"
     assert result.recommended_route.duration_minutes == 35
+    assert [item.route_category for item in result.alternatives] == [
+        "fastest",
+        "least_walking",
+        "fewest_transfers",
+    ]
     assert route_request["end_latitude"] == commute.CAMPUS_DEFAULT_LATITUDE
     assert route_request["end_longitude"] == commute.CAMPUS_DEFAULT_LONGITUDE
     assert route_request["arrival_time"] is None
