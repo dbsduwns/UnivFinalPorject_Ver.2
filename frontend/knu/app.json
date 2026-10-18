@@ -18,6 +18,11 @@
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "com.yeojun.knu",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyAGTPEXTlA6MnwvUNXcrk2XEOBm2c37_VQ"
+        }
+      },
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./src/assets/images/android-icon-foreground.png",
@@ -54,7 +59,8 @@
       [
         "expo-av",
         {}
-      ]
+      ],
+      "expo-maps"
     ],
     "experiments": {
       "typedRoutes": true,

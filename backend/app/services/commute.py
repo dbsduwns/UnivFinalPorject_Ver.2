@@ -104,11 +104,11 @@ GOOGLE_ROUTES_FIELD_MASK = ",".join(
     [
         "routes.duration",
         "routes.distanceMeters",
-        "routes.polyline.encodedPolyline",
+        "routes.polyline.geoJsonLinestring",
         "routes.legs.steps.travelMode",
         "routes.legs.steps.staticDuration",
         "routes.legs.steps.distanceMeters",
-        "routes.legs.steps.polyline.encodedPolyline",
+        "routes.legs.steps.polyline.geoJsonLinestring",
         "routes.legs.steps.navigationInstruction",
         "routes.legs.steps.startLocation",
         "routes.legs.steps.endLocation",
@@ -601,6 +601,8 @@ def _build_shuttle_commute_response(
         boarding_stop_name=SHUTTLE_ORIGIN_STOP_NAME,
         shuttle_departure_time=origin_datetime.time(),
         shuttle_arrival_time=destination_datetime.time(),
+        route_path=transit_route.route_path,
+        route_steps=transit_route.route_steps,
         is_recommended=True,
         recommendation_reason=(
             f"{SHUTTLE_ORIGIN_STOP_NAME} 셔틀 출발 "
@@ -876,6 +878,8 @@ def get_transit_route(
         "transitPreferences": {
             "routingPreference": "FEWER_TRANSFERS",
         },
+        "polylineEncoding": "GEO_JSON_LINESTRING",
+        "polylineQuality": "HIGH_QUALITY",
     }
 
     if arrival_time is not None:
@@ -1006,12 +1010,71 @@ def get_transit_route(
 
     transfer_count = max(0, len(transit_steps) - 1)
 
+    # 전체 경로: Google GeoJSON [longitude, latitude]를 Expo Maps 좌표로 변환한다.
+    geo_json = (
+        route.get("polyline", {})
+        .get("geoJsonLinestring", {})
+    )
+
+    coordinates = geo_json.get("coordinates", [])
+
+    route_path = [
+        {
+            "latitude": latitude,
+            "longitude": longitude,
+        }
+        for longitude, latitude in coordinates
+    ]
+
+    # 단계별 경로: 도보와 대중교통을 지도에서 다른 색으로 표시할 수 있게 반환한다.
+    route_steps: list[dict] = []
+    for step in steps:
+        step_coordinates = (
+            step.get("polyline", {})
+            .get("geoJsonLinestring", {})
+            .get("coordinates", [])
+        )
+        transit_details = step.get("transitDetails", {})
+        transit_line = transit_details.get("transitLine", {})
+        stop_details = transit_details.get("stopDetails", {})
+
+        route_steps.append(
+            {
+                "travel_mode": step.get("travelMode", "UNKNOWN"),
+                "duration_minutes": _google_duration_minutes(
+                    step.get("staticDuration")
+                ),
+                "distance_meters": step.get("distanceMeters", 0),
+                "instruction": step.get("navigationInstruction", {}).get(
+                    "instructions"
+                ),
+                "transit_line_name": (
+                    transit_line.get("nameShort") or transit_line.get("name")
+                ),
+                "departure_stop_name": stop_details.get(
+                    "departureStop", {}
+                ).get("name"),
+                "arrival_stop_name": stop_details.get("arrivalStop", {}).get(
+                    "name"
+                ),
+                "route_path": [
+                    {
+                        "latitude": latitude,
+                        "longitude": longitude,
+                    }
+                    for longitude, latitude in step_coordinates
+                ],
+            }
+        )
+
     return RouteSummaryResponse(
         transport_type=transport_type,
         route_name=" / ".join(route_names) if route_names else None,
         duration_minutes=duration_minutes,
         walking_minutes=walking_minutes,
         transfer_count=transfer_count,
+        route_path=route_path,
+        route_steps=route_steps,
         boarding_stop_name=boarding_stop_name,
         bus_arrival_minutes=bus_arrival_minutes,
         bus_remaining_stops=bus_remaining_stops,

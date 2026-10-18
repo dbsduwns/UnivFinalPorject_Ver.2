@@ -69,13 +69,46 @@ def test_get_transit_route_adds_matching_tago_arrival(monkeypatch):
             {
                 "duration": "1800s",
                 "distanceMeters": 12000,
+                "polyline": {
+                    "geoJsonLinestring": {
+                        "coordinates": [
+                            [127.1, 37.2],
+                            [127.15, 37.25],
+                            [127.2, 37.3],
+                        ]
+                    }
+                },
                 "legs": [
                     {
                         "steps": [
-                            {"travelMode": "WALK", "staticDuration": "300s"},
+                            {
+                                "travelMode": "WALK",
+                                "staticDuration": "300s",
+                                "distanceMeters": 450,
+                                "navigationInstruction": {
+                                    "instructions": "기흥역까지 걷기"
+                                },
+                                "polyline": {
+                                    "geoJsonLinestring": {
+                                        "coordinates": [
+                                            [127.1, 37.2],
+                                            [127.11, 37.21],
+                                        ]
+                                    }
+                                },
+                            },
                             {
                                 "travelMode": "TRANSIT",
                                 "staticDuration": "1200s",
+                                "distanceMeters": 10500,
+                                "polyline": {
+                                    "geoJsonLinestring": {
+                                        "coordinates": [
+                                            [127.11, 37.21],
+                                            [127.19, 37.29],
+                                        ]
+                                    }
+                                },
                                 "transitDetails": {
                                     "stopDetails": {
                                         "departureStop": {
@@ -96,7 +129,19 @@ def test_get_transit_route_adds_matching_tago_arrival(monkeypatch):
                                     },
                                 },
                             },
-                            {"travelMode": "WALK", "staticDuration": "300s"},
+                            {
+                                "travelMode": "WALK",
+                                "staticDuration": "300s",
+                                "distanceMeters": 350,
+                                "polyline": {
+                                    "geoJsonLinestring": {
+                                        "coordinates": [
+                                            [127.19, 37.29],
+                                            [127.2, 37.3],
+                                        ]
+                                    }
+                                },
+                            },
                         ],
                     }
                 ],
@@ -179,6 +224,14 @@ def test_get_transit_route_adds_matching_tago_arrival(monkeypatch):
     assert result.bus_arrival_minutes == 9
     assert result.bus_remaining_stops == 4
     assert "5000번 버스" in result.recommendation_reason
+    assert result.route_path[0].latitude == 37.2
+    assert result.route_path[0].longitude == 127.1
+    assert len(result.route_steps) == 3
+    assert result.route_steps[0].travel_mode == "WALK"
+    assert result.route_steps[0].instruction == "기흥역까지 걷기"
+    assert result.route_steps[1].transit_line_name == "5000"
+    assert result.route_steps[1].departure_stop_name == "기흥역"
+    assert result.route_steps[1].route_path[-1].longitude == 127.19
 
 
 def test_get_today_commute_returns_campus_travel_time_without_class(monkeypatch):

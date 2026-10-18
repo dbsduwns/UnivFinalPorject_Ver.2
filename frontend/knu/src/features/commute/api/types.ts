@@ -90,6 +90,8 @@ export type RouteSummary = {
   shuttle_arrival_time: string | null;
   is_recommended: boolean;
   recommendation_reason: string | null;
+  route_path: RouteCoordinate[];
+  route_steps: RouteStep[];
 };
 
 export type CommuteToday = {
@@ -101,4 +103,20 @@ export type CommuteToday = {
   recommended_route: RouteSummary | null;
   alternatives: RouteSummary[];
   calculated_at: string | null;
+};
+
+export type RouteCoordinate = {
+  latitude: number;
+  longitude: number;
+};
+
+export type RouteStep = {
+  travel_mode: string;
+  duration_minutes: number;
+  distance_meters: number;
+  instruction: string | null;
+  transit_line_name: string | null;
+  departure_stop_name: string | null;
+  arrival_stop_name: string | null;
+  route_path: RouteCoordinate[];
 };

@@ -4,6 +4,7 @@ __pycache__/
 .env
 .env.oracle
 .env.cloudrun
+.env.supabase
 venv/
 .venv/
 .venv-migration/

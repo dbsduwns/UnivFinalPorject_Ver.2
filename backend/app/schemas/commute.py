@@ -84,6 +84,22 @@ class CommuteDestinationResponse(BaseModel):
     longitude: float
 
 
+class RouteCoordinateResponse(BaseModel):
+    latitude: float
+    longitude: float
+
+
+class RouteStepResponse(BaseModel):
+    travel_mode: str
+    duration_minutes: int = Field(default=0, ge=0)
+    distance_meters: int = Field(default=0, ge=0)
+    instruction: str | None = None
+    transit_line_name: str | None = None
+    departure_stop_name: str | None = None
+    arrival_stop_name: str | None = None
+    route_path: list[RouteCoordinateResponse] = Field(default_factory=list)
+
+
 class RouteSummaryResponse(BaseModel):
     transport_type: TransportType
     route_name: str | None = None
@@ -100,6 +116,8 @@ class RouteSummaryResponse(BaseModel):
     shuttle_arrival_time: time | None = None
     is_recommended: bool = False
     recommendation_reason: str | None = None
+    route_path: list[RouteCoordinateResponse] = Field(default_factory=list)
+    route_steps: list[RouteStepResponse] = Field(default_factory=list)
 
 
 class CommuteTodayResponse(BaseModel):

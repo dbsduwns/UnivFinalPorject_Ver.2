@@ -1,434 +1,350 @@
-import React, { useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Platform, StyleSheet, Text, View, Alert, TouchableOpacity, ScrollView, Animated, Dimensions, TextInput } from "react-native";
-import { WebView } from "react-native-webview";
-import * as Location from "expo-location";
-import { Navigation, Info, X, ChevronRight, ChevronLeft, CornerUpRight, CornerUpLeft, ArrowUp, Footprints, Search, LocateFixed, Building2, Coffee, Heart } from "lucide-react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Dimensions,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { GoogleMaps } from "expo-maps";
+import { useLocalSearchParams } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
+import { Bus, Footprints, MapPinned, Navigation } from "lucide-react-native";
 
 import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
-import { fetchPedestrianRoute } from "@/utils/mapUtils";
+import { getTodayCommute } from "@/features/commute/api/commute";
+import type { RouteCoordinate, RouteStep } from "@/features/commute/api/types";
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-const KAKAO_MAP_KEY = process.env.EXPO_PUBLIC_KAKAO_MAP_KEY?.trim();
-const KAKAO_MAP_BASE_URL =
-  process.env.EXPO_PUBLIC_KAKAO_MAP_BASE_URL?.trim() ?? "https://kangnam.ac.kr";
+const CAMPUS_CENTER: RouteCoordinate = {
+  latitude: 37.2757,
+  longitude: 127.1325,
+};
 
 const CAMPUS_LOCATIONS = [
-  { name: "본관", lat: 37.276089, lng: 127.133217 },
-  { name: "샬롬관", lat: 37.274935, lng: 127.130040 },
-  { name: "경천관", lat: 37.276534, lng: 127.133904 },
-  { name: "우원관", lat: 37.275812, lng: 127.131700 },
-  { name: "인사관", lat: 37.275355, lng: 127.130796 },
-  { name: "예술관", lat: 37.276066, lng: 127.130845 },
-  { name: "도서관", lat: 37.276518, lng: 127.132160 },
-  { name: "승리관", lat: 37.274474, lng: 127.132467 },
-  { name: "교육관", lat: 37.275335, lng: 127.133302 },
-  { name: "천은관", lat: 37.275759, lng: 127.134297 },
-  { name: "후생관", lat: 37.276921, lng: 127.133535 },
-  { name: "이공관", lat: 37.277086, lng: 127.134147 },
-  { name: "심전2관", lat: 37.278582, lng: 127.133742 },
-  { name: "심전1관", lat: 37.278044, lng: 127.134401 },
+  { name: "본관", latitude: 37.276089, longitude: 127.133217 },
+  { name: "샬롬관", latitude: 37.274935, longitude: 127.13004 },
+  { name: "경천관", latitude: 37.276534, longitude: 127.133904 },
+  { name: "우원관", latitude: 37.275812, longitude: 127.1317 },
+  { name: "인사관", latitude: 37.275355, longitude: 127.130796 },
+  { name: "예술관", latitude: 37.276066, longitude: 127.130845 },
+  { name: "도서관", latitude: 37.276518, longitude: 127.13216 },
+  { name: "승리관", latitude: 37.274474, longitude: 127.132467 },
+  { name: "교육관", latitude: 37.275335, longitude: 127.133302 },
+  { name: "천은관", latitude: 37.275759, longitude: 127.134297 },
+  { name: "후생관", latitude: 37.276921, longitude: 127.133535 },
+  { name: "이공관", latitude: 37.277086, longitude: 127.134147 },
+  { name: "심전2관", latitude: 37.278582, longitude: 127.133742 },
+  { name: "심전1관", latitude: 37.278044, longitude: 127.134401 },
 ];
 
-function getWebOrigin() {
-  if (Platform.OS !== "web") return KAKAO_MAP_BASE_URL;
-  const location = globalThis.location;
-  return location ? location.origin : KAKAO_MAP_BASE_URL;
+type MapMode = "campus" | "commute";
+
+function getStepColor(mode: string) {
+  switch (mode) {
+    case "WALK":
+      return "#64748B";
+    case "TRANSIT":
+      return "#13708D";
+    default:
+      return "#94A3B8";
+  }
 }
 
-function buildMapHtml(baseUrl: string) {
-  const sdkUrl =
-    "https://dapi.kakao.com/v2/maps/sdk.js" +
-    `?appkey=${encodeURIComponent(KAKAO_MAP_KEY ?? "")}` +
-    "&libraries=services,clusterer,drawing&autoload=false";
+function getStepLabel(step: RouteStep) {
+  if (step.travel_mode === "WALK") {
+    return step.instruction ?? `도보 ${step.duration_minutes}분`;
+  }
 
-  return `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <base href="${baseUrl}/">
-        <style>
-          body, html, #map { width: 100%; height: 100%; margin: 0; padding: 0; background-color: #f3f4f6; }
-          .custom-overlay {
-            background: white; border: 2px solid #1aaedb; border-radius: 16px;
-            padding: 5px 12px; font-size: 12px; font-weight: 700; color: #1aaedb;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2); white-space: nowrap;
-          }
-        </style>
-      </head>
-      <body>
-        <div id="map"></div>
-        <script>
-          var map = null;
-          var currentPolyline = null;
-          var routeMarkers = [];
+  const line = step.transit_line_name
+    ? `${step.transit_line_name} 탑승`
+    : "대중교통 탑승";
+  const stops = [step.departure_stop_name, step.arrival_stop_name]
+    .filter(Boolean)
+    .join(" → ");
 
-          function postToApp(type, message) {
-            if (window.ReactNativeWebView) {
-              window.ReactNativeWebView.postMessage(JSON.stringify({ type: type, message: message }));
-            }
-          }
-
-          function clearRoute() {
-            if (currentPolyline) {
-              currentPolyline.setMap(null);
-              currentPolyline = null;
-            }
-            routeMarkers.forEach(function(m) { m.setMap(null); });
-            routeMarkers = [];
-          }
-
-          function handleMessage(event) {
-            try {
-              var data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-              
-              if (data.type === "CENTER_MAP" && map) {
-                map.panTo(new kakao.maps.LatLng(data.lat, data.lng));
-              }
-
-              if (data.type === "CLEAR_ROUTE" && map) {
-                clearRoute();
-              }
-
-              if (data.type === "DRAW_ROUTE" && map) {
-                clearRoute();
-                
-                var path = data.points.map(function(p) { return new kakao.maps.LatLng(p.lat, p.lng); });
-                currentPolyline = new kakao.maps.Polyline({
-                  path: path, strokeWeight: 7, strokeColor: "#1aaedb", strokeOpacity: 0.9
-                });
-                currentPolyline.setMap(map);
-
-                // 안내 지점 마커 추가
-                if (data.guidance && data.guidance.length > 0) {
-                  data.guidance.forEach(function(g) {
-                    var marker = new kakao.maps.Marker({
-                      position: new kakao.maps.LatLng(g.lat, g.lng),
-                      map: map,
-                    });
-                    routeMarkers.push(marker);
-                    kakao.maps.event.addListener(marker, 'click', function() {
-                      postToApp("GUIDANCE_CLICK", g.description);
-                    });
-                  });
-                }
-
-                var bounds = new kakao.maps.LatLngBounds();
-                path.forEach(function(p) { bounds.extend(p); });
-                map.setBounds(bounds, 80, 80, 80, 80);
-              }
-            } catch (err) {
-              postToApp("ERROR", "JS 수신 에러: " + err.message);
-            }
-          }
-
-          window.addEventListener("message", handleMessage);
-          document.addEventListener("message", handleMessage);
-
-          function renderMap() {
-            kakao.maps.load(function() {
-              var container = document.getElementById("map");
-              map = new kakao.maps.Map(container, { center: new kakao.maps.LatLng(37.2757, 127.1325), level: 3 });
-
-              ${JSON.stringify(CAMPUS_LOCATIONS)}.forEach(function(loc) {
-                var markerPos = new kakao.maps.LatLng(loc.lat, loc.lng);
-                var marker = new kakao.maps.Marker({ position: markerPos, map: map });
-                new kakao.maps.CustomOverlay({ content: '<div class="custom-overlay">' + loc.name + '</div>', map: map, position: markerPos, yAnchor: 2.6 });
-                kakao.maps.event.addListener(marker, 'click', function() {
-                  postToApp("MARKER_CLICK", { lat: loc.lat, lng: loc.lng, name: loc.name });
-                });
-              });
-
-              kakao.maps.event.addListener(map, 'click', function() {
-                postToApp("MAP_CLICK", null);
-              });
-            });
-          }
-
-          var script = document.createElement("script");
-          script.src = ${JSON.stringify(sdkUrl)};
-          script.onload = renderMap;
-          document.head.appendChild(script);
-        </script>
-      </body>
-    </html>
-  `;
+  return [line, stops].filter(Boolean).join(" · ");
 }
 
-type LocationData = { name: string; lat: number; lng: number };
-type RouteData = { totalDistance: number; totalTime: number; instructions: {text: string, type: string}[] };
+// 전체 경로의 경계와 화면 크기를 이용해 중앙 좌표와 줌을 계산한다.
+function getRouteCamera(routePath: RouteCoordinate[]) {
+  if (routePath.length === 0) {
+    return { coordinates: CAMPUS_CENTER, zoom: 16 };
+  }
 
-export default function CampusMapScreen() {
-  const webViewRef = useRef<WebView>(null);
-  const mapBaseUrl = getWebOrigin();
-  const mapHtml = useMemo(() => buildMapHtml(mapBaseUrl), [mapBaseUrl]);
+  const latitudes = routePath.map(({ latitude }) => latitude);
+  const longitudes = routePath.map(({ longitude }) => longitude);
+  const minLatitude = Math.min(...latitudes);
+  const maxLatitude = Math.max(...latitudes);
+  const minLongitude = Math.min(...longitudes);
+  const maxLongitude = Math.max(...longitudes);
+  const latitudeDelta = Math.max(maxLatitude - minLatitude, 0.001);
+  const longitudeDelta = Math.max(maxLongitude - minLongitude, 0.001);
+  const { width, height } = Dimensions.get("window");
 
-  const [selectedLoc, setSelectedLoc] = useState<LocationData | null>(null);
-  const [routeData, setRouteData] = useState<RouteData | null>(null);
-  const [isRouting, setIsRouting] = useState(false);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState("건물");
-  const [searchText, setSearchText] = useState("");
-
-  const drawerAnim = useRef(new Animated.Value(0)).current;
-
-  const toggleDrawer = (open: boolean) => {
-    setIsDrawerOpen(open);
-    Animated.timing(drawerAnim, {
-      toValue: open ? 0 : -320,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const handleClearRoute = () => {
-    setSelectedLoc(null);
-    setRouteData(null);
-    webViewRef.current?.postMessage(JSON.stringify({ type: "CLEAR_ROUTE" }));
-  };
-
-  const handleBackToInfo = () => {
-    setRouteData(null);
-    webViewRef.current?.postMessage(JSON.stringify({ type: "CLEAR_ROUTE" }));
-    if (selectedLoc) {
-      webViewRef.current?.postMessage(JSON.stringify({ type: "CENTER_MAP", ...selectedLoc }));
-    }
-  };
-
-  const filteredLocations = CAMPUS_LOCATIONS.filter((location) =>
-    location.name.includes(searchText.trim())
+  const longitudeZoom = Math.log2(
+    (360 * width * 0.78) / (longitudeDelta * 256),
+  );
+  const latitudeZoom = Math.log2(
+    (170 * height * 0.55) / (latitudeDelta * 256),
   );
 
-  const handleSelectSearchResult = (location: LocationData) => {
-    setSelectedLoc(location);
-    setRouteData(null);
-    webViewRef.current?.postMessage(JSON.stringify({ type: "CLEAR_ROUTE" }));
-    webViewRef.current?.postMessage(JSON.stringify({ type: "CENTER_MAP", ...location }));
-    setSearchText("");
-    toggleDrawer(true);
+  return {
+    coordinates: {
+      latitude: (minLatitude + maxLatitude) / 2,
+      longitude: (minLongitude + maxLongitude) / 2,
+    },
+    zoom: Math.max(
+      4,
+      Math.min(17, Math.floor(Math.min(latitudeZoom, longitudeZoom))),
+    ),
   };
+}
 
-  const handleCenterOnUser = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("권한 필요", "현재 위치를 확인하려면 위치 정보 권한이 필요합니다.");
-      return;
-    }
-    const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    webViewRef.current?.postMessage(JSON.stringify({
-      type: "CENTER_MAP", lat: location.coords.latitude, lng: location.coords.longitude,
-    }));
-  };
+export default function CampusMapScreen() {
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const [mapMode, setMapMode] = useState<MapMode>(
+    mode === "commute" ? "commute" : "campus",
+  );
+  const [isMapLoaded, setIsMapLoaded] = useState(false);
+  const mapRef = useRef<GoogleMaps.MapView>(null);
 
-  const getInstructionIcon = (text: string) => {
-    if (text.includes("우회전")) return <CornerUpRight color="#1aaedb" size={20} />;
-    if (text.includes("좌회전")) return <CornerUpLeft color="#1aaedb" size={20} />;
-    if (text.includes("횡단보도")) return <Footprints color="#1aaedb" size={20} />;
-    return <ArrowUp color="#1aaedb" size={20} />;
-  };
+  // 등교 모드에서만 백엔드의 Google Routes 결과를 조회한다.
+  const {
+    data: commute,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: ["commute", "today"],
+    queryFn: getTodayCommute,
+    enabled: mapMode === "commute",
+    staleTime: 60_000,
+    retry: false,
+  });
 
-  const handleFindRoute = async () => {
-    if (!selectedLoc) return;
-    setIsRouting(true);
-    let routeStage = "시작";
+  const route = commute?.recommended_route;
+  const routePath = useMemo(() => route?.route_path ?? [], [route?.route_path]);
+  const routeSteps = useMemo(
+    () => route?.route_steps ?? [],
+    [route?.route_steps],
+  );
 
-    try {
-      routeStage = "위치 권한 요청";
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert("권한 필요", "위치 정보 권한이 필요합니다.");
-        return setIsRouting(false);
-      }
+  // 단계별 좌표가 있으면 도보와 대중교통을 서로 다른 색상으로 그린다.
+  const stepPolylines = useMemo(
+    () =>
+      routeSteps
+        .filter((step) => step.route_path.length > 1)
+        .map((step, index) => ({
+          id: `commute-step-${index}`,
+          coordinates: step.route_path,
+          color: getStepColor(step.travel_mode),
+          width: step.travel_mode === "WALK" ? 5 : 8,
+        })),
+    [routeSteps],
+  );
 
-      routeStage = "현재 위치 조회";
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Platform.OS === 'android' ? Location.Accuracy.Low : Location.Accuracy.Balanced,
-      });
-      
-      let startX = location.coords.longitude;
-      let startY = location.coords.latitude;
+  // 단계별 선이 없는 응답에서는 전체 경로 선을 안전한 대체값으로 사용한다.
+  const routePolylines = useMemo(
+    () =>
+      routePath.length > 1
+        ? [
+            {
+              id: "commute-route",
+              coordinates: routePath,
+              color: "#13708D",
+              width: 8,
+            },
+          ]
+        : [],
+    [routePath],
+  );
 
-      routeStage = "TMAP 보행자 경로 요청";
-      const features = await fetchPedestrianRoute(startX, startY, selectedLoc.lng, selectedLoc.lat);
-      const points: { lat: number; lng: number }[] = [];
-      const guidance: { lat: number, lng: number, description: string }[] = [];
-      const instructions: {text: string, type: string}[] = [];
-      let totalDistance = 0, totalTime = 0;
+  const routeCamera = useMemo(() => getRouteCamera(routePath), [routePath]);
 
-      features.forEach((f: any, i: number) => {
-        if (i === 0) { totalDistance = f.properties.totalDistance; totalTime = f.properties.totalTime; }
-        if (f.properties.description) instructions.push({ text: f.properties.description, type: f.properties.turnType || '0' });
-        
-        if (f.geometry.type === "Point") {
-          const coord = f.geometry.coordinates;
-          points.push({ lat: coord[1], lng: coord[0] });
-          if (f.properties.description && !f.properties.description.includes("도착") && !f.properties.description.includes("출발")) {
-            guidance.push({ lat: coord[1], lng: coord[0], description: f.properties.description });
-          }
-        } else {
-          f.geometry.coordinates.forEach((c: any) => points.push({ lat: c[1], lng: c[0] }));
-        }
-      });
+  // 지도와 모든 경로 좌표가 준비된 뒤 전체 경로가 보이도록 카메라를 이동한다.
+  useEffect(() => {
+    if (!isMapLoaded) return;
 
-      routeStage = "경로 데이터 표시";
-      setRouteData({ totalDistance, totalTime, instructions });
-      webViewRef.current?.postMessage(JSON.stringify({ type: "DRAW_ROUTE", points, guidance }));
-      toggleDrawer(true);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("[CampusMap] 길찾기 실패", {
-        stage: routeStage,
-        message: errorMessage,
-        stack: error instanceof Error ? error.stack : undefined,
-        destination: selectedLoc?.name,
-      });
+    const camera =
+      mapMode === "commute" && routePath.length > 0
+        ? routeCamera
+        : { coordinates: CAMPUS_CENTER, zoom: 16 };
 
-      Alert.alert(
-        "길찾기 실패",
-        __DEV__
-          ? `[${routeStage}] ${errorMessage}`
-          : "현재 길찾기를 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.",
-      );
-    } finally {
-      setIsRouting(false);
-    }
-  };
+    mapRef.current?.setCameraPosition({ ...camera, duration: 650 });
+  }, [isMapLoaded, mapMode, routeCamera, routePath.length]);
 
-  const onMessage = (event: any) => {
-    try {
-      const data = JSON.parse(event.nativeEvent.data);
-      if (data.type === "MARKER_CLICK") {
-        setSelectedLoc(data.message);
-        setRouteData(null);
-        webViewRef.current?.postMessage(JSON.stringify({ type: "CLEAR_ROUTE" }));
-        webViewRef.current?.postMessage(JSON.stringify({ type: "CENTER_MAP", ...data.message }));
-        toggleDrawer(true);
-      } else if (data.type === "MAP_CLICK") {
-        if (routeData) toggleDrawer(false);
-      } else if (data.type === "GUIDANCE_CLICK") {
-        Alert.alert("안내", data.message);
-      }
-    } catch (e) {}
-  };
+  const markers =
+    mapMode === "commute" && routePath.length > 1
+      ? [
+          {
+            id: "origin",
+            coordinates: routePath[0],
+            title: "출발",
+            showCallout: true,
+          },
+          {
+            id: "destination",
+            coordinates: routePath[routePath.length - 1],
+            title: commute?.destination?.destination_name ?? "도착",
+            showCallout: true,
+          },
+        ]
+      : CAMPUS_LOCATIONS.map((location) => ({
+          id: `campus-${location.name}`,
+          coordinates: location,
+          title: location.name,
+          showCallout: true,
+        }));
+
+  if (Platform.OS !== "android") {
+    return (
+      <AppScreenLayout>
+        <View style={styles.centeredMessage}>
+          <Text style={styles.messageTitle}>Google 지도는 Android에서 지원됩니다.</Text>
+          <Text style={styles.messageBody}>iOS 지도 지원은 별도 구현이 필요합니다.</Text>
+        </View>
+      </AppScreenLayout>
+    );
+  }
 
   return (
     <AppScreenLayout>
       <View style={styles.container}>
-        <WebView
-          ref={webViewRef}
-          style={styles.webview}
-          source={{ html: mapHtml, baseUrl: mapBaseUrl + "/" }}
-          onMessage={onMessage}
+        <GoogleMaps.View
+          ref={mapRef}
+          style={StyleSheet.absoluteFill}
+          cameraPosition={{ coordinates: CAMPUS_CENTER, zoom: 16 }}
+          markers={markers}
+          polylines={stepPolylines.length > 0 ? stepPolylines : routePolylines}
+          uiSettings={{
+            zoomControlsEnabled: true,
+            myLocationButtonEnabled: false,
+          }}
+          onMapLoaded={() => setIsMapLoaded(true)}
         />
 
-        <View style={styles.mapToolbar}>
-          <View style={styles.searchBar}>
-            <Search size={19} color="#64748B" />
-            <TextInput
-              value={searchText}
-              onChangeText={setSearchText}
-              placeholder="건물이나 장소를 검색하세요"
-              placeholderTextColor="#94A3B8"
-              style={styles.searchInput}
-              returnKeyType="search"
+        {/* 캠퍼스 안내와 등교 경로를 한 지도에서 전환한다. */}
+        <View style={styles.modeSelector}>
+          <TouchableOpacity
+            style={[
+              styles.modeButton,
+              mapMode === "campus" && styles.activeModeButton,
+            ]}
+            onPress={() => setMapMode("campus")}
+          >
+            <MapPinned
+              size={17}
+              color={mapMode === "campus" ? "#FFFFFF" : "#475569"}
             />
-            {searchText.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchText("")} hitSlop={8}>
-                <X size={17} color="#94A3B8" />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <View style={styles.tabRow}>
-            {[{ label: "건물", icon: Building2 }, { label: "편의시설", icon: Coffee }, { label: "즐겨찾기", icon: Heart }].map(({ label, icon: Icon }) => (
-              <TouchableOpacity
-                key={label}
-                style={[styles.mapTab, activeTab === label && styles.mapTabActive]}
-                onPress={() => setActiveTab(label)}
-              >
-                <Icon size={15} color={activeTab === label ? "#FFFFFF" : "#475569"} />
-                <Text style={[styles.mapTabText, activeTab === label && styles.mapTabTextActive]}>{label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {searchText.length > 0 && activeTab === "건물" && (
-            <View style={styles.searchResults}>
-              {filteredLocations.length > 0 ? filteredLocations.slice(0, 5).map((location) => (
-                <TouchableOpacity key={location.name} style={styles.searchResult} onPress={() => handleSelectSearchResult(location)}>
-                  <Building2 size={16} color="#13708D" />
-                  <Text style={styles.searchResultText}>{location.name}</Text>
-                  <ChevronRight size={16} color="#CBD5E1" />
-                </TouchableOpacity>
-              )) : <Text style={styles.emptyResult}>검색 결과가 없습니다.</Text>}
-            </View>
-          )}
+            <Text
+              style={[
+                styles.modeButtonText,
+                mapMode === "campus" && styles.activeModeButtonText,
+              ]}
+            >
+              캠퍼스 안내
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.modeButton,
+              mapMode === "commute" && styles.activeModeButton,
+            ]}
+            onPress={() => setMapMode("commute")}
+          >
+            <Navigation
+              size={17}
+              color={mapMode === "commute" ? "#FFFFFF" : "#475569"}
+            />
+            <Text
+              style={[
+                styles.modeButtonText,
+                mapMode === "commute" && styles.activeModeButtonText,
+              ]}
+            >
+              등교 경로
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.locationButton} onPress={handleCenterOnUser}>
-          <LocateFixed size={21} color="#13708D" />
-        </TouchableOpacity>
-
-        {/* 미니 제어바 (드로어가 닫혔을 때) */}
-        {!isDrawerOpen && selectedLoc && (
-          <TouchableOpacity style={styles.miniBar} onPress={() => toggleDrawer(true)}>
-            <ChevronRight color="white" size={24} />
-            <Text style={styles.miniBarText}>{selectedLoc.name} 안내 재개</Text>
-          </TouchableOpacity>
+        {/* 경로 조회 상태와 실패 원인을 지도 위에서 바로 안내한다. */}
+        {mapMode === "commute" && isLoading && (
+          <View style={styles.statusCard}>
+            <ActivityIndicator color="#13708D" />
+            <Text style={styles.statusText}>등교 경로를 불러오고 있어요</Text>
+          </View>
         )}
-
-        {/* 사이드 드로어 UI */}
-        {selectedLoc && (
-          <Animated.View style={[
-            styles.drawer,
-            routeData ? styles.drawerFull : styles.drawerCompact,
-            { transform: [{ translateX: drawerAnim }] }
-          ]}>
-            <View style={styles.drawerHeader}>
-              {routeData && (
-                <TouchableOpacity onPress={handleBackToInfo} style={{ marginRight: 8, marginTop: 2 }}>
-                  <ChevronLeft color="#6b7280" size={24} />
-                </TouchableOpacity>
-              )}
-              <View style={{ flex: 1 }}>
-                <Text style={styles.drawerTitle} numberOfLines={1}>{selectedLoc.name}</Text>
-                {routeData && (
-                  <Text style={styles.drawerSub}>약 {Math.ceil(routeData.totalTime / 60)}분 ({routeData.totalDistance}m)</Text>
-                )}
-              </View>
-              <TouchableOpacity onPress={handleClearRoute}>
-                <X color="#6b7280" size={24} />
+        {mapMode === "commute" &&
+          (isError || commute?.status !== "ready") &&
+          !isLoading && (
+            <View style={styles.statusCard}>
+              <Text style={styles.statusText}>
+                {commute?.message ?? "등교 경로를 불러오지 못했습니다."}
+              </Text>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={() => void refetch()}
+              >
+                <Text style={styles.retryButtonText}>다시 시도</Text>
               </TouchableOpacity>
             </View>
+          )}
 
-            <ScrollView style={styles.drawerContent} showsVerticalScrollIndicator={false}>
-              {!routeData ? (
-                <View style={styles.initialActions}>
-                  <TouchableOpacity style={styles.actionItem} onPress={handleFindRoute}>
-                    <View style={styles.iconCircle}><Navigation color="#1aaedb" size={24} /></View>
-                    <Text style={styles.actionText}>길찾기</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.actionItem} onPress={() => Alert.alert('정보', '건물 상세 정보입니다.')}>
-                    <View style={styles.iconCircle}><Info color="#1aaedb" size={24} /></View>
-                    <Text style={styles.actionText}>건물정보</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                routeData.instructions.map((inst, idx) => (
-                  <View key={idx} style={styles.instructionRow}>
-                    <View style={styles.iconCircleSmall}>{getInstructionIcon(inst.text)}</View>
-                    <Text style={styles.instructionText}>{inst.text}</Text>
+        {/* 카카오 드로어에서 필요했던 경로 요약과 단계별 안내만 유지한다. */}
+        {mapMode === "commute" && route && (
+          <View style={styles.routePanel}>
+            <View style={styles.routeHeader}>
+              <View style={styles.routeTitleWrap}>
+                <Text style={styles.routeTitle}>
+                  {route.route_name ?? "추천 대중교통 경로"}
+                </Text>
+                <Text style={styles.routeSummary}>
+                  총 {route.duration_minutes}분 · 도보 {route.walking_minutes}분 · 환승 {route.transfer_count}회
+                </Text>
+              </View>
+              <Bus size={22} color="#13708D" />
+            </View>
+
+            {routeSteps.length > 0 && (
+              <ScrollView
+                style={styles.stepList}
+                contentContainerStyle={styles.stepListContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {routeSteps.map((step, index) => (
+                  <View key={`${step.travel_mode}-${index}`} style={styles.stepRow}>
+                    <View
+                      style={[
+                        styles.stepIcon,
+                        { backgroundColor: `${getStepColor(step.travel_mode)}18` },
+                      ]}
+                    >
+                      {step.travel_mode === "WALK" ? (
+                        <Footprints
+                          size={17}
+                          color={getStepColor(step.travel_mode)}
+                        />
+                      ) : (
+                        <Bus size={17} color={getStepColor(step.travel_mode)} />
+                      )}
+                    </View>
+                    <View style={styles.stepTextWrap}>
+                      <Text style={styles.stepText}>{getStepLabel(step)}</Text>
+                      <Text style={styles.stepMeta}>
+                        {step.duration_minutes}분
+                        {step.distance_meters > 0
+                          ? ` · ${step.distance_meters}m`
+                          : ""}
+                      </Text>
+                    </View>
                   </View>
-                ))
-              )}
-            </ScrollView>
-            
-            <TouchableOpacity style={styles.drawerCloseTab} onPress={() => toggleDrawer(!isDrawerOpen)}>
-              {isDrawerOpen ? <ChevronLeft color="#9ca3af" size={20} /> : <ChevronRight color="#9ca3af" size={20} />}
-            </TouchableOpacity>
-          </Animated.View>
+                ))}
+              </ScrollView>
+            )}
+          </View>
         )}
       </View>
     </AppScreenLayout>
@@ -437,56 +353,94 @@ export default function CampusMapScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  webview: { flex: 1 },
-  mapToolbar: { position: 'absolute', top: 16, left: 16, right: 16, zIndex: 80 },
-  searchBar: {
-    height: 52, backgroundColor: '#FFFFFF', borderRadius: 18, paddingHorizontal: 16,
-    flexDirection: 'row', alignItems: 'center', shadowColor: '#0F172A', shadowOpacity: 0.14,
-    shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 6,
+  centeredMessage: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
   },
-  searchInput: { flex: 1, marginLeft: 10, color: '#0F172A', fontSize: 14, paddingVertical: 0 },
-  tabRow: { flexDirection: 'row', marginTop: 10, gap: 8 },
-  mapTab: {
-    height: 36, paddingHorizontal: 13, borderRadius: 18, backgroundColor: '#FFFFFF',
-    flexDirection: 'row', alignItems: 'center', gap: 5, shadowColor: '#0F172A',
-    shadowOpacity: 0.1, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 3,
+  messageTitle: { fontSize: 17, fontWeight: "700", color: "#0F172A" },
+  messageBody: { marginTop: 8, fontSize: 13, color: "#64748B" },
+  modeSelector: {
+    position: "absolute",
+    top: 16,
+    left: 16,
+    right: 16,
+    flexDirection: "row",
+    padding: 4,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    elevation: 6,
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
   },
-  mapTabActive: { backgroundColor: '#13708D' },
-  mapTabText: { fontSize: 12, fontWeight: '600', color: '#475569' },
-  mapTabTextActive: { color: '#FFFFFF' },
-  searchResults: { marginTop: 8, backgroundColor: '#FFFFFF', borderRadius: 16, paddingVertical: 5, shadowColor: '#0F172A', shadowOpacity: 0.12, shadowRadius: 8, elevation: 5 },
-  searchResult: { minHeight: 42, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 9 },
-  searchResultText: { flex: 1, fontSize: 13, color: '#334155', fontWeight: '600' },
-  emptyResult: { padding: 14, fontSize: 13, color: '#64748B' },
-  locationButton: {
-    position: 'absolute', right: 18, bottom: 24, width: 48, height: 48, borderRadius: 16,
-    backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', zIndex: 70,
-    shadowColor: '#0F172A', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 6,
+  modeButton: {
+    flex: 1,
+    height: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    borderRadius: 12,
   },
-  drawer: {
-    position: 'absolute', top: 20, left: 16, width: 280,
-    backgroundColor: 'white', borderRadius: 20, padding: 20,
-    shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 10, elevation: 10,
-    zIndex: 100,
+  activeModeButton: { backgroundColor: "#13708D" },
+  modeButtonText: { fontSize: 13, fontWeight: "700", color: "#475569" },
+  activeModeButtonText: { color: "#FFFFFF" },
+  statusCard: {
+    position: "absolute",
+    top: 76,
+    left: 16,
+    right: 16,
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    elevation: 5,
   },
-  drawerFull: {
-    bottom: 20,
+  statusText: { flexShrink: 1, fontSize: 13, color: "#475569" },
+  retryButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 9,
+    backgroundColor: "#EAF8FC",
   },
-  drawerCompact: {
-    height: 180,
+  retryButtonText: { fontSize: 12, fontWeight: "700", color: "#13708D" },
+  routePanel: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 18,
+    maxHeight: 270,
+    padding: 18,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    elevation: 8,
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
   },
-  drawerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
-  drawerTitle: { fontSize: 20, fontWeight: '700', color: '#111827' },
-  drawerSub: { fontSize: 14, color: '#6b7280', marginTop: 4 },
-  drawerContent: { flex: 1 },
-  initialActions: { flexDirection: 'row', gap: 24, marginTop: 10 },
-  actionItem: { alignItems: 'center', gap: 8 },
-  actionText: { fontSize: 14, fontWeight: '600', color: '#374151' },
-  instructionRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 12 },
-  iconCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#f0f9ff', justifyContent: 'center', alignItems: 'center' },
-  iconCircleSmall: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#f0f9ff', justifyContent: 'center', alignItems: 'center' },
-  instructionText: { fontSize: 14, color: '#4b5563', flex: 1, lineHeight: 20 },
-  drawerCloseTab: { position: 'absolute', right: -12, top: '50%', backgroundColor: 'white', width: 24, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', elevation: 5, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4 },
-  miniBar: { position: 'absolute', left: 16, top: 20, backgroundColor: '#1aaedb', flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 30, gap: 8, elevation: 5, zIndex: 90 },
-  miniBarText: { color: 'white', fontWeight: '700' }
+  routeHeader: { flexDirection: "row", alignItems: "center" },
+  routeTitleWrap: { flex: 1, paddingRight: 12 },
+  routeTitle: { fontSize: 16, fontWeight: "700", color: "#0F172A" },
+  routeSummary: { marginTop: 5, fontSize: 12, color: "#64748B" },
+  stepList: { marginTop: 14 },
+  stepListContent: { gap: 12, paddingBottom: 2 },
+  stepRow: { flexDirection: "row", alignItems: "center" },
+  stepIcon: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 17,
+  },
+  stepTextWrap: { flex: 1, marginLeft: 10 },
+  stepText: { fontSize: 13, fontWeight: "600", color: "#334155" },
+  stepMeta: { marginTop: 3, fontSize: 11, color: "#94A3B8" },
 });

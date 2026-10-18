@@ -135,7 +135,10 @@ export const CampusRouteCard = () => {
       setIsSetupModalVisible(true);
       return;
     }
-    router.push("/(app)/(tabs)/campus-map");
+    router.push({
+      pathname: "/(app)/(tabs)/campus-map",
+      params: { mode: "commute" },
+    });
   };
 
   const handleActionPress = () => {
@@ -162,7 +165,12 @@ export const CampusRouteCard = () => {
           <TouchableOpacity
             style={styles.headerLink}
             activeOpacity={0.6}
-            onPress={() => router.push("/(app)/(tabs)/campus-map")}
+            onPress={() => router.push({
+              pathname: "/(app)/(tabs)/campus-map",
+              params: {
+                mode: "commute",
+              },
+            })}
           >
             <Text style={styles.moreText}>캠퍼스맵</Text>
             <ChevronRight size={16} color="#13708D" />
