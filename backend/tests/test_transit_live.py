@@ -1,4 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
+import json
+import logging
 from threading import Event
 from unittest.mock import Mock
 
@@ -165,6 +167,63 @@ def test_match_requires_downstream_destination_and_rejects_distant_same_name():
     assert live._match_segment(stops, request()) is not None
     assert live._match_segment(stops, request(departure_stop_name="강남대역", arrival_stop_name="기흥역")) is None
     assert live._match_segment(stops, request(departure_stop_location={"latitude": 38, "longitude": 127})) is None
+
+
+def test_unmatched_log_distinguishes_direction_order(monkeypatch, caplog):
+    gg_api(monkeypatch)
+    with caplog.at_level(logging.WARNING, logger=live.__name__):
+        result = live.get_transit_live(request(
+            departure_stop_name="강남대역",
+            arrival_stop_name="기흥역",
+        ))
+
+    assert result.status == "unmatched"
+    record = next(
+        item for item in caplog.records
+        if "Transit route resolution failed:" in item.getMessage()
+    )
+    payload = json.loads(record.getMessage().split(": ", 1)[1])
+    assert payload["event"] == "transit_route_unmatched"
+    assert payload["reason"] == "providers_exhausted"
+    assert "direction_order_mismatch" in payload["failure_reasons"]
+    assert "api_key_not_configured" in payload["failure_reasons"]
+    gyeonggi = payload["attempts"][0]
+    assert gyeonggi["reason"] == "no_route_contains_requested_segment"
+    assert gyeonggi["routes"][0]["reason"] == "direction_order_mismatch"
+    assert gyeonggi["routes"][0]["departure_candidates"] == 1
+    assert gyeonggi["routes"][0]["arrival_candidates"] == 1
+
+
+def test_unmatched_log_reports_missing_provider_keys(monkeypatch, caplog):
+    monkeypatch.setenv("PUBLIC_API_KEY", "test")
+    get = Mock(return_value=Response({
+        "response": {
+            "header": {"resultCode": "00"},
+            "body": {"items": {"item": []}},
+        }
+    }))
+    monkeypatch.setattr(live.requests, "get", get)
+    with caplog.at_level(logging.WARNING, logger=live.__name__):
+        result = live.get_transit_live(request(
+            agency_name="서울특별시",
+            departure_stop_location={"latitude": 37.2, "longitude": 127.1},
+        ))
+
+    assert result.status == "unmatched"
+    record = next(
+        item for item in caplog.records
+        if "Transit route resolution failed:" in item.getMessage()
+    )
+    payload = json.loads(record.getMessage().split(": ", 1)[1])
+    assert payload["attempts"][0] == {
+        "provider": "seoul",
+        "reason": "api_key_not_configured",
+    }
+    assert payload["attempts"][1] == {
+        "provider": "gyeonggi",
+        "reason": "api_key_not_configured",
+    }
+    assert payload["attempts"][2]["provider"] == "tago"
 
 
 def test_cache_singleflight_and_copies():

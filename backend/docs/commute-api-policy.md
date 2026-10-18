@@ -46,6 +46,21 @@
 
 기존 `/live-buses` 엔드포인트는 호환성을 위해 남겼지만 새 지도 화면에서는 사용하지 않는다. 예전 앱은 기존 호출 정책을 사용하므로 새 프론트와 백엔드를 함께 배포해야 한다.
 
+### Cloud Run 노선 연결 진단
+
+`/api/commute/transit-live`는 노선 연결에 실패하면 HTTP 200과 `status=unmatched`를 반환한다. HTTP 성공 여부만으로 실시간 연결 성공을 판단하지 않는다. Cloud Run 로그에서 `transit_route_unmatched`를 검색하면 한 요청의 실패 원인이 JSON 한 줄로 기록된다. 인증키와 정확한 좌표는 로그에 포함하지 않는다.
+
+- `api_key_not_configured`: 해당 제공기관용 환경변수가 없어 건너뜀
+- `route_not_found`: API 검색 결과에서 Google 노선명과 정확히 일치하는 노선이 없음
+- `too_many_route_candidates`: 같은 번호의 후보가 너무 많아 안전하게 특정하지 못함
+- `departure_stop_not_found`, `arrival_stop_not_found`: 정류장명 또는 50m 이내 좌표 후보가 없음
+- `departure_coordinate_mismatch`, `arrival_coordinate_mismatch`: 이름은 같지만 두 데이터의 좌표 차이가 200m를 초과함
+- `direction_order_mismatch`: 두 정류장은 찾았지만 공공 노선 순서에서 도착 정류장이 출발 정류장 뒤에 있지 않음
+- `ambiguous_stop_pair`, `ambiguous_route_candidates`: 정류장 쌍 또는 노선을 하나로 특정하지 못함
+- `no_route_contains_requested_segment`: 해당 제공기관의 후보들을 검사했지만 일치 구간이 없음
+
+현재 방향 판정은 `출발 정류장 순번 < 도착 정류장 순번`을 사용한다. Google의 `headsign`은 진단 로그에는 기록되지만 아직 매칭 조건으로 사용하지 않는다.
+
 ## 검증
 
 외부 API 과금을 발생시키지 않는 모의 응답 테스트:

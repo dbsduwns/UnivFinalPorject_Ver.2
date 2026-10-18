@@ -7,6 +7,7 @@ so the stop-list UI does not need an additional vehicle-location request.
 """
 
 from datetime import datetime, timezone
+import json
 import logging
 import math
 import os
@@ -208,26 +209,131 @@ def _stop_score(stop, name, location):
     return (0 if name_matches else 500) + (distance or 0)
 
 
-def _match_segment(stops, request):
-    """Require boarding and downstream alighting; never pick a route by number alone."""
+def _distance_to_stop(stop, location):
+    if not location or stop.latitude is None or stop.longitude is None:
+        return None
+    dy = (location.latitude - stop.latitude) * 111_000
+    dx = (
+        (location.longitude - stop.longitude)
+        * 111_000
+        * math.cos(math.radians(location.latitude))
+    )
+    return math.hypot(dx, dy)
+
+
+def _same_name_distance(stops, name, location):
+    distances = [
+        _distance_to_stop(stop, location)
+        for stop in stops
+        if _name(stop.stop_name) == _name(name)
+    ]
+    usable = [distance for distance in distances if distance is not None]
+    return round(min(usable), 1) if usable else None
+
+
+def _match_segment_diagnostic(stops, request):
+    """Return a direction-safe segment and a non-sensitive matching diagnostic."""
     matches = []
+    starts = []
+    arrivals = []
     for start in stops:
         score = _stop_score(start, request.departure_stop_name, request.departure_stop_location)
         if score is None:
             continue
+        starts.append(start)
         for end in stops:
+            end_score = _stop_score(end, request.arrival_stop_name, request.arrival_stop_location)
+            if end_score is not None and end not in arrivals:
+                arrivals.append(end)
             if end.stop_order <= start.stop_order:
                 continue
-            end_score = _stop_score(end, request.arrival_stop_name, request.arrival_stop_location)
             if end_score is not None:
                 matches.append((score + end_score, end.stop_order - start.stop_order, start, end))
+    details = {
+        "stop_count": len(stops),
+        "departure_name_matches": sum(
+            _name(stop.stop_name) == _name(request.departure_stop_name) for stop in stops
+        ),
+        "arrival_name_matches": sum(
+            _name(stop.stop_name) == _name(request.arrival_stop_name) for stop in stops
+        ),
+        "departure_candidates": len(starts),
+        "arrival_candidates": len(arrivals),
+        "departure_same_name_distance_m": _same_name_distance(
+            stops, request.departure_stop_name, request.departure_stop_location
+        ),
+        "arrival_same_name_distance_m": _same_name_distance(
+            stops, request.arrival_stop_name, request.arrival_stop_location
+        ),
+    }
+    if not starts:
+        details["reason"] = (
+            "departure_coordinate_mismatch"
+            if details["departure_name_matches"] > 0
+            and details["departure_same_name_distance_m"] is not None
+            and details["departure_same_name_distance_m"] > 200
+            else "departure_stop_not_found"
+        )
+        return None, details
+    if not arrivals:
+        details["reason"] = (
+            "arrival_coordinate_mismatch"
+            if details["arrival_name_matches"] > 0
+            and details["arrival_same_name_distance_m"] is not None
+            and details["arrival_same_name_distance_m"] > 200
+            else "arrival_stop_not_found"
+        )
+        return None, details
     if not matches:
-        return None
+        details["reason"] = "direction_order_mismatch"
+        return None, details
     matches.sort(key=lambda match: (match[0], match[1]))
     # Same-name/coordinate stops can exist in both directions on a loop. Refuse ties.
     if len(matches) > 1 and matches[0][:2] == matches[1][:2]:
-        return None
-    return matches[0][2:]
+        details["reason"] = "ambiguous_stop_pair"
+        details["segment_matches"] = len(matches)
+        return None, details
+    details["reason"] = "matched"
+    details["boarding_order"] = matches[0][2].stop_order
+    details["alighting_order"] = matches[0][3].stop_order
+    return matches[0][2:], details
+
+
+def _match_segment(stops, request):
+    """Require boarding and downstream alighting; never pick a route by number alone."""
+    segment, _ = _match_segment_diagnostic(stops, request)
+    return segment
+
+
+def _log_unmatched(request, providers, attempts, reason):
+    # One JSON line is easier to filter in Cloud Run. Never include keys or exact coordinates.
+    failure_reasons = []
+    for attempt in attempts:
+        if attempt.get("reason") and attempt["reason"] != "matched":
+            failure_reasons.append(attempt["reason"])
+        for route in attempt.get("routes", []):
+            if route.get("reason") and route["reason"] != "matched":
+                failure_reasons.append(route["reason"])
+    payload = {
+        "event": "transit_route_unmatched",
+        "reason": reason,
+        "failure_reasons": list(dict.fromkeys(failure_reasons)),
+        "route": _route_name(request.route_name),
+        "agency": request.agency_name,
+        "headsign": request.headsign,
+        "departure_stop": request.departure_stop_name,
+        "arrival_stop": request.arrival_stop_name,
+        "has_departure_location": request.departure_stop_location is not None,
+        "has_arrival_location": request.arrival_stop_location is not None,
+        "headsign_used_for_matching": False,
+        "direction_strategy": "departure_order_before_arrival_order",
+        "provider_order": providers,
+        "attempts": attempts,
+    }
+    logger.warning(
+        "Transit route resolution failed: %s",
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+    )
 
 
 def _provider_order(request):
@@ -242,11 +348,16 @@ def _provider_order(request):
 
 def _resolve(request):
     target = _route_name(request.route_name)
+    providers = _provider_order(request)
+    attempts = []
     had_error = False
-    for provider in _provider_order(request):
+    for provider in providers:
         if not _key(provider):
+            attempts.append({"provider": provider, "reason": "api_key_not_configured"})
             continue
         city_code = ""
+        provider_attempt = {"provider": provider}
+        attempts.append(provider_attempt)
         try:
             if provider == "seoul":
                 routes = _request(provider, "busRouteInfo", "getBusRouteList",
@@ -258,6 +369,7 @@ def _resolve(request):
                 id_field, name_field = "routeId", "routeName"
             else:
                 if not request.departure_stop_location:
+                    provider_attempt["reason"] = "departure_location_required"
                     continue
                 coord = request.departure_stop_location
                 nearby = _request(provider, "BusSttnInfoInqireService", "getCrdntPrxmtSttnList",
@@ -272,32 +384,52 @@ def _resolve(request):
                 routes = candidates
                 id_field, name_field = "routeid", "routeno"
             candidates = [item for item in routes if _route_name(item.get(name_field)) == target]
+            provider_attempt["route_results"] = len(routes)
+            provider_attempt["exact_route_candidates"] = len(candidates)
+            if not candidates:
+                provider_attempt["reason"] = "route_not_found"
+                continue
             if len(candidates) > 5:
                 # Do not accept a seemingly unique match from a truncated candidate set.
+                provider_attempt["reason"] = "too_many_route_candidates"
+                _log_unmatched(request, providers, attempts, "too_many_route_candidates")
                 return None
             matches = []
+            route_attempts = []
+            provider_attempt["routes"] = route_attempts
             for item in candidates[:5]:
                 route_id = _text(item.get(id_field))
                 city_code = item.get("_city", "")
+                route_attempt = {"route_id": route_id or None}
+                route_attempts.append(route_attempt)
                 if not route_id:
+                    route_attempt["reason"] = "route_id_missing"
                     continue
                 # GBIS's search catalog can include Seoul/Incheon. Use their own feeds.
                 if provider == "gyeonggi" and str(item.get("districtCd", "2")) != "2":
+                    route_attempt["reason"] = "non_gyeonggi_catalog_entry"
                     continue
                 stops = _stops(provider, route_id, city_code)
-                segment = _match_segment(stops, request)
+                segment, segment_details = _match_segment_diagnostic(stops, request)
+                route_attempt.update(segment_details)
                 if segment:
                     matches.append((provider, route_id, city_code, stops, *segment))
             if len(matches) == 1:
                 return matches[0]
             if len(matches) > 1:
+                provider_attempt["reason"] = "ambiguous_route_candidates"
+                provider_attempt["matched_routes"] = len(matches)
+                _log_unmatched(request, providers, attempts, "ambiguous_route_candidates")
                 return None
+            provider_attempt["reason"] = "no_route_contains_requested_segment"
         except ProviderError:
             # Avoid a cascade of slow calls when an enabled provider is unavailable.
+            provider_attempt["reason"] = "provider_error"
             had_error = True
             break
     if had_error:
         raise ProviderError("실시간 제공기관의 API 권한 또는 연결 상태를 확인해주세요.")
+    _log_unmatched(request, providers, attempts, "providers_exhausted")
     return None
 
 
