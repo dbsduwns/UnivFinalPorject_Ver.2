@@ -13,8 +13,11 @@ def get_posts(
         keyword: str | None = None,    
         skip: int = 0,
         limit: int = 20,
+        include_hidden: bool = False,
     ) -> List[PostResponse]:
     query = db.query(Post).options(selectinload(Post.author))
+    if not include_hidden:
+        query = query.filter(Post.is_hidden.is_(False))
 
     if board_slug:
         query = query.filter(Post.board_slug == board_slug)
@@ -28,7 +31,7 @@ def get_posts(
         
     posts = (
         query
-        .order_by(Post.created_at.desc())
+        .order_by(Post.is_pinned.desc(), Post.created_at.desc(), Post.id.desc())
         .offset(skip)
         .limit(limit)
         .all()
@@ -67,7 +70,7 @@ def update_post(db: Session, user: User, post_slug: str, data: UpdatePost) -> Po
     if not post:
         raise ValueError("Post not found")
 
-    if post.author_id != user.id: 
+    if not user.is_admin and (post.author_id != user.id or post.is_hidden):
         raise PermissionError("You do not have permission to update this post")
 
     update_data = data.model_dump(exclude_unset=True)
@@ -86,7 +89,7 @@ def delete_post(db: Session, user: User, post_slug: str) -> None:
     if not post:
         raise ValueError("Post not found")
 
-    if post.author_id != user.id:
+    if not user.is_admin and post.author_id != user.id:
         raise PermissionError("You do not have permission to delete this post")
 
     db.delete(post)
@@ -116,6 +119,8 @@ def to_post_response(post: Post) -> PostResponse:
         content=post.content,
         author_name="익명" if post.is_anonymous else post.author.name,
         is_anonymous=post.is_anonymous,
+        is_hidden=post.is_hidden,
+        is_pinned=post.is_pinned,
         created_at=post.created_at,
         updated_at=post.updated_at,
     )

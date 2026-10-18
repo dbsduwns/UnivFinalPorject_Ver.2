@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, get_current_admin_user
+from app.schemas.community.post import AdminPostUpdate
 from app.database import get_db
 from app.models.user import User
 from app.services.community import post as post_service
@@ -12,6 +13,49 @@ from app.schemas.community import (
 )
 
 router = APIRouter(prefix="/api/community", tags=["community"])
+admin_router = APIRouter(prefix="/api/admin/community/posts", tags=["admin"])
+
+
+@admin_router.get("", response_model=list[PostResponse])
+def get_admin_posts(
+    board_slug: str | None = None,
+    keyword: str | None = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin_user),
+):
+    return post_service.get_posts(db, board_slug, keyword, skip, limit, include_hidden=True)
+
+
+@admin_router.get("/{post_slug}", response_model=PostResponse)
+def get_admin_post(
+    post_slug: str,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin_user),
+):
+    post = post_service.get_post_by_slug(db, post_slug)
+    if post is None:
+        raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다")
+    return post_service.to_post_response(post)
+
+
+@admin_router.patch("/{post_slug}", response_model=PostResponse)
+def manage_post(
+    post_slug: str,
+    data: AdminPostUpdate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin_user),
+):
+    post = post_service.get_post_by_slug(db, post_slug)
+    if post is None:
+        raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다")
+    for field, value in data.model_dump(exclude_unset=True).items():
+        if value is not None:
+            setattr(post, field, value)
+    db.commit()
+    db.refresh(post)
+    return post_service.to_post_response(post)
 
 @router.get("/", response_model=list[PostResponse])
 def get_posts(
@@ -26,7 +70,7 @@ def get_posts(
 @router.get("/slug", response_model=PostResponse)
 def get_post_by_slug(post_slug: str, db: Session = Depends(get_db)):
     post = post_service.get_post_by_slug(db, post_slug)
-    if not post:
+    if not post or post.is_hidden:
         raise HTTPException(status_code=404, detail="Post not found")
     return post_service.to_post_response(post)
 

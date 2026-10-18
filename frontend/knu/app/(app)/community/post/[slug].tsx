@@ -45,6 +45,8 @@ import type {
   CommunityComment,
 } from "@/features/community/api/types";
 import { useCommunityPost } from "@/features/community/hooks/use-community";
+import { useAuthStore } from "@/features/auth/store/auth-store";
+import { PostAdminModal } from "@/features/community/components/PostAdminModal";
 
 const BRAND = "#13708D";
 const REPORT_REASONS: ReadonlyArray<{
@@ -62,6 +64,8 @@ const REPORT_REASONS: ReadonlyArray<{
 ];
 
 export default function CommunityPostScreen() {
+  const isAdmin = useAuthStore(s => s.user?.is_admin === true);
+  const [managingPost, setManagingPost] = useState(false);
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const params = useLocalSearchParams<{ slug?: string | string[] }>();
@@ -298,6 +302,7 @@ export default function CommunityPostScreen() {
         <View className="flex-1 ml-1 justify-center h-11">
           <Text className="text-xl font-extrabold text-gray-900">게시물</Text>
         </View>
+        {isAdmin && <Pressable accessibilityLabel="게시글 관리" onPress={() => setManagingPost(true)} className="h-11 px-3 items-center justify-center rounded-xl bg-cyan-50"><Text className="font-bold text-[#13708D]">관리</Text></Pressable>}
       </View>
 
       <KeyboardAvoidingView
@@ -325,6 +330,7 @@ export default function CommunityPostScreen() {
               {new Date(post.created_at).toLocaleString("ko-KR")}
             </Text>
           </View>
+          {(post.is_hidden || post.is_pinned) && <Text className="text-xs font-bold text-[#13708D] mt-3">{[post.is_pinned ? "상단 고정" : "", post.is_hidden ? "숨김 처리됨 (관리자에게만 표시)" : ""].filter(Boolean).join(" · ")}</Text>}
           <Text className="text-2xl font-extrabold text-gray-900 mt-4">{post.title}</Text>
           <Text className="text-[15px] leading-7 text-gray-700 mt-5">{post.content}</Text>
 
@@ -497,6 +503,8 @@ export default function CommunityPostScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {isAdmin && managingPost && <PostAdminModal post={post} onClose={() => setManagingPost(false)} onDeleted={() => router.replace({ pathname: "/(app)/community/[board]", params: { board: post.board_slug } })} />}
 
       <Modal
         visible={Boolean(reportingComment)}

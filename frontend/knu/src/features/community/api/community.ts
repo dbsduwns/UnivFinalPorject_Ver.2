@@ -15,9 +15,10 @@ import type {
 } from "./types";
 
 export const getCommunityPosts = async (
-  params: GetPostsParams = {}
+  params: GetPostsParams = {},
+  admin = false,
 ): Promise<CommunityPost[]> => {
-  const { data } = await apiClient.get<CommunityPost[]>("/api/community/", {
+  const { data } = await apiClient.get<CommunityPost[]>(admin ? "/api/admin/community/posts" : "/api/community/", {
     params: {
       board_slug: params.boardSlug,
       keyword: params.keyword?.trim() || undefined,
@@ -28,8 +29,8 @@ export const getCommunityPosts = async (
   return data;
 };
 
-export const getCommunityPost = async (postSlug: string): Promise<CommunityPost> => {
-  const { data } = await apiClient.get<CommunityPost>("/api/community/slug", {
+export const getCommunityPost = async (postSlug: string, admin = false): Promise<CommunityPost> => {
+  const { data } = await apiClient.get<CommunityPost>(admin ? `/api/admin/community/posts/${encodeURIComponent(postSlug)}` : "/api/community/slug", {
     params: { post_slug: postSlug },
   });
   return data;

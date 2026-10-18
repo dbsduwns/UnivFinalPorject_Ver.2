@@ -47,6 +47,10 @@ def get_comment(
 
     if comment is None:
         raise HTTPException(status_code=404, detail="Comment not found")
+    from app.models.community.post import Post
+    post = db.get(Post, post_id)
+    if post is None or post.is_hidden:
+        raise HTTPException(status_code=404, detail="Post not found")
     return comment_service.to_comment_response(comment, current_user)
 
 

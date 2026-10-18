@@ -23,6 +23,7 @@ def get_comments(
     limit: int = 50,
 ) -> list[CommentResponse]:
     """Return comments for a post, optionally limited to one reply level."""
+    validate_post_exists(db, post_id)
     blocked_user_ids = (
         db.query(UserBlock.blocked_user_id)
         .filter(UserBlock.blocker_id == user.id)
@@ -137,11 +138,11 @@ def delete_comment(
     if comment is None:
         raise ValueError("Comment not found")
 
-    if comment.author_id != user.id:
+    if comment.author_id != user.id and not user.is_admin:
         raise PermissionError(
             "You do not have permission to delete this comment"
         )
-    if comment.is_hidden:
+    if comment.is_hidden and not user.is_admin:
         raise PermissionError(
             "Comment is Hidden, You do not have permission to update this"
         )
@@ -198,7 +199,7 @@ def moderate_comment(
 def validate_post_exists(db: Session, post_id: int) -> Post:
     post = db.get(Post, post_id)
 
-    if post is None:
+    if post is None or post.is_hidden:
         raise ValueError("Post not found")
 
     return post

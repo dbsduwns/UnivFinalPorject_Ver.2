@@ -6,6 +6,8 @@ export type CommunityPost = {
   content: string;
   author_name: string;
   is_anonymous: boolean;
+  is_hidden: boolean;
+  is_pinned: boolean;
   created_at: string;
   updated_at: string;
 };

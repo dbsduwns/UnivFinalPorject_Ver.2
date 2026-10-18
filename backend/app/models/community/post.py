@@ -12,6 +12,8 @@ class Post(Base):
     content = Column(Text, nullable=False)
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     is_anonymous = Column(Boolean, default=False, nullable=False)
+    is_hidden = Column(Boolean, default=False, server_default="false", nullable=False)
+    is_pinned = Column(Boolean, default=False, server_default="false", nullable=False)
     author = relationship("User", foreign_keys=[author_id])
 
     created_at = Column(TIMESTAMP, nullable=False, server_default=func.now())

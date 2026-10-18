@@ -80,3 +80,7 @@ class AdminCommentReportResponse(CommentReportResponse):
     content_snapshot: str
     reviewed_by_id: int | None
     resolution_note: str | None
+    report_count: int = 0
+    pending_report_count: int = 0
+    post_id: int | None = None
+    comment_is_hidden: bool | None = None

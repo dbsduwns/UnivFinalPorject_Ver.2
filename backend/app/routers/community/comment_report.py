@@ -17,6 +17,19 @@ router = APIRouter(prefix="/api/community", tags=["community"])
 admin_router = APIRouter(prefix="/api/admin/comment-reports", tags=["admin"])
 
 
+@router.get("/my-comment-reports", response_model=list[CommentReportResponse])
+def get_my_reports(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    from app.models.community.comment_report import CommentReport
+    return db.query(CommentReport).filter(CommentReport.reporter_id == user.id).order_by(
+        CommentReport.created_at.desc(), CommentReport.id.desc()
+    ).offset(skip).limit(limit).all()
+
+
 @router.post(
     "/commentreports",
     response_model=CommentReportResponse,

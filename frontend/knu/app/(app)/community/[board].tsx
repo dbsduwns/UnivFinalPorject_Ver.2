@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { router, useLocalSearchParams } from "expo-router";
-import { ArrowLeft, FileText, PenLine, Search, X } from "lucide-react-native";
+import { ArrowLeft, FileText, PenLine, Search, X, Pin, EyeOff, EllipsisVertical, ShieldCheck } from "lucide-react-native";
+import { useAuthStore } from "@/features/auth/store/auth-store";
+import { PostAdminModal } from "@/features/community/components/PostAdminModal";
 import {
   ActivityIndicator,
   FlatList,
@@ -27,18 +29,21 @@ const formatDate = (value: string) =>
 
 export default function CommunityBoardScreen() {
   const insets = useSafeAreaInsets();
+  const isAdmin = useAuthStore(s => s.user?.is_admin === true);
+  const [managedPost, setManagedPost] = useState<CommunityPost | null>(null);
   const params = useLocalSearchParams<{ board?: string | string[] }>();
   const slug = Array.isArray(params.board) ? params.board[0] : params.board;
   const board = getCommunityBoard(slug);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(query.trim()), 350);
+    const timer = setTimeout(() => { setDebouncedQuery(query.trim()); setPage(0); }, 350);
     return () => clearTimeout(timer);
   }, [query]);
 
-  const postsQuery = useCommunityPosts(slug, debouncedQuery);
+  const postsQuery = useCommunityPosts(slug, debouncedQuery, page * 20);
   const posts = postsQuery.data ?? [];
 
   return (
@@ -59,6 +64,7 @@ export default function CommunityBoardScreen() {
             {board?.title ?? "게시판"}
           </Text>
         </View>
+        {isAdmin && <View className="flex-row items-center bg-cyan-50 rounded-full px-3 py-2 mb-1"><ShieldCheck size={14} color={BRAND} /><Text className="ml-1 text-xs font-bold text-[#13708D]">관리자</Text></View>}
       </View>
 
       <View className="px-5 pt-5 pb-3">
@@ -102,9 +108,10 @@ export default function CommunityBoardScreen() {
         <FlatList
           data={posts}
           keyExtractor={(post) => String(post.id)}
-          renderItem={({ item }) => <PostCard post={item} />}
+          renderItem={({ item }) => <PostCard post={item} onManage={isAdmin ? setManagedPost : undefined} />}
           contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 100, flexGrow: 1 }}
           ItemSeparatorComponent={() => <View className="h-3" />}
+          ListFooterComponent={(page > 0 || posts.length === 20) ? <View className="flex-row justify-center items-center py-5"><Pressable disabled={page === 0} onPress={() => setPage(value => value - 1)} className="px-4 py-3 rounded-xl bg-white disabled:opacity-30"><Text className="font-bold text-[#13708D]">이전</Text></Pressable><Text className="mx-4 text-gray-500">{page + 1}</Text><Pressable disabled={posts.length < 20} onPress={() => setPage(value => value + 1)} className="px-4 py-3 rounded-xl bg-white disabled:opacity-30"><Text className="font-bold text-[#13708D]">다음</Text></Pressable></View> : null}
           refreshControl={
             <RefreshControl
               refreshing={postsQuery.isRefetching}
@@ -145,13 +152,15 @@ export default function CommunityBoardScreen() {
       >
         <PenLine size={23} color="white" />
       </Pressable>
+      {isAdmin && managedPost && <PostAdminModal key={managedPost.id} post={posts.find(post => post.id === managedPost.id) ?? managedPost} onClose={() => { setManagedPost(null); setPage(0); }} />}
     </View>
   );
 }
 
-function PostCard({ post }: { post: CommunityPost }) {
+function PostCard({ post, onManage }: { post: CommunityPost; onManage?: (post: CommunityPost) => void }) {
   return (
     <Pressable
+      onLongPress={onManage ? () => onManage(post) : undefined}
       onPress={() =>
         router.push({
           pathname: "/(app)/community/post/[slug]",
@@ -161,9 +170,12 @@ function PostCard({ post }: { post: CommunityPost }) {
       className="rounded-3xl bg-white border border-gray-200 px-5 py-5 active:bg-gray-50"
     >
       <View className="flex-row items-center">
+        {post.is_pinned && <View className="mr-2 flex-row items-center"><Pin size={13} color={BRAND} /><Text className="ml-1 text-xs font-bold text-[#13708D]">고정</Text></View>}
+        {post.is_hidden && <View className="mr-2 flex-row items-center"><EyeOff size={13} color="#6B7280" /><Text className="ml-1 text-xs text-gray-500">숨김</Text></View>}
         <Text className="text-xs font-bold text-[#13708D]">{post.author_name}</Text>
         <Text className="text-xs text-gray-300 mx-2">•</Text>
         <Text className="text-xs text-gray-400">{formatDate(post.created_at)}</Text>
+        {onManage && <Pressable accessibilityLabel="게시글 관리" onPress={event => { event.stopPropagation(); onManage(post); }} className="ml-auto p-2 -mr-2"><EllipsisVertical size={19} color="#64748B" /></Pressable>}
       </View>
       <Text className="text-[17px] font-extrabold text-gray-900 mt-3" numberOfLines={1}>
         {post.title}

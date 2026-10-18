@@ -92,7 +92,10 @@ TAGO_STOP_MATCH_MAX_DISTANCE_METERS = 150
 
 GOOGLE_MAPS_SERVER_API_KEY = (
     os.getenv("GOOGLE_MAPS_SERVER_API_KEY")
-    or os.getenv("GOOGLE_MAPS_API_KEY")
+)
+
+GOOGLE_MAPS_API_KEY = (
+    os.getenv("GOOGLE_MAPS_API_KEY")
 )
 GOOGLE_ROUTES_API_URL = (
     "https://routes.googleapis.com/directions/v2:computeRoutes"

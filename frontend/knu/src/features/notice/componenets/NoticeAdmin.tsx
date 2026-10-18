@@ -68,10 +68,10 @@ export function NoticeAdmin({ notice, creating, onClose, onPinned }: Props) {
     mutation.mutate(action);
   };
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={close}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, justifyContent: "flex-end" }}>
-        <Pressable accessibilityLabel="닫기" onPress={close} style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.35)" }} />
-        <View className="bg-white rounded-t-3xl px-5 pt-5" style={{ maxHeight: "90%", width: "100%", maxWidth: 720, alignSelf: "center", paddingBottom: Math.max(insets.bottom, 20) }}>
+    <Modal visible transparent animationType="fade" onRequestClose={close}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 20, paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }}>
+        <Pressable accessibilityLabel="닫기" onPress={close} style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.5)" }} />
+        <View className="bg-white rounded-2xl p-6 shadow-lg" style={{ maxHeight: "90%", width: "100%", maxWidth: 720 }}>
           <View className="flex-row items-center justify-between mb-4">
             <Text className="text-lg font-bold text-gray-900">{confirmDelete ? "공지 삭제" : editing ? (creating ? "공지 등록" : "공지 수정") : "공지 관리"}</Text>
             <Pressable accessibilityLabel="닫기" disabled={mutation.isPending} onPress={close} className="p-2"><X size={22} color="#6B7280" /></Pressable>
