@@ -44,3 +44,7 @@ app-example
 # IDEs
 .vscode/
 .idea/
+
+# otp
+otp/data/*.som.pbf
+otp/data/*.zip

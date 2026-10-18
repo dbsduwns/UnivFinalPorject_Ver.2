@@ -29,13 +29,23 @@ function getCardCopy(commute: CommuteToday | undefined) {
   const route = commute.recommended_route;
   if (commute.status === "ready" && route) {
     const departureTime = formatTime(route.departure_time);
+    const destination = commute.destination?.destination_name;
+
+    if (!commute.first_class) {
+      const travelTime = `학교까지 약 ${route.duration_minutes}분`;
+      return {
+        title: commute.message ?? "오늘 예정된 정규 수업이 없습니다.",
+        description: [travelTime, destination].filter(Boolean).join(" · "),
+        action: "경로보기",
+      };
+    }
+
     const title =
       commute.display_mode === "departure_recommendation" && departureTime
         ? `${departureTime}에 출발하세요`
         : `학교까지 약 ${route.duration_minutes}분`;
     const classTime = formatTime(commute.first_class?.start_time);
     const classLabel = commute.first_class?.course_name;
-    const destination = commute.destination?.destination_name;
     const description = [
       classTime && classLabel ? `${classTime} ${classLabel}` : classLabel,
       destination,

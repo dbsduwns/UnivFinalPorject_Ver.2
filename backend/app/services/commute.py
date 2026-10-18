@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 import math
 import re
@@ -89,10 +89,38 @@ TAGO_ARRIVAL_API_URL = (
 )
 TAGO_STOP_MATCH_MAX_DISTANCE_METERS = 150
 
+
+GOOGLE_MAPS_SERVER_API_KEY = (
+    os.getenv("GOOGLE_MAPS_SERVER_API_KEY")
+    or os.getenv("GOOGLE_MAPS_API_KEY")
+)
+GOOGLE_ROUTES_API_URL = (
+    "https://routes.googleapis.com/directions/v2:computeRoutes"
+)
+GOOGLE_ROUTES_FIELD_MASK = ",".join(
+    [
+        "routes.duration",
+        "routes.distanceMeters",
+        "routes.polyline.encodedPolyline",
+        "routes.legs.steps.travelMode",
+        "routes.legs.steps.staticDuration",
+        "routes.legs.steps.distanceMeters",
+        "routes.legs.steps.polyline.encodedPolyline",
+        "routes.legs.steps.navigationInstruction",
+        "routes.legs.steps.startLocation",
+        "routes.legs.steps.endLocation",
+        "routes.legs.steps.transitDetails",
+    ]
+)
+
 SHUTTLE_ROUTE_NAME = "기흥역-이공관"
 SHUTTLE_ORIGIN_STOP_NAME = "기흥역"
 SHUTTLE_DESTINATION_STOP_NAME = "이공관"
 SHUTTLE_BOARDING_BUFFER_MINUTES = 5
+
+CAMPUS_DEFAULT_DESTINATION_NAME = "강남대학교"
+CAMPUS_DEFAULT_LATITUDE = 37.2757
+CAMPUS_DEFAULT_LONGITUDE = 127.1325
 
 def get_commute_profile(db: Session, user: User) -> CommuteProfile | None:
     """현재 사용자의 통학 프로필을 조회한다."""
@@ -279,6 +307,7 @@ def get_first_class(
     first_class = min(today_schedules, key=lambda item: item["start_time"])
     return FirstClassResponse(**first_class)
 
+
 def get_today_commute(db: Session, user: User) -> CommuteTodayResponse:
     """오늘의 첫 정규 수업을 기준으로 통학 출발시간을 계산한다."""
     profile = get_commute_profile(db, user)
@@ -290,15 +319,18 @@ def get_today_commute(db: Session, user: User) -> CommuteTodayResponse:
 
     first_class = get_first_class(db, user)
     display_mode = get_commute_display_mode(first_class)
+    no_class_message = None
 
     if first_class is None:
-        return CommuteTodayResponse(
-            status="no_schedule",
-            display_mode=display_mode,
-            message="오늘 예정된 정규 수업이 없습니다.",
+        display_mode = "travel_time_only"
+        no_class_message = "오늘 예정된 정규 수업이 없습니다."
+        destination = CommuteDestinationResponse(
+            destination_type="campus_gate",
+            destination_name=CAMPUS_DEFAULT_DESTINATION_NAME,
+            latitude=CAMPUS_DEFAULT_LATITUDE,
+            longitude=CAMPUS_DEFAULT_LONGITUDE,
         )
-
-    if profile.use_shuttle:
+    elif profile.use_shuttle:
         try:
             return _build_shuttle_commute_response(
                 db=db,
@@ -320,21 +352,31 @@ def get_today_commute(db: Session, user: User) -> CommuteTodayResponse:
                 first_class=first_class,
                 message=str(exc),
             )
+    else:
+        if first_class.latitude is None or first_class.longitude is None:
+            return CommuteTodayResponse(
+                status="no_route",
+                display_mode=display_mode,
+                first_class=first_class,
+                message="첫 수업 건물의 위치 정보를 찾을 수 없습니다.",
+            )
 
-    if first_class.latitude is None or first_class.longitude is None:
-        return CommuteTodayResponse(
-            status="no_route",
-            display_mode=display_mode,
-            first_class=first_class,
-            message="첫 수업 건물의 위치 정보를 찾을 수 없습니다.",
+        destination = CommuteDestinationResponse(
+            destination_type="building",
+            destination_name=first_class.building_name or "첫 수업 건물",
+            latitude=first_class.latitude,
+            longitude=first_class.longitude,
         )
 
-    destination = CommuteDestinationResponse(
-        destination_type="building",
-        destination_name=first_class.building_name or "첫 수업 건물",
-        latitude=first_class.latitude,
-        longitude=first_class.longitude,
-    )
+    timezone_info = ZoneInfo("Asia/Seoul")
+    now = datetime.now(timezone_info)
+    target_arrival = None
+    if display_mode == "departure_recommendation":
+        target_arrival = datetime.combine(
+            now.date(),
+            first_class.start_time,
+            tzinfo=timezone_info,
+        ) - timedelta(minutes=profile.departure_buffer_minutes)
 
     try:
         route = get_transit_route(
@@ -342,6 +384,10 @@ def get_today_commute(db: Session, user: User) -> CommuteTodayResponse:
             start_longitude=profile.home_longitude,
             end_latitude=destination.latitude,
             end_longitude=destination.longitude,
+            arrival_time=target_arrival,
+            departure_time=(
+                now if display_mode == "travel_time_only" else None
+            ),
         )
     except TransitRouteError:
         return CommuteTodayResponse(
@@ -352,28 +398,20 @@ def get_today_commute(db: Session, user: User) -> CommuteTodayResponse:
             message="대중교통 경로를 조회할 수 없습니다.",
         )
 
-    if display_mode == "departure_recommendation":
-        timezone = ZoneInfo("Asia/Seoul")
-        now = datetime.now(timezone)
-        target_arrival = datetime.combine(
-            now.date(),
-            first_class.start_time,
-            tzinfo=timezone,
-        ) - timedelta(minutes=profile.departure_buffer_minutes)
+    if target_arrival is not None:
         recommended_departure = target_arrival - timedelta(
             minutes=route.duration_minutes
         )
         route = route.model_copy(update={
             "departure_time": recommended_departure.time(),
-            "arrival_time": (
-                recommended_departure + timedelta(minutes=route.duration_minutes)
-            ).time(),
+            "arrival_time": target_arrival.time(),
             "buffer_minutes": profile.departure_buffer_minutes,
         })
 
     return CommuteTodayResponse(
         status="ready",
         display_mode=display_mode,
+        message=no_class_message,
         first_class=first_class,
         destination=destination,
         recommended_route=route,
@@ -444,13 +482,29 @@ def _build_shuttle_commute_response(
     if origin_stop is None:
         raise ValueError(f"셔틀 탑승 정류장을 찾을 수 없습니다: {SHUTTLE_ORIGIN_STOP_NAME}")
 
-    tmap_route = get_transit_route(
-        start_latitude=profile.home_latitude,
-        start_longitude=profile.home_longitude,
-        end_latitude=origin_stop.latitude,
-        end_longitude=origin_stop.longitude,
-        search_datetime=today,
+    destination = CommuteDestinationResponse(
+        destination_type="shuttle_stop",
+        destination_name=SHUTTLE_ORIGIN_STOP_NAME,
+        latitude=origin_stop.latitude,
+        longitude=origin_stop.longitude,
     )
+
+    try:
+        transit_route = get_transit_route(
+            start_latitude=profile.home_latitude,
+            start_longitude=profile.home_longitude,
+            end_latitude=origin_stop.latitude,
+            end_longitude=origin_stop.longitude,
+            departure_time=today,
+        )
+    except TransitRouteError:
+        return CommuteTodayResponse(
+            status="provider_error",
+            display_mode=display_mode,
+            first_class=first_class,
+            destination=destination,
+            message="셔틀 정류장까지의 대중교통 경로를 조회할 수 없습니다.",
+        )
 
     target_arrival = None
     if display_mode == "departure_recommendation":
@@ -485,7 +539,7 @@ def _build_shuttle_commute_response(
 
         recommended_departure = origin_datetime - timedelta(
             minutes=(
-                tmap_route.duration_minutes + SHUTTLE_BOARDING_BUFFER_MINUTES
+                transit_route.duration_minutes + SHUTTLE_BOARDING_BUFFER_MINUTES
             )
         )
 
@@ -518,14 +572,8 @@ def _build_shuttle_commute_response(
         math.ceil((destination_datetime - origin_datetime).total_seconds() / 60),
     )
 
-    destination = CommuteDestinationResponse(
-        destination_type="shuttle_stop",
-        destination_name=SHUTTLE_ORIGIN_STOP_NAME,
-        latitude=origin_stop.latitude,
-        longitude=origin_stop.longitude,
-    )
     total_duration = (
-        tmap_route.duration_minutes
+        transit_route.duration_minutes
         + SHUTTLE_BOARDING_BUFFER_MINUTES
         + shuttle_duration
     )
@@ -544,8 +592,8 @@ def _build_shuttle_commute_response(
             else None
         ),
         duration_minutes=total_duration,
-        walking_minutes=tmap_route.walking_minutes,
-        transfer_count=tmap_route.transfer_count,
+        walking_minutes=transit_route.walking_minutes,
+        transfer_count=transit_route.transfer_count,
         buffer_minutes=profile.departure_buffer_minutes,
         boarding_stop_name=SHUTTLE_ORIGIN_STOP_NAME,
         shuttle_departure_time=origin_datetime.time(),
@@ -565,8 +613,6 @@ def _build_shuttle_commute_response(
         recommended_route=shuttle_route,
         calculated_at=today,
     )
-
-
 
 
 def get_commute_display_mode(
@@ -651,7 +697,7 @@ def resolve_tago_stop(
     longitude: float,
     stop_name: str | None = None,
 ) -> dict | None:
-    """TMAP 정류장 좌표를 TAGO의 cityCode/nodeId로 매핑한다."""
+    """외부 경로의 정류장 좌표를 TAGO의 cityCode/nodeId로 매핑한다."""
     if not PUBLIC_API_KEY:
         return None
 
@@ -736,7 +782,7 @@ def _get_tago_bus_arrival(
     node_id: str,
     route_name: str | None,
 ) -> dict | None:
-    """TAGO 정류장의 실시간 도착정보 중 TMAP 노선과 일치하는 버스를 찾는다."""
+    """TAGO 정류장의 실시간 도착정보 중 추천 노선과 일치하는 버스를 찾는다."""
     if not PUBLIC_API_KEY:
         return None
 
@@ -791,62 +837,116 @@ def get_transit_route(
     start_longitude: float,
     end_latitude: float,
     end_longitude: float,
-    search_datetime: datetime | None = None,
+    departure_time: datetime | None = None,
+    arrival_time: datetime | None = None,
 ) -> RouteSummaryResponse:
-    """TMAP 대중교통 API에서 가장 추천되는 경로를 조회한다."""
-    if not TMAP_API_KEY:
-        raise TransitRouteError("TMAP_API_KEY가 설정되지 않았습니다.")
+    """Google 추천 대중교통 경로를 조회하고 TAGO 버스 도착정보를 보강한다."""
+    if not GOOGLE_MAPS_SERVER_API_KEY:
+        raise TransitRouteError("Google Maps 서버 API 키가 설정되지 않았습니다.")
+
+    if departure_time is not None and arrival_time is not None:
+        raise ValueError(
+            "departure_time과 arrival_time은 동시에 지정할 수 없습니다"
+        )
+
+    request_body = {
+        "origin": {
+            "location": {
+                "latLng": {
+                    "latitude": start_latitude,
+                    "longitude": start_longitude,
+                }
+            }
+        },
+        "destination": {
+            "location": {
+                "latLng": {
+                    "latitude": end_latitude,
+                    "longitude": end_longitude,
+                }
+            }
+        },
+        "travelMode": "TRANSIT",
+        "computeAlternativeRoutes": False,
+        "languageCode": "ko",
+        "units": "METRIC",
+        "transitPreferences": {
+            "routingPreference": "FEWER_TRANSFERS",
+        },
+    }
+
+    if arrival_time is not None:
+        request_body["arrivalTime"] = _to_google_timestamp(arrival_time)
+    elif departure_time is not None:
+        request_body["departureTime"] = _to_google_timestamp(departure_time)
 
     try:
         response = requests.post(
-            "https://apis.openapi.sk.com/transit/routes",
+            GOOGLE_ROUTES_API_URL,
             headers={
-                "Accept": "application/json",
                 "Content-Type": "application/json",
-                "appKey": TMAP_API_KEY,
+                "X-Goog-Api-Key": GOOGLE_MAPS_SERVER_API_KEY,
+                "X-Goog-FieldMask": GOOGLE_ROUTES_FIELD_MASK,
             },
-            json={
-                "startX": str(start_longitude),
-                "startY": str(start_latitude),
-                "endX": str(end_longitude),
-                "endY": str(end_latitude),
-                "count": 1,
-                "lang": 0,
-                "format": "json",
-                **(
-                    {
-                        "searchDttm": search_datetime.strftime("%Y%m%d%H%M")
-                    }
-                    if search_datetime is not None
-                    else {}
-                ),
-            },
+            json=request_body,
             timeout=10,
         )
         response.raise_for_status()
         data = response.json()
     except requests.RequestException as exc:
-        raise TransitRouteError("TMAP 대중교통 경로 요청에 실패했습니다.") from exc
+        logger.warning(
+            "Google Routes request failed: status=%s response=%s",
+            exc.response.status_code if exc.response is not None else None,
+            exc.response.text[:500] if exc.response is not None else str(exc),
+        )
+        raise TransitRouteError("Google 대중교통 경로 요청에 실패했습니다.") from exc
     except ValueError as exc:
-        raise TransitRouteError("TMAP 대중교통 응답을 해석할 수 없습니다.") from exc
+        raise TransitRouteError("Google 대중교통 응답을 해석할 수 없습니다.") from exc
 
-    itineraries = data.get("metaData", {}).get("plan", {}).get("itineraries", [])
-    if not itineraries:
+    routes = data.get("routes", [])
+    if not routes:
         raise TransitRouteError("이용 가능한 대중교통 경로를 찾을 수 없습니다.")
 
-    itinerary = itineraries[0]
-    legs = itinerary.get("legs", [])
-    transit_legs = [leg for leg in legs if leg.get("mode") != "WALK"]
-    route_names = list(dict.fromkeys(
-        leg.get("route") for leg in transit_legs if leg.get("route")
-    ))
-    modes = {leg.get("mode") for leg in transit_legs}
+    route = routes[0]
 
-    if not transit_legs:
+    steps = [
+        step for leg in route.get("legs", []) for step in leg.get("steps", [])
+    ]
+
+    transit_steps = [
+        step for step in steps if step.get("travelMode") == "TRANSIT"
+    ]
+
+    walking_minutes = sum(
+        _google_duration_minutes(step.get("staticDuration"))
+        for step in steps
+        if step.get("travelMode") == "WALK"
+    )
+
+    route_names: list[str] = []
+    vehicle_types: set[str] = set()
+
+    for step in transit_steps:
+        transit_details = step.get("transitDetails", {})
+        transit_line = transit_details.get("transitLine", {})
+
+        route_name = (
+            transit_line.get("nameShort") or transit_line.get("name")
+        )
+        if route_name and route_name not in route_names:
+            route_names.append(route_name)
+
+        vehicle_type = transit_line.get("vehicle", {}).get("type")
+        if vehicle_type:
+            vehicle_types.add(vehicle_type)
+
+    if not transit_steps:
         transport_type = "walking"
-    elif modes == {"BUS"}:
+    elif vehicle_types and all(
+        "BUS" in vehicle_type for vehicle_type in vehicle_types
+    ):
         transport_type = "bus"
-    elif modes == {"SUBWAY"}:
+    elif vehicle_types == {"SUBWAY"}:
         transport_type = "subway"
     else:
         transport_type = "mixed"
@@ -854,55 +954,68 @@ def get_transit_route(
     boarding_stop_name = None
     bus_arrival_minutes = None
     bus_remaining_stops = None
-    recommendation_reason = "TMAP 추천 경로"
+    recommendation_reason = "Google Maps 추천 경로"
 
-    # 현재 시점의 도착정보는 첫 대중교통 구간이 버스일 때만 의미가 있다.
-    first_transit_leg = transit_legs[0] if transit_legs else None
-    if first_transit_leg and first_transit_leg.get("mode") == "BUS":
-        stations = (
-            first_transit_leg.get("passStopList", {}).get("stationList", [])
+    if transit_steps:
+        first_transit_details = transit_steps[0].get("transitDetails", {})
+        first_transit_line = first_transit_details.get("transitLine", {})
+        departure_stop = (
+            first_transit_details.get("stopDetails", {}).get("departureStop", {})
         )
-        boarding_stop = stations[0] if stations else None
-        if boarding_stop:
-            boarding_stop_name = (
-                boarding_stop.get("stationName")
-                or first_transit_leg.get("start", {}).get("name")
-            )
+        boarding_stop_name = departure_stop.get("name")
+
+        first_vehicle_type = str(
+            first_transit_line.get("vehicle", {}).get("type") or ""
+        )
+        if "BUS" in first_vehicle_type:
+            stop_location = departure_stop.get("location", {}).get("latLng", {})
             try:
                 tago_stop = resolve_tago_stop(
-                    latitude=float(boarding_stop["lat"]),
-                    longitude=float(boarding_stop["lon"]),
+                    latitude=float(stop_location["latitude"]),
+                    longitude=float(stop_location["longitude"]),
                     stop_name=boarding_stop_name,
                 )
                 if tago_stop:
                     arrival = _get_tago_bus_arrival(
                         city_code=tago_stop["city_code"],
                         node_id=tago_stop["node_id"],
-                        route_name=first_transit_leg.get("route"),
+                        route_name=(
+                            first_transit_line.get("nameShort")
+                            or first_transit_line.get("name")
+                        ),
                     )
                     if arrival:
                         bus_arrival_minutes = arrival["arrival_minutes"]
                         bus_remaining_stops = arrival["remaining_stops"]
                         recommendation_reason = (
-                            f"TMAP 추천 경로 · {arrival['route_number']}번 버스 "
+                            "Google Maps 추천 경로 · "
+                            f"{arrival['route_number']}번 버스 "
                             f"약 {bus_arrival_minutes}분 후 도착"
                         )
             except (TransitRouteError, KeyError, TypeError, ValueError):
-                # 실시간 정보가 실패해도 TMAP 경로 자체는 정상 응답한다.
-                pass
+                # TAGO 보강 정보가 실패해도 Google 경로 자체는 반환한다.
+                logger.info("TAGO 버스 도착정보 보강에 실패했습니다.", exc_info=True)
+
+    duration_minutes = max(
+        1,
+        _google_duration_minutes(route.get("duration")),
+    )
+
+    transfer_count = max(0, len(transit_steps) - 1)
 
     return RouteSummaryResponse(
         transport_type=transport_type,
         route_name=" / ".join(route_names) if route_names else None,
-        duration_minutes=max(1, math.ceil(itinerary.get("totalTime", 0) / 60)),
-        walking_minutes=math.ceil(itinerary.get("totalWalkTime", 0) / 60),
-        transfer_count=itinerary.get("transferCount", 0),
+        duration_minutes=duration_minutes,
+        walking_minutes=walking_minutes,
+        transfer_count=transfer_count,
         boarding_stop_name=boarding_stop_name,
         bus_arrival_minutes=bus_arrival_minutes,
         bus_remaining_stops=bus_remaining_stops,
         is_recommended=True,
         recommendation_reason=recommendation_reason,
     )
+
 
 def geocode_address(address: str) -> dict:
     if not TMAP_API_KEY:
@@ -1100,3 +1213,31 @@ def _get_poi_road_address(item: dict, region_parts: list[str]) -> str:
     return " ".join(
         part for part in (*region_parts, road_name, building_number) if part
     )
+
+
+def _to_google_timestamp(value: datetime) -> str:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=ZoneInfo("Asia/Seoul"))
+
+    return (
+        value.astimezone(timezone.utc)
+        .isoformat(timespec="seconds")
+        .replace("+00:00", "Z")
+    )
+
+
+def _google_duration_seconds(value: str | None) -> float:
+    """Google Duration 변환(Seconds)"""
+    if not value or not value.endswith("s"):
+        return 0
+
+    try:
+        return float(value[:-1])
+    except ValueError:
+        return 0
+
+
+def _google_duration_minutes(value: str | None) -> int:
+    """Google Duration 변환(Minutes)"""
+    seconds = _google_duration_seconds(value)
+    return math.ceil(seconds / 60)

@@ -1,3 +1,7 @@
+from datetime import datetime
+from types import SimpleNamespace
+from zoneinfo import ZoneInfo
+
 from app.services import commute
 
 
@@ -57,44 +61,56 @@ def test_resolve_tago_stop_selects_nearest_same_name(monkeypatch):
 
 
 def test_get_transit_route_adds_matching_tago_arrival(monkeypatch):
-    monkeypatch.setattr(commute, "TMAP_API_KEY", "tmap-key")
+    monkeypatch.setattr(commute, "GOOGLE_MAPS_SERVER_API_KEY", "google-key")
     monkeypatch.setattr(commute, "PUBLIC_API_KEY", "public-key")
 
-    tmap_data = {
-        "metaData": {
-            "plan": {
-                "itineraries": [
+    google_data = {
+        "routes": [
+            {
+                "duration": "1800s",
+                "distanceMeters": 12000,
+                "legs": [
                     {
-                        "totalTime": 1800,
-                        "totalWalkTime": 300,
-                        "transferCount": 0,
-                        "legs": [
-                            {"mode": "WALK", "sectionTime": 300},
+                        "steps": [
+                            {"travelMode": "WALK", "staticDuration": "300s"},
                             {
-                                "mode": "BUS",
-                                "route": "직행좌석:5000",
-                                "passStopList": {
-                                    "stationList": [
-                                        {
-                                            "stationName": "기흥역",
-                                            "lat": "37.275000",
-                                            "lon": "127.115000",
-                                            "stationID": "TMAP123",
-                                        }
-                                    ]
+                                "travelMode": "TRANSIT",
+                                "staticDuration": "1200s",
+                                "transitDetails": {
+                                    "stopDetails": {
+                                        "departureStop": {
+                                            "name": "기흥역",
+                                            "location": {
+                                                "latLng": {
+                                                    "latitude": 37.275,
+                                                    "longitude": 127.115,
+                                                }
+                                            },
+                                        },
+                                        "arrivalStop": {"name": "강남대역"},
+                                    },
+                                    "transitLine": {
+                                        "nameShort": "5000",
+                                        "name": "직행좌석 5000",
+                                        "vehicle": {"type": "BUS"},
+                                    },
                                 },
                             },
+                            {"travelMode": "WALK", "staticDuration": "300s"},
                         ],
                     }
-                ]
+                ],
             }
-        }
+        ]
     }
-    monkeypatch.setattr(
-        commute.requests,
-        "post",
-        lambda *args, **kwargs: FakeResponse(tmap_data),
-    )
+    google_request = {}
+
+    def fake_post(url, **kwargs):
+        google_request["url"] = url
+        google_request.update(kwargs)
+        return FakeResponse(google_data)
+
+    monkeypatch.setattr(commute.requests, "post", fake_post)
 
     def fake_get(url, **kwargs):
         if url == commute.TAGO_STOP_API_URL:
@@ -136,9 +152,73 @@ def test_get_transit_route_adds_matching_tago_arrival(monkeypatch):
         start_longitude=127.1,
         end_latitude=37.3,
         end_longitude=127.2,
+        arrival_time=datetime(
+            2026,
+            10,
+            19,
+            9,
+            0,
+            tzinfo=ZoneInfo("Asia/Seoul"),
+        ),
     )
 
+    assert google_request["url"] == commute.GOOGLE_ROUTES_API_URL
+    assert google_request["json"]["travelMode"] == "TRANSIT"
+    assert google_request["json"]["computeAlternativeRoutes"] is False
+    assert "routingPreference" not in google_request["json"]
+    assert google_request["json"]["arrivalTime"] == "2026-10-19T00:00:00Z"
+    assert google_request["headers"]["X-Goog-FieldMask"] == (
+        commute.GOOGLE_ROUTES_FIELD_MASK
+    )
+    assert result.transport_type == "bus"
+    assert result.route_name == "5000"
+    assert result.duration_minutes == 30
+    assert result.walking_minutes == 10
+    assert result.transfer_count == 0
     assert result.boarding_stop_name == "기흥역"
     assert result.bus_arrival_minutes == 9
     assert result.bus_remaining_stops == 4
     assert "5000번 버스" in result.recommendation_reason
+
+
+def test_get_today_commute_returns_campus_travel_time_without_class(monkeypatch):
+    profile = SimpleNamespace(
+        home_latitude=37.2,
+        home_longitude=127.1,
+        use_shuttle=True,
+        departure_buffer_minutes=10,
+    )
+    route = commute.RouteSummaryResponse(
+        transport_type="bus",
+        route_name="5000",
+        duration_minutes=35,
+        walking_minutes=7,
+        transfer_count=0,
+        is_recommended=True,
+    )
+    route_request = {}
+
+    monkeypatch.setattr(commute, "get_commute_profile", lambda db, user: profile)
+    monkeypatch.setattr(commute, "get_first_class", lambda db, user: None)
+
+    def fake_get_transit_route(**kwargs):
+        route_request.update(kwargs)
+        return route
+
+    monkeypatch.setattr(commute, "get_transit_route", fake_get_transit_route)
+
+    result = commute.get_today_commute(db=object(), user=object())
+
+    assert result.status == "ready"
+    assert result.display_mode == "travel_time_only"
+    assert result.message == "오늘 예정된 정규 수업이 없습니다."
+    assert result.first_class is None
+    assert result.destination is not None
+    assert result.destination.destination_type == "campus_gate"
+    assert result.destination.destination_name == "강남대학교"
+    assert result.recommended_route is route
+    assert result.recommended_route.duration_minutes == 35
+    assert route_request["end_latitude"] == commute.CAMPUS_DEFAULT_LATITUDE
+    assert route_request["end_longitude"] == commute.CAMPUS_DEFAULT_LONGITUDE
+    assert route_request["arrival_time"] is None
+    assert route_request["departure_time"].tzinfo is not None

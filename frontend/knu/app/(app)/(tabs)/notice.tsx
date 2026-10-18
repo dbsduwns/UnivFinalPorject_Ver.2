@@ -1,15 +1,11 @@
 import { View, useWindowDimensions } from "react-native";
 
-import { useAuthStore } from "@/features/auth/store/auth-store";
 import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
 import AllNotice from "@/features/notice/componenets/AllNotice";
-import { useNotice } from "@/features/notice/hooks/use_notices";
 
 const CONTENT_MAX_WIDTH = 720;
 
 export default function NoticeScreen() {
-  const user = useAuthStore((s) => s.user);
-  const logout = useAuthStore((s) => s.logout);
   const { width } = useWindowDimensions();
   const horizontalPadding = width >= 768 ? 32 : 20;
   return (

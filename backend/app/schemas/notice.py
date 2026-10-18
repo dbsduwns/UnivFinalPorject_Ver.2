@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 
 class NoticeResponse(BaseModel):
@@ -17,10 +17,18 @@ class NoticeResponse(BaseModel):
     }
 
 class NoticeUpdate(BaseModel):
-    title: str | None = None
+    title: str | None = Field(default=None, min_length=1, max_length=300)
     content: str | None = None
-    category: str | None = None
+    category: str | None = Field(default=None, min_length=1, max_length=50)
+    is_important: bool | None = None
 
     model_config = {
         "from_attributes": True
     }
+
+
+class NoticeCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    content: str = Field(min_length=1)
+    category: str = Field(min_length=1, max_length=50)
+    is_important: bool = False
