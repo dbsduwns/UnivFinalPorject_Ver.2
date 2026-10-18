@@ -37,7 +37,10 @@ _usage = {}
 
 
 class ProviderError(Exception):
-    pass
+    def __init__(self, message, *, reason="provider_error", result_code=None):
+        super().__init__(message)
+        self.reason = reason
+        self.result_code = result_code
 
 
 def _key(provider):
@@ -131,9 +134,21 @@ def _request(provider, service, operation, params, item_key, static=False):
             except ValueError:
                 data = _xml_value(ElementTree.fromstring(response.content))
             if not isinstance(data, dict):
-                raise ProviderError("실시간 응답 형식을 확인할 수 없습니다.")
+                raise ProviderError(
+                    "실시간 응답 형식을 확인할 수 없습니다.",
+                    reason="invalid_payload",
+                )
             if "cmmMsgHeader" in data:
-                raise ProviderError("공공 API 인증 또는 호출 한도를 확인해주세요.")
+                gateway_header = data.get("cmmMsgHeader") or {}
+                raise ProviderError(
+                    "공공 API 인증 또는 호출 한도를 확인해주세요.",
+                    reason="gateway_error",
+                    result_code=_text(
+                        gateway_header.get("returnReasonCode")
+                        if isinstance(gateway_header, dict)
+                        else None
+                    ) or None,
+                )
             if provider == "tago":
                 envelope = data.get("response", data)
                 code = _text((envelope.get("header") or {}).get("resultCode"))
@@ -150,14 +165,44 @@ def _request(provider, service, operation, params, item_key, static=False):
             if code in empty:
                 return []
             if code not in ok:
-                raise ProviderError("실시간 API 응답 오류입니다.")
+                raise ProviderError(
+                    "실시간 API 응답 오류입니다.",
+                    reason="provider_result_error",
+                    result_code=code or None,
+                )
             fetched_at = datetime.now(timezone.utc).isoformat()
             return [{**item, "_fetched_at": fetched_at} for item in _list(items)]
         except (requests.RequestException, ValueError, ElementTree.ParseError, ProviderError, TypeError, AttributeError) as exc:
             with _policy_lock:
                 _cooldown[(provider, service)] = monotonic() + FAILURE_TTL
-            # URLs/exceptions can contain credentials. Log only provider and operation.
-            logger.warning("Transit provider failed: provider=%s operation=%s", provider, operation)
+            # URLs/exceptions can contain credentials. Log only safe classifications.
+            if isinstance(exc, requests.Timeout):
+                reason, result_code = "timeout", None
+            elif isinstance(exc, requests.HTTPError):
+                reason, result_code = "http_error", None
+            elif isinstance(exc, requests.RequestException):
+                reason, result_code = "network_error", None
+            elif isinstance(exc, ElementTree.ParseError):
+                reason, result_code = "xml_parse_error", None
+            elif isinstance(exc, ProviderError):
+                reason, result_code = exc.reason, exc.result_code
+            else:
+                reason, result_code = "response_parse_error", None
+            status_code = (
+                exc.response.status_code
+                if isinstance(exc, requests.HTTPError) and exc.response is not None
+                else None
+            )
+            logger.warning(
+                "Transit provider failed: provider=%s service=%s operation=%s "
+                "reason=%s http_status=%s result_code=%s",
+                provider,
+                service,
+                operation,
+                reason,
+                status_code,
+                result_code,
+            )
             raise ProviderError("실시간 정보를 일시적으로 조회하지 못했습니다.") from exc
 
     return _cache.get(cache_key, load, ttl=STATIC_TTL if static else LIVE_TTL,

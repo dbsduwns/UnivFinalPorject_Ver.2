@@ -140,14 +140,48 @@ def test_missing_key_and_unsupported_modes_make_no_calls():
     live.requests.get.assert_not_called()
 
 
-def test_api_error_is_not_empty_arrival_and_is_backed_off(monkeypatch):
+def test_api_error_is_not_empty_arrival_and_is_backed_off(monkeypatch, caplog):
     monkeypatch.setenv("SEOUL_BUS_API_KEY", "test")
     get = Mock(return_value=Response({"msgHeader": {"headerCd": "7"}, "msgBody": {}}))
     monkeypatch.setattr(live.requests, "get", get)
-    first = live.get_transit_live(request(route_name="N62"))
+    with caplog.at_level(logging.WARNING, logger=live.__name__):
+        first = live.get_transit_live(request(route_name="N62"))
     second = live.get_transit_live(request(route_name="N62"))
     assert first.status == second.status == "provider_error"
     assert get.call_count == 1
+    provider_log = next(
+        item.getMessage() for item in caplog.records
+        if item.getMessage().startswith("Transit provider failed:")
+    )
+    assert "provider=seoul" in provider_log
+    assert "reason=provider_result_error" in provider_log
+    assert "result_code=7" in provider_log
+
+
+def test_gateway_error_logs_safe_reason_code(monkeypatch, caplog):
+    monkeypatch.setenv("PUBLIC_API_KEY", "secret-must-not-be-logged")
+    get = Mock(return_value=Response({
+        "cmmMsgHeader": {
+            "returnReasonCode": "20",
+            "errMsg": "SERVICE_ACCESS_DENIED_ERROR",
+        }
+    }))
+    monkeypatch.setattr(live.requests, "get", get)
+    with caplog.at_level(logging.WARNING, logger=live.__name__):
+        result = live.get_transit_live(request(
+            departure_stop_location={"latitude": 37.2, "longitude": 127.1},
+        ))
+
+    assert result.status == "provider_error"
+    provider_log = next(
+        item.getMessage() for item in caplog.records
+        if item.getMessage().startswith("Transit provider failed:")
+    )
+    assert "provider=tago" in provider_log
+    assert "operation=getCrdntPrxmtSttnList" in provider_log
+    assert "reason=gateway_error" in provider_log
+    assert "result_code=20" in provider_log
+    assert "secret-must-not-be-logged" not in provider_log
 
 
 def test_daily_budget_blocks_additional_upstream_calls(monkeypatch):

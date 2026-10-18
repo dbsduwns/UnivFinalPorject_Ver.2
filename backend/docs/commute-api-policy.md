@@ -61,6 +61,14 @@
 
 현재 방향 판정은 `출발 정류장 순번 < 도착 정류장 순번`을 사용한다. Google의 `headsign`은 진단 로그에는 기록되지만 아직 매칭 조건으로 사용하지 않는다.
 
+외부 제공기관 호출 자체가 실패하면 `Transit provider failed` 로그의 `reason`, `http_status`, `result_code`를 확인한다. 로그에는 요청 URL, 인증키, 좌표 및 원문 예외를 넣지 않는다.
+
+- `gateway_error`: 공공데이터포털 게이트웨이의 인증·권한·한도 오류. `result_code` 확인
+- `provider_result_error`: 기관 API가 정상 HTTP 응답 안에 실패 코드를 반환함
+- `http_error`: HTTP 오류. `http_status` 확인
+- `timeout`, `network_error`: 연결 또는 응답 시간 문제
+- `invalid_payload`, `xml_parse_error`, `response_parse_error`: 예상 응답 형식과 다름
+
 ## 검증
 
 외부 API 과금을 발생시키지 않는 모의 응답 테스트:
