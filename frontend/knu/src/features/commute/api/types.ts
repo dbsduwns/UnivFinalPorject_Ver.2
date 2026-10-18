@@ -12,6 +12,12 @@ export type RouteCategory =
   | "fastest"
   | "least_walking"
   | "fewest_transfers";
+export type RealtimeRouteStatus =
+  | "catchable"
+  | "next_bus"
+  | "late"
+  | "not_applicable"
+  | "no_realtime_data";
 
 export type CommuteProfile = {
   id: number;
@@ -91,7 +97,12 @@ export type RouteSummary = {
   buffer_minutes: number | null;
   boarding_stop_name: string | null;
   bus_arrival_minutes: number | null;
+  next_bus_arrival_minutes: number | null;
+  selected_bus_arrival_minutes: number | null;
   bus_remaining_stops: number | null;
+  realtime_status: RealtimeRouteStatus | null;
+  additional_wait_minutes: number;
+  adjusted_arrival_time: string | null;
   shuttle_departure_time: string | null;
   shuttle_arrival_time: string | null;
   is_recommended: boolean;
@@ -129,7 +140,16 @@ export type RouteStep = {
   tago_city_code: string | null;
   tago_route_id: string | null;
   tago_boarding_stop_id: string | null;
+  next_vehicle_arrival_minutes: number | null;
   route_path: RouteCoordinate[];
+};
+
+export type RouteStop = {
+  stop_order: number;
+  stop_id: string;
+  stop_name: string;
+  latitude: number | null;
+  longitude: number | null;
 };
 
 export type LiveBusPosition = {
@@ -148,4 +168,5 @@ export type LiveBusPositions = {
   cached_at: string;
   cache_ttl_seconds: number;
   vehicles: LiveBusPosition[];
+  route_stops: RouteStop[];
 };

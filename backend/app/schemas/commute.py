@@ -20,6 +20,13 @@ RouteCategory = Literal[
     "least_walking",
     "fewest_transfers",
 ]
+RealtimeRouteStatus = Literal[
+    "catchable",
+    "next_bus",
+    "late",
+    "not_applicable",
+    "no_realtime_data",
+]
 
 
 class CommuteProfileCreate(BaseModel):
@@ -108,7 +115,16 @@ class RouteStepResponse(BaseModel):
     tago_city_code: str | None = None
     tago_route_id: str | None = None
     tago_boarding_stop_id: str | None = None
+    next_vehicle_arrival_minutes: int | None = Field(default=None, ge=0)
     route_path: list[RouteCoordinateResponse] = Field(default_factory=list)
+
+
+class RouteStopResponse(BaseModel):
+    stop_order: int = Field(ge=0)
+    stop_id: str
+    stop_name: str
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
 
 
 class LiveBusPositionResponse(BaseModel):
@@ -127,6 +143,7 @@ class LiveBusPositionsResponse(BaseModel):
     cached_at: datetime
     cache_ttl_seconds: int = Field(default=15, ge=1)
     vehicles: list[LiveBusPositionResponse] = Field(default_factory=list)
+    route_stops: list[RouteStopResponse] = Field(default_factory=list)
 
 
 class RouteSummaryResponse(BaseModel):
@@ -141,7 +158,12 @@ class RouteSummaryResponse(BaseModel):
     buffer_minutes: int | None = Field(default=None, ge=0)
     boarding_stop_name: str | None = None
     bus_arrival_minutes: int | None = Field(default=None, ge=0)
+    next_bus_arrival_minutes: int | None = Field(default=None, ge=0)
+    selected_bus_arrival_minutes: int | None = Field(default=None, ge=0)
     bus_remaining_stops: int | None = Field(default=None, ge=0)
+    realtime_status: RealtimeRouteStatus | None = None
+    additional_wait_minutes: int = Field(default=0, ge=0)
+    adjusted_arrival_time: time | None = None
     shuttle_departure_time: time | None = None
     shuttle_arrival_time: time | None = None
     is_recommended: bool = False

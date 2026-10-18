@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
@@ -186,6 +186,12 @@ def test_get_transit_route_adds_matching_tago_arrival(monkeypatch):
                         "arrtime": "481",
                         "arrprevstationcnt": "4",
                     },
+                    {
+                        "routeid": "GGB_5000",
+                        "routeno": "5000",
+                        "arrtime": "900",
+                        "arrprevstationcnt": "7",
+                    },
                 ]
             )
         )
@@ -222,6 +228,7 @@ def test_get_transit_route_adds_matching_tago_arrival(monkeypatch):
     assert result.transfer_count == 0
     assert result.boarding_stop_name == "기흥역"
     assert result.bus_arrival_minutes == 9
+    assert result.next_bus_arrival_minutes == 15
     assert result.bus_remaining_stops == 4
     assert "5000번 버스" in result.recommendation_reason
     assert result.route_path[0].latitude == 37.2
@@ -234,20 +241,112 @@ def test_get_transit_route_adds_matching_tago_arrival(monkeypatch):
     assert result.route_steps[1].tago_city_code == "31190"
     assert result.route_steps[1].tago_route_id == "GGB_5000"
     assert result.route_steps[1].tago_boarding_stop_id == "GGB123"
+    assert result.route_steps[1].next_vehicle_arrival_minutes == 9
     assert result.route_steps[1].route_path[-1].longitude == 127.19
+
+
+def test_realtime_feasibility_selects_next_bus_when_slack_is_enough():
+    route = commute.RouteSummaryResponse(
+        transport_type="bus",
+        departure_time=time(8, 0),
+        arrival_time=time(8, 50),
+        duration_minutes=50,
+        bus_arrival_minutes=3,
+        next_bus_arrival_minutes=12,
+        route_steps=[
+            {
+                "travel_mode": "WALK",
+                "duration_minutes": 5,
+            },
+            {
+                "travel_mode": "TRANSIT",
+                "duration_minutes": 35,
+                "vehicle_type": "BUS",
+            },
+        ],
+    )
+
+    result = commute._apply_realtime_bus_feasibility(
+        route=route,
+        now=datetime(2026, 10, 19, 8, 0, tzinfo=ZoneInfo("Asia/Seoul")),
+        class_start=datetime(
+            2026, 10, 19, 9, 0, tzinfo=ZoneInfo("Asia/Seoul")
+        ),
+    )
+
+    assert result.realtime_status == "next_bus"
+    assert result.selected_bus_arrival_minutes == 12
+    assert result.additional_wait_minutes == 7
+    assert result.arrival_time == time(8, 57)
+    assert result.route_steps[1].next_vehicle_arrival_minutes == 12
+
+
+def test_realtime_feasibility_marks_route_late_when_slack_is_short():
+    route = commute.RouteSummaryResponse(
+        transport_type="bus",
+        departure_time=time(8, 0),
+        arrival_time=time(8, 50),
+        duration_minutes=50,
+        bus_arrival_minutes=3,
+        next_bus_arrival_minutes=20,
+        route_steps=[
+            {
+                "travel_mode": "WALK",
+                "duration_minutes": 5,
+            },
+            {
+                "travel_mode": "TRANSIT",
+                "duration_minutes": 35,
+                "vehicle_type": "BUS",
+            },
+        ],
+    )
+
+    result = commute._apply_realtime_bus_feasibility(
+        route=route,
+        now=datetime(2026, 10, 19, 8, 0, tzinfo=ZoneInfo("Asia/Seoul")),
+        class_start=datetime(
+            2026, 10, 19, 9, 0, tzinfo=ZoneInfo("Asia/Seoul")
+        ),
+    )
+
+    assert result.realtime_status == "late"
+    assert result.additional_wait_minutes == 15
 
 
 def test_get_live_bus_positions_uses_fifteen_second_cache(monkeypatch):
     monkeypatch.setattr(commute, "PUBLIC_API_KEY", "public-key")
     commute._tago_bus_location_cache.clear()
+    commute._tago_route_stops_cache.clear()
     request_count = 0
 
     def fake_get(url, **kwargs):
         nonlocal request_count
         request_count += 1
-        assert url == commute.TAGO_BUS_LOCATION_API_URL
         assert kwargs["params"]["cityCode"] == "31190"
         assert kwargs["params"]["routeId"] == "GGB_5000"
+        if url == commute.TAGO_ROUTE_STOPS_API_URL:
+            return FakeResponse(
+                tago_response(
+                    [
+                        {
+                            "nodeord": "12",
+                            "nodeid": "GGB456",
+                            "nodenm": "구갈역",
+                            "gpslati": "37.2701",
+                            "gpslong": "127.1201",
+                        },
+                        {
+                            "nodeord": "13",
+                            "nodeid": "GGB789",
+                            "nodenm": "강남대역",
+                            "gpslati": "37.2711",
+                            "gpslong": "127.1211",
+                        },
+                    ]
+                )
+            )
+        assert url == commute.TAGO_BUS_LOCATION_API_URL
         return FakeResponse(
             tago_response(
                 [
@@ -269,11 +368,15 @@ def test_get_live_bus_positions_uses_fifteen_second_cache(monkeypatch):
     first = commute.get_live_bus_positions("31190", "GGB_5000")
     second = commute.get_live_bus_positions("31190", "GGB_5000")
 
-    assert request_count == 1
+    assert request_count == 2
     assert first.cached_at == second.cached_at
     assert first.cache_ttl_seconds == 15
     assert first.vehicles[0].vehicle_number == "경기70아1234"
     assert first.vehicles[0].current_stop_order == 12
+    assert [stop.stop_name for stop in first.route_stops] == [
+        "구갈역",
+        "강남대역",
+    ]
 
 
 def test_get_today_commute_returns_campus_travel_time_without_class(monkeypatch):

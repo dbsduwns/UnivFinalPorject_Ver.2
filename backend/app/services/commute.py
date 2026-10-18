@@ -36,6 +36,7 @@ from app.schemas.commute import (
     FirstClassResponse,
     LiveBusPositionResponse,
     LiveBusPositionsResponse,
+    RouteStopResponse,
     RouteSummaryResponse,
 )
 from app.services import timetable as timetable_services
@@ -95,12 +96,22 @@ TAGO_BUS_LOCATION_API_URL = (
     "https://apis.data.go.kr/1613000/BusLcInfoInqireService/"
     "getRouteAcctoBusLcList"
 )
+TAGO_ROUTE_STOPS_API_URL = (
+    "https://apis.data.go.kr/1613000/BusRouteInfoInqireService/"
+    "getRouteAcctoThrghSttnList"
+)
 TAGO_STOP_MATCH_MAX_DISTANCE_METERS = 150
 TAGO_BUS_LOCATION_CACHE_TTL_SECONDS = 15
+TAGO_ROUTE_STOPS_CACHE_TTL_SECONDS = 6 * 60 * 60
+REALTIME_BOARDING_BUFFER_MINUTES = 2
+REALTIME_ROUTE_HORIZON_MINUTES = 60
 _tago_bus_location_cache: dict[
     tuple[str, str], tuple[float, LiveBusPositionsResponse]
 ] = {}
 _tago_bus_location_cache_lock = Lock()
+_tago_route_stops_cache: dict[
+    tuple[str, str], tuple[float, list[RouteStopResponse]]
+] = {}
 
 
 GOOGLE_MAPS_SERVER_API_KEY = (
@@ -442,6 +453,21 @@ def get_today_commute(db: Session, user: User) -> CommuteTodayResponse:
             for route in routes
         ]
 
+    if first_class is not None:
+        class_start = datetime.combine(
+            now.date(),
+            first_class.start_time,
+            tzinfo=timezone_info,
+        )
+        routes = [
+            _apply_realtime_bus_feasibility(
+                route=route,
+                now=now,
+                class_start=class_start,
+            )
+            for route in routes
+        ]
+
     route, alternatives = _select_route_options(routes)
 
     return CommuteTodayResponse(
@@ -460,14 +486,17 @@ def _select_route_options(
     routes: list[RouteSummaryResponse],
 ) -> tuple[RouteSummaryResponse, list[RouteSummaryResponse]]:
     """Google 후보 경로를 사용자 선택 기준 네 가지로 구성한다."""
-    google_recommended = routes[0].model_copy(
+    selectable_routes = [
+        route for route in routes if route.realtime_status != "late"
+    ] or routes
+    google_recommended = selectable_routes[0].model_copy(
         update={
             "route_category": "google_recommended",
             "is_recommended": True,
         }
     )
     fastest = min(
-        routes,
+        selectable_routes,
         key=lambda route: (
             route.duration_minutes,
             route.transfer_count,
@@ -475,7 +504,7 @@ def _select_route_options(
         ),
     ).model_copy(update={"route_category": "fastest", "is_recommended": False})
     least_walking = min(
-        routes,
+        selectable_routes,
         key=lambda route: (
             route.walking_minutes,
             route.duration_minutes,
@@ -485,7 +514,7 @@ def _select_route_options(
         update={"route_category": "least_walking", "is_recommended": False}
     )
     fewest_transfers = min(
-        routes,
+        selectable_routes,
         key=lambda route: (
             route.transfer_count,
             route.duration_minutes,
@@ -496,6 +525,117 @@ def _select_route_options(
     )
 
     return google_recommended, [fastest, least_walking, fewest_transfers]
+
+
+def _apply_realtime_bus_feasibility(
+    route: RouteSummaryResponse,
+    now: datetime,
+    class_start: datetime,
+) -> RouteSummaryResponse:
+    """현재/다음 버스 탑승 가능성과 수업 전 도착 여유를 경로에 반영한다."""
+    if route.bus_arrival_minutes is None:
+        return route.model_copy(update={"realtime_status": "no_realtime_data"})
+    if route.departure_time is None or route.arrival_time is None:
+        return route.model_copy(update={"realtime_status": "no_realtime_data"})
+
+    departure_at = datetime.combine(
+        now.date(), route.departure_time, tzinfo=now.tzinfo
+    )
+    arrival_at = datetime.combine(
+        now.date(), route.arrival_time, tzinfo=now.tzinfo
+    )
+    minutes_until_departure = max(
+        0,
+        math.ceil((departure_at - now).total_seconds() / 60),
+    )
+    if minutes_until_departure > REALTIME_ROUTE_HORIZON_MINUTES:
+        return route.model_copy(
+            update={
+                "realtime_status": "not_applicable",
+                "adjusted_arrival_time": route.arrival_time,
+            }
+        )
+
+    minutes_before_first_bus = 0
+    for step in route.route_steps:
+        if step.travel_mode == "TRANSIT":
+            break
+        minutes_before_first_bus += step.duration_minutes
+
+    planned_boarding_in = minutes_until_departure + minutes_before_first_bus
+    ready_to_board_in = (
+        planned_boarding_in + REALTIME_BOARDING_BUFFER_MINUTES
+    )
+    arrival_slack = max(
+        0,
+        math.floor((class_start - arrival_at).total_seconds() / 60),
+    )
+
+    current_bus_is_catchable = (
+        route.bus_arrival_minutes >= ready_to_board_in
+    )
+    selected_arrival = route.bus_arrival_minutes
+    realtime_status = "catchable"
+
+    if not current_bus_is_catchable:
+        selected_arrival = route.next_bus_arrival_minutes
+        realtime_status = "next_bus"
+
+    if selected_arrival is None or selected_arrival < ready_to_board_in:
+        return route.model_copy(
+            update={
+                "realtime_status": "late",
+                "recommendation_reason": (
+                    "탑승 가능한 다음 버스 정보를 찾지 못했습니다."
+                ),
+            }
+        )
+
+    additional_wait = max(0, selected_arrival - planned_boarding_in)
+    adjusted_arrival_at = arrival_at + timedelta(minutes=additional_wait)
+    adjusted_route_steps = list(route.route_steps)
+    for step_index, step in enumerate(adjusted_route_steps):
+        if (
+            step.travel_mode == "TRANSIT"
+            and "BUS" in (step.vehicle_type or "")
+        ):
+            adjusted_route_steps[step_index] = step.model_copy(
+                update={"next_vehicle_arrival_minutes": selected_arrival}
+            )
+            break
+
+    if additional_wait > arrival_slack:
+        return route.model_copy(
+            update={
+                "realtime_status": "late",
+                "selected_bus_arrival_minutes": selected_arrival,
+                "additional_wait_minutes": additional_wait,
+                "adjusted_arrival_time": adjusted_arrival_at.time(),
+                "duration_minutes": route.duration_minutes + additional_wait,
+                "route_steps": adjusted_route_steps,
+                "recommendation_reason": (
+                    "다음 버스를 이용하면 첫 수업 도착 여유가 부족합니다."
+                ),
+            }
+        )
+
+    reason = (
+        f"다음 버스 약 {selected_arrival}분 후 · 수업 전 도착 가능"
+        if realtime_status == "next_bus"
+        else f"현재 버스 약 {selected_arrival}분 후 · 탑승 가능"
+    )
+    return route.model_copy(
+        update={
+            "realtime_status": realtime_status,
+            "selected_bus_arrival_minutes": selected_arrival,
+            "additional_wait_minutes": additional_wait,
+            "adjusted_arrival_time": adjusted_arrival_at.time(),
+            "arrival_time": adjusted_arrival_at.time(),
+            "duration_minutes": route.duration_minutes + additional_wait,
+            "route_steps": adjusted_route_steps,
+            "recommendation_reason": reason,
+        }
+    )
 
 
 def _build_shuttle_commute_response(
@@ -910,7 +1050,81 @@ def _get_tago_bus_arrival(
 
     if not matching_arrivals:
         return None
-    return min(matching_arrivals, key=lambda item: item["arrival_seconds"])
+    matching_arrivals.sort(key=lambda item: item["arrival_seconds"])
+    selected = dict(matching_arrivals[0])
+    if len(matching_arrivals) > 1:
+        selected["next_arrival_minutes"] = matching_arrivals[1][
+            "arrival_minutes"
+        ]
+    else:
+        selected["next_arrival_minutes"] = None
+    return selected
+
+
+def _get_tago_route_stops(
+    city_code: str,
+    route_id: str,
+) -> list[RouteStopResponse]:
+    cache_key = (city_code, route_id)
+    current_monotonic = monotonic()
+    with _tago_bus_location_cache_lock:
+        cached = _tago_route_stops_cache.get(cache_key)
+        if cached and cached[0] > current_monotonic:
+            return cached[1]
+
+    try:
+        response = requests.get(
+            TAGO_ROUTE_STOPS_API_URL,
+            params=_tago_request_params(
+                cityCode=city_code,
+                routeId=route_id,
+                numOfRows=300,
+                pageNo=1,
+            ),
+            headers={"Accept": "application/json"},
+            timeout=8,
+        )
+        response.raise_for_status()
+        stop_items = _get_tago_items(response.json())
+    except (requests.RequestException, ValueError, TypeError) as exc:
+        raise TransitRouteError("TAGO 경유 정류장 조회에 실패했습니다.") from exc
+
+    route_stops: list[RouteStopResponse] = []
+    for item in stop_items:
+        try:
+            stop_order = int(item["nodeord"])
+        except (KeyError, TypeError, ValueError):
+            continue
+
+        stop_id = str(item.get("nodeid") or "").strip()
+        stop_name = str(item.get("nodenm") or "").strip()
+        if not stop_id or not stop_name:
+            continue
+
+        try:
+            latitude = float(item["gpslati"])
+            longitude = float(item["gpslong"])
+        except (KeyError, TypeError, ValueError):
+            latitude = None
+            longitude = None
+
+        route_stops.append(
+            RouteStopResponse(
+                stop_order=stop_order,
+                stop_id=stop_id,
+                stop_name=stop_name,
+                latitude=latitude,
+                longitude=longitude,
+            )
+        )
+
+    route_stops.sort(key=lambda stop: stop.stop_order)
+    with _tago_bus_location_cache_lock:
+        _tago_route_stops_cache[cache_key] = (
+            current_monotonic + TAGO_ROUTE_STOPS_CACHE_TTL_SECONDS,
+            route_stops,
+        )
+    return route_stops
 
 
 def get_live_bus_positions(
@@ -974,12 +1188,15 @@ def get_live_bus_positions(
             )
         )
 
+    route_stops = _get_tago_route_stops(city_code, route_id)
+
     result = LiveBusPositionsResponse(
         city_code=city_code,
         route_id=route_id,
         cached_at=datetime.now(timezone.utc),
         cache_ttl_seconds=TAGO_BUS_LOCATION_CACHE_TTL_SECONDS,
         vehicles=vehicles,
+        route_stops=route_stops,
     )
     with _tago_bus_location_cache_lock:
         expired_keys = [
@@ -1140,54 +1357,66 @@ def _parse_google_transit_route(route: dict) -> RouteSummaryResponse:
 
     boarding_stop_name = None
     bus_arrival_minutes = None
+    next_bus_arrival_minutes = None
     bus_remaining_stops = None
     recommendation_reason = "Google Maps 추천 경로"
-    first_bus_live_context: dict[str, str] = {}
+    transit_live_contexts: dict[int, dict[str, object]] = {}
 
-    if transit_steps:
-        first_transit_details = transit_steps[0].get("transitDetails", {})
-        first_transit_line = first_transit_details.get("transitLine", {})
+    # 환승 경로에서도 각 버스 구간별 탑승 정류장과 다음 차량 한 대를 보강한다.
+    for transit_step in transit_steps:
+        transit_details = transit_step.get("transitDetails", {})
+        transit_line = transit_details.get("transitLine", {})
+        vehicle_type = str(
+            transit_line.get("vehicle", {}).get("type") or ""
+        )
+        if "BUS" not in vehicle_type:
+            continue
+
         departure_stop = (
-            first_transit_details.get("stopDetails", {}).get("departureStop", {})
+            transit_details.get("stopDetails", {}).get("departureStop", {})
         )
-        boarding_stop_name = departure_stop.get("name")
+        departure_stop_name = departure_stop.get("name")
+        stop_location = departure_stop.get("location", {}).get("latLng", {})
+        try:
+            tago_stop = resolve_tago_stop(
+                latitude=float(stop_location["latitude"]),
+                longitude=float(stop_location["longitude"]),
+                stop_name=departure_stop_name,
+            )
+            if not tago_stop:
+                continue
 
-        first_vehicle_type = str(
-            first_transit_line.get("vehicle", {}).get("type") or ""
-        )
-        if "BUS" in first_vehicle_type:
-            stop_location = departure_stop.get("location", {}).get("latLng", {})
-            try:
-                tago_stop = resolve_tago_stop(
-                    latitude=float(stop_location["latitude"]),
-                    longitude=float(stop_location["longitude"]),
-                    stop_name=boarding_stop_name,
+            arrival = _get_tago_bus_arrival(
+                city_code=tago_stop["city_code"],
+                node_id=tago_stop["node_id"],
+                route_name=(
+                    transit_line.get("nameShort") or transit_line.get("name")
+                ),
+            )
+            if not arrival:
+                continue
+
+            transit_live_contexts[id(transit_step)] = {
+                "tago_city_code": tago_stop["city_code"],
+                "tago_route_id": arrival["route_id"],
+                "tago_boarding_stop_id": tago_stop["node_id"],
+                "next_vehicle_arrival_minutes": arrival["arrival_minutes"],
+            }
+
+            # 기존 등교 가능성 계산은 경로에서 처음 탑승하는 버스를 기준으로 한다.
+            if bus_arrival_minutes is None:
+                boarding_stop_name = departure_stop_name
+                bus_arrival_minutes = arrival["arrival_minutes"]
+                next_bus_arrival_minutes = arrival["next_arrival_minutes"]
+                bus_remaining_stops = arrival["remaining_stops"]
+                recommendation_reason = (
+                    "Google Maps 추천 경로 · "
+                    f"{arrival['route_number']}번 버스 "
+                    f"약 {bus_arrival_minutes}분 후 도착"
                 )
-                if tago_stop:
-                    arrival = _get_tago_bus_arrival(
-                        city_code=tago_stop["city_code"],
-                        node_id=tago_stop["node_id"],
-                        route_name=(
-                            first_transit_line.get("nameShort")
-                            or first_transit_line.get("name")
-                        ),
-                    )
-                    if arrival:
-                        bus_arrival_minutes = arrival["arrival_minutes"]
-                        bus_remaining_stops = arrival["remaining_stops"]
-                        first_bus_live_context = {
-                            "tago_city_code": tago_stop["city_code"],
-                            "tago_route_id": arrival["route_id"],
-                            "tago_boarding_stop_id": tago_stop["node_id"],
-                        }
-                        recommendation_reason = (
-                            "Google Maps 추천 경로 · "
-                            f"{arrival['route_number']}번 버스 "
-                            f"약 {bus_arrival_minutes}분 후 도착"
-                        )
-            except (TransitRouteError, KeyError, TypeError, ValueError):
-                # TAGO 보강 정보가 실패해도 Google 경로 자체는 반환한다.
-                logger.info("TAGO 버스 도착정보 보강에 실패했습니다.", exc_info=True)
+        except (TransitRouteError, KeyError, TypeError, ValueError):
+            # TAGO 보강 정보가 실패해도 Google 경로 자체는 반환한다.
+            logger.info("TAGO 버스 도착정보 보강에 실패했습니다.", exc_info=True)
 
     duration_minutes = max(
         1,
@@ -1223,11 +1452,7 @@ def _parse_google_transit_route(route: dict) -> RouteSummaryResponse:
         transit_details = step.get("transitDetails", {})
         transit_line = transit_details.get("transitLine", {})
         stop_details = transit_details.get("stopDetails", {})
-        live_context = (
-            first_bus_live_context
-            if transit_steps and step is transit_steps[0]
-            else {}
-        )
+        live_context = transit_live_contexts.get(id(step), {})
 
         route_steps.append(
             {
@@ -1271,6 +1496,7 @@ def _parse_google_transit_route(route: dict) -> RouteSummaryResponse:
         route_steps=route_steps,
         boarding_stop_name=boarding_stop_name,
         bus_arrival_minutes=bus_arrival_minutes,
+        next_bus_arrival_minutes=next_bus_arrival_minutes,
         bus_remaining_stops=bus_remaining_stops,
         is_recommended=True,
         recommendation_reason=recommendation_reason,

@@ -85,8 +85,12 @@ function getCardCopy(commute: CommuteToday | undefined) {
 
 function getSecondaryInfo(route: RouteSummary | null | undefined) {
   if (!route) return "대중교통 추천";
-  if (route.bus_arrival_minutes !== null) {
-    return `버스 ${route.bus_arrival_minutes}분 후`;
+  const selectedBusArrival =
+    route.selected_bus_arrival_minutes ?? route.bus_arrival_minutes;
+  if (selectedBusArrival !== null) {
+    return route.realtime_status === "next_bus"
+      ? `다음 버스 ${selectedBusArrival}분 후`
+      : `버스 ${selectedBusArrival}분 후`;
   }
   const shuttleTime = formatTime(route.shuttle_departure_time);
   if (shuttleTime) return `셔틀 ${shuttleTime}`;

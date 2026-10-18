@@ -18,6 +18,7 @@ import { useIsFocused } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bus,
+  ChevronDown,
   ChevronLeft,
   ChevronUp,
   Footprints,
@@ -34,6 +35,7 @@ import {
 import type {
   LiveBusPosition,
   RouteCoordinate,
+  RouteStop,
   RouteStep,
 } from "@/features/commute/api/types";
 
@@ -268,70 +270,212 @@ function buildDashedRouteSegments(
   return segments;
 }
 
-function getRouteProgress(
-  routePath: RouteCoordinate[],
-  position: RouteCoordinate,
-) {
-  if (routePath.length < 2) return 0;
-
-  const segmentLengths = routePath.slice(1).map((coordinate, index) =>
-    getCoordinateDistance(routePath[index], coordinate),
-  );
-  const totalDistance = segmentLengths.reduce((sum, length) => sum + length, 0);
-  if (totalDistance <= 0) return 0;
-
-  const longitudeScale = Math.cos((position.latitude * Math.PI) / 180);
-  let traversedDistance = 0;
-  let nearestDistance = Number.POSITIVE_INFINITY;
-  let nearestProgress = 0;
-
-  for (let index = 0; index < routePath.length - 1; index += 1) {
-    const start = routePath[index];
-    const end = routePath[index + 1];
-    const startX = start.longitude * longitudeScale;
-    const startY = start.latitude;
-    const endX = end.longitude * longitudeScale;
-    const endY = end.latitude;
-    const positionX = position.longitude * longitudeScale;
-    const positionY = position.latitude;
-    const deltaX = endX - startX;
-    const deltaY = endY - startY;
-    const lengthSquared = deltaX ** 2 + deltaY ** 2;
-    const ratio = lengthSquared > 0
-      ? Math.max(
-          0,
-          Math.min(
-            1,
-            ((positionX - startX) * deltaX +
-              (positionY - startY) * deltaY) /
-              lengthSquared,
-          ),
-        )
-      : 0;
-    const projected = interpolateCoordinate(start, end, ratio);
-    const distance = getCoordinateDistance(position, projected);
-
-    if (distance < nearestDistance) {
-      nearestDistance = distance;
-      nearestProgress =
-        (traversedDistance + segmentLengths[index] * ratio) / totalDistance;
-    }
-    traversedDistance += segmentLengths[index];
-  }
-
-  return Math.max(0, Math.min(1, nearestProgress));
+function normalizeStopName(name: string | null | undefined) {
+  return (name ?? "").replace(/\s|\([^)]*\)/g, "").toLowerCase();
 }
 
-function selectClosestBus(
+function findTransitStopRange(stops: RouteStop[], step: RouteStep) {
+  const orderedStops = [...stops].sort(
+    (first, second) => first.stop_order - second.stop_order,
+  );
+  const departureName = normalizeStopName(step.departure_stop_name);
+  const arrivalName = normalizeStopName(step.arrival_stop_name);
+  const startIndex = orderedStops.findIndex((stop) =>
+    stop.stop_id === step.tago_boarding_stop_id ||
+    normalizeStopName(stop.stop_name) === departureName,
+  );
+  if (startIndex < 0) return [];
+
+  const relativeEndIndex = orderedStops.slice(startIndex + 1).findIndex(
+    (stop) => normalizeStopName(stop.stop_name) === arrivalName,
+  );
+  if (relativeEndIndex < 0) return [];
+  return orderedStops.slice(startIndex, startIndex + relativeEndIndex + 2);
+}
+
+function selectApproachingBus(
   vehicles: LiveBusPosition[],
-  boardingCoordinate: RouteCoordinate | undefined,
+  boardingOrder: number | undefined,
+  preferredIndex: number,
 ) {
-  if (!boardingCoordinate || vehicles.length === 0) return null;
-  return vehicles.reduce((closest, vehicle) => {
-    const distance = getCoordinateDistance(boardingCoordinate, vehicle);
-    const closestDistance = getCoordinateDistance(boardingCoordinate, closest);
-    return distance < closestDistance ? vehicle : closest;
+  if (boardingOrder === undefined) return null;
+  const approaching = vehicles
+    .filter((vehicle) =>
+      vehicle.current_stop_order !== null &&
+      vehicle.current_stop_order <= boardingOrder,
+    )
+    .sort(
+      (first, second) =>
+        (second.current_stop_order ?? 0) - (first.current_stop_order ?? 0),
+    );
+  if (approaching.length > 0) {
+    return approaching[Math.min(preferredIndex, approaching.length - 1)];
+  }
+
+  const nearest = vehicles
+    .filter((vehicle) => vehicle.current_stop_order !== null)
+    .sort(
+      (first, second) =>
+        Math.abs((first.current_stop_order ?? 0) - boardingOrder) -
+        Math.abs((second.current_stop_order ?? 0) - boardingOrder),
+    );
+  return nearest[0] ?? null;
+}
+
+function TransitStopAccordion({
+  step,
+  color,
+  pollingEnabled,
+  preferredVehicleIndex,
+}: {
+  step: RouteStep;
+  color: string;
+  pollingEnabled: boolean;
+  preferredVehicleIndex: number;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const canLoadRealtime = Boolean(step.tago_city_code && step.tago_route_id);
+  const { data, isFetching } = useQuery({
+    queryKey: [
+      "commute",
+      "live-buses",
+      step.tago_city_code,
+      step.tago_route_id,
+    ],
+    queryFn: () => {
+      if (!step.tago_city_code || !step.tago_route_id) {
+        throw new Error("실시간 버스 조회에 필요한 노선 정보가 없습니다.");
+      }
+      return getLiveBusPositions(step.tago_city_code, step.tago_route_id);
+    },
+    enabled: pollingEnabled && canLoadRealtime,
+    staleTime: 15_000,
+    refetchInterval: pollingEnabled && canLoadRealtime ? 15_000 : false,
+    refetchIntervalInBackground: false,
+    retry: false,
   });
+  const segmentStops = useMemo(
+    () => findTransitStopRange(data?.route_stops ?? [], step),
+    [data?.route_stops, step],
+  );
+  const boardingOrder = segmentStops[0]?.stop_order;
+  const liveBus = useMemo(
+    () => selectApproachingBus(
+      data?.vehicles ?? [],
+      boardingOrder,
+      preferredVehicleIndex,
+    ),
+    [boardingOrder, data?.vehicles, preferredVehicleIndex],
+  );
+  const visibleStops = useMemo(() => {
+    if (!liveBus || liveBus.current_stop_order === null || segmentStops.length === 0) {
+      return segmentStops;
+    }
+    const allStops = data?.route_stops ?? [];
+    const vehicleIndex = allStops.findIndex(
+      (stop) => stop.stop_order === liveBus.current_stop_order,
+    );
+    const arrivalOrder = segmentStops[segmentStops.length - 1].stop_order;
+    if (vehicleIndex < 0 || liveBus.current_stop_order >= boardingOrder) {
+      return segmentStops;
+    }
+    return allStops
+      .slice(vehicleIndex)
+      .filter((stop) => stop.stop_order <= arrivalOrder);
+  }, [boardingOrder, data?.route_stops, liveBus, segmentStops]);
+
+  const arrivalMinutes = step.next_vehicle_arrival_minutes;
+  return (
+    <View style={styles.transitStopCard}>
+      <View style={styles.transitStopHeader}>
+        <View style={styles.transitStopTitleWrap}>
+          <Text style={styles.transitStopTitle}>
+            {step.departure_stop_name ?? "탑승 정류장"}
+          </Text>
+          <Text style={[styles.transitLineName, { color }]}>
+            {step.transit_line_name ?? "대중교통"}
+          </Text>
+        </View>
+        <View style={[styles.nextVehicleBadge, { backgroundColor: `${color}18` }]}>
+          <Text style={[styles.nextVehicleText, { color }]}>
+            {arrivalMinutes === null
+              ? "도착 정보 없음"
+              : arrivalMinutes === 0
+                ? "곧 도착"
+                : `${arrivalMinutes}분 후`}
+          </Text>
+        </View>
+      </View>
+
+      <TouchableOpacity
+        style={styles.stopExpandButton}
+        activeOpacity={0.7}
+        onPress={() => setExpanded((value) => !value)}
+      >
+        <Text style={styles.stopExpandText}>
+          {segmentStops.length > 0
+            ? `${Math.max(0, segmentStops.length - 1)}개 정류장`
+            : isFetching
+              ? "정류장 확인 중"
+              : "정류장 정보 없음"}
+        </Text>
+        <ChevronDown
+          size={18}
+          color="#475569"
+          style={{ transform: [{ rotate: expanded ? "180deg" : "0deg" }] }}
+        />
+      </TouchableOpacity>
+
+      {expanded && (
+        <View style={styles.stopList}>
+          {visibleStops.map((stop) => {
+            const isBoarding = stop.stop_order === boardingOrder;
+            const isArrival =
+              stop.stop_order === segmentStops[segmentStops.length - 1]?.stop_order;
+            const hasLiveBus = stop.stop_order === liveBus?.current_stop_order;
+            const isBeforeBoarding =
+              boardingOrder !== undefined && stop.stop_order < boardingOrder;
+            return (
+              <View key={`${stop.stop_id}-${stop.stop_order}`} style={styles.stopRow}>
+                <View style={styles.stopRail}>
+                  <View style={[
+                    styles.stopDot,
+                    { borderColor: color },
+                    (isBoarding || isArrival) && { backgroundColor: color },
+                  ]} />
+                  {!isArrival && <View style={[styles.stopLine, { backgroundColor: color }]} />}
+                </View>
+                <View style={styles.stopNameWrap}>
+                  <Text style={[
+                    styles.stopName,
+                    (isBoarding || isArrival) && styles.stopNameEmphasis,
+                    isBeforeBoarding && styles.stopNameApproaching,
+                  ]}>
+                    {stop.stop_name}
+                  </Text>
+                  {isBoarding && <Text style={styles.stopCaption}>탑승</Text>}
+                  {isArrival && <Text style={styles.stopCaption}>하차</Text>}
+                </View>
+                {hasLiveBus && (
+                  <View style={[styles.vehiclePositionBadge, { borderColor: color }]}>
+                    <Bus size={12} color={color} />
+                    <Text style={[styles.vehiclePositionText, { color }]}>실시간 차량</Text>
+                  </View>
+                )}
+              </View>
+            );
+          })}
+          {visibleStops.length === 0 && (
+            <Text style={styles.stopEmptyText}>
+              {canLoadRealtime
+                ? "경유 정류장 정보를 불러오지 못했습니다."
+                : "이 구간은 실시간 정류장 정보를 지원하지 않습니다."}
+            </Text>
+          )}
+        </View>
+      )}
+    </View>
+  );
 }
 
 // 전체 경로의 경계와 화면 크기를 이용해 중앙 좌표와 줌을 계산한다.
@@ -393,7 +537,6 @@ export default function CampusMapScreen() {
   const [isDetailView, setIsDetailView] = useState(false);
   const [routeFocusRequest, setRouteFocusRequest] = useState(0);
   const mapRef = useRef<GoogleMaps.MapView>(null);
-  const liveBusProgressAnimation = useRef(new Animated.Value(0)).current;
   const sheetTranslateY = useRef(new Animated.Value(SHEET_HALF_Y)).current;
   const sheetPositionRef = useRef(SHEET_HALF_Y);
   const dragStartRef = useRef(SHEET_HALF_Y);
@@ -485,69 +628,6 @@ export default function CampusMapScreen() {
     ),
     [commute?.destination?.destination_name, routeSteps],
   );
-  const liveBusStep = useMemo(
-    () => routeSteps
-      .map((step, stepIndex) => ({ step, stepIndex }))
-      .find(({ step }) =>
-        step.travel_mode === "TRANSIT" &&
-        Boolean(step.tago_city_code && step.tago_route_id),
-      ) ?? null,
-    [routeSteps],
-  );
-  const liveBusPollingEnabled = Boolean(
-    isFocused &&
-    mapMode === "commute" &&
-    isDetailView &&
-    liveBusStep?.step.tago_city_code &&
-    liveBusStep.step.tago_route_id,
-  );
-  const { data: liveBusPositions, isFetching: isLiveBusFetching } = useQuery({
-    queryKey: [
-      "commute",
-      "live-buses",
-      liveBusStep?.step.tago_city_code,
-      liveBusStep?.step.tago_route_id,
-    ],
-    queryFn: () => {
-      const cityCode = liveBusStep?.step.tago_city_code;
-      const routeId = liveBusStep?.step.tago_route_id;
-      if (!cityCode || !routeId) {
-        throw new Error("실시간 버스 조회에 필요한 노선 정보가 없습니다.");
-      }
-      return getLiveBusPositions(cityCode, routeId);
-    },
-    enabled: liveBusPollingEnabled,
-    staleTime: 15_000,
-    refetchInterval: liveBusPollingEnabled ? 15_000 : false,
-    refetchIntervalInBackground: false,
-    retry: false,
-  });
-  const liveBus = useMemo(
-    () => selectClosestBus(
-      liveBusPositions?.vehicles ?? [],
-      liveBusStep?.step.route_path[0],
-    ),
-    [liveBusPositions?.vehicles, liveBusStep?.step.route_path],
-  );
-  const liveBusProgress = useMemo(
-    () => liveBus && liveBusStep
-      ? getRouteProgress(liveBusStep.step.route_path, liveBus)
-      : 0,
-    [liveBus, liveBusStep],
-  );
-
-  useEffect(() => {
-    if (!liveBus) {
-      liveBusProgressAnimation.setValue(0);
-      return;
-    }
-    Animated.timing(liveBusProgressAnimation, {
-      toValue: liveBusProgress,
-      duration: 700,
-      useNativeDriver: false,
-    }).start();
-  }, [liveBus, liveBusProgress, liveBusProgressAnimation]);
-
   // 단계별 좌표가 있으면 도보와 대중교통을 서로 다른 색상으로 그린다.
   const stepPolylines = useMemo(
     () =>
@@ -879,6 +959,15 @@ export default function CampusMapScreen() {
                   </View>
                 </View>
 
+                {route.recommendation_reason && (
+                  <View style={styles.realtimeReasonCard}>
+                    <Bus size={15} color="#13708D" />
+                    <Text style={styles.realtimeReasonText}>
+                      {route.recommendation_reason}
+                    </Text>
+                  </View>
+                )}
+
                 <ScrollView
                   style={styles.timelineScroll}
                   contentContainerStyle={styles.timelineContent}
@@ -917,8 +1006,6 @@ export default function CampusMapScreen() {
                     }
 
                     const color = getStepColor(item.step, item.stepIndex);
-                    const isLiveBusStep =
-                      liveBusStep?.stepIndex === item.stepIndex;
                     return (
                       <View key={`segment-${item.stepIndex}-${index}`} style={styles.segmentRow}>
                         <View style={styles.timelineLeftColumn}>
@@ -926,22 +1013,6 @@ export default function CampusMapScreen() {
                           <View style={[styles.segmentIcon, { backgroundColor: color }]}>
                             <RouteStepIcon step={item.step} color="#FFFFFF" size={14} />
                           </View>
-                          {isLiveBusStep && liveBus && (
-                            <Animated.View
-                              style={[
-                                styles.liveBusMarker,
-                                {
-                                  borderColor: color,
-                                  top: liveBusProgressAnimation.interpolate({
-                                    inputRange: [0, 1],
-                                    outputRange: [31, 49],
-                                  }),
-                                },
-                              ]}
-                            >
-                              <Bus size={12} color={color} />
-                            </Animated.View>
-                          )}
                         </View>
                         <View style={styles.segmentContent}>
                           <Text style={styles.segmentTitle}>{getStepLabel(item.step)}</Text>
@@ -951,14 +1022,15 @@ export default function CampusMapScreen() {
                               ? ` · ${item.step.distance_meters}m`
                               : ""}
                           </Text>
-                          {isLiveBusStep && (
-                            <Text style={styles.liveBusText}>
-                              {liveBus
-                                ? `실시간 · ${liveBus.current_stop_name ?? liveBus.vehicle_number}`
-                                : isLiveBusFetching
-                                  ? "실시간 버스 위치 확인 중"
-                                  : "실시간 버스 위치 정보 없음"}
-                            </Text>
+                          {item.step.travel_mode === "TRANSIT" && (
+                            <TransitStopAccordion
+                              step={item.step}
+                              color={color}
+                              pollingEnabled={isFocused && isDetailView}
+                              preferredVehicleIndex={
+                                route.realtime_status === "next_bus" ? 1 : 0
+                              }
+                            />
                           )}
                         </View>
                       </View>
@@ -1148,6 +1220,17 @@ const styles = StyleSheet.create({
   detailDurationWrap: { alignItems: "flex-end" },
   detailDuration: { fontSize: 20, fontWeight: "800", color: "#0F172A" },
   detailClock: { marginTop: 3, fontSize: 11, color: "#64748B" },
+  realtimeReasonCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginTop: 9,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 12,
+    backgroundColor: "#EAF8FC",
+  },
+  realtimeReasonText: { flex: 1, fontSize: 11, fontWeight: "700", color: "#0F5D73" },
   timelineScroll: { flex: 1, marginTop: 12 },
   timelineContent: { paddingBottom: 30 },
   locationRow: { minHeight: 46, flexDirection: "row", alignItems: "flex-start" },
@@ -1184,17 +1267,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     zIndex: 2,
   },
-  liveBusMarker: {
-    position: "absolute",
-    width: 24,
-    height: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    zIndex: 3,
-  },
   segmentContent: {
     flex: 1,
     marginLeft: 2,
@@ -1205,5 +1277,84 @@ const styles = StyleSheet.create({
   },
   segmentTitle: { fontSize: 13, fontWeight: "700", color: "#334155" },
   segmentMeta: { marginTop: 4, fontSize: 11, color: "#64748B" },
-  liveBusText: { marginTop: 5, fontSize: 11, fontWeight: "700", color: "#13708D" },
+  transitStopCard: {
+    marginTop: 10,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+  },
+  transitStopHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+  },
+  transitStopTitleWrap: { flex: 1 },
+  transitStopTitle: { fontSize: 14, fontWeight: "800", color: "#0F172A" },
+  transitLineName: { marginTop: 3, fontSize: 12, fontWeight: "700" },
+  nextVehicleBadge: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10 },
+  nextVehicleText: { fontSize: 12, fontWeight: "800" },
+  stopExpandButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    minHeight: 42,
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
+  },
+  stopExpandText: { fontSize: 12, fontWeight: "800", color: "#334155" },
+  stopList: {
+    paddingHorizontal: 13,
+    paddingTop: 6,
+    paddingBottom: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
+    backgroundColor: "#FCFDFE",
+  },
+  stopRow: { minHeight: 42, flexDirection: "row", alignItems: "stretch" },
+  stopRail: { width: 24, alignItems: "center" },
+  stopDot: {
+    width: 10,
+    height: 10,
+    marginTop: 15,
+    borderWidth: 2,
+    borderRadius: 5,
+    backgroundColor: "#FFFFFF",
+    zIndex: 2,
+  },
+  stopLine: { position: "absolute", top: 24, bottom: -15, width: 2 },
+  stopNameWrap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingLeft: 5,
+  },
+  stopName: { flexShrink: 1, fontSize: 12, color: "#475569" },
+  stopNameEmphasis: { fontWeight: "800", color: "#0F172A" },
+  stopNameApproaching: { color: "#94A3B8" },
+  stopCaption: { fontSize: 10, fontWeight: "800", color: "#13708D" },
+  vehiclePositionBadge: {
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+  },
+  vehiclePositionText: { fontSize: 10, fontWeight: "800" },
+  stopEmptyText: {
+    paddingVertical: 14,
+    textAlign: "center",
+    fontSize: 11,
+    color: "#64748B",
+  },
 });
