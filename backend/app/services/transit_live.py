@@ -30,6 +30,8 @@ STATIC_TTL = 6 * 3600
 LIVE_TTL = 30
 EMPTY_TTL = 120
 FAILURE_TTL = 60
+# Seoul's official public-data specification exposes this legacy endpoint over HTTP.
+SEOUL_BUS_API_BASE_URL = "http://ws.bus.go.kr/api/rest"
 _cache = RequestCache(1024)
 _policy_lock = Lock()
 _cooldown = {}
@@ -118,7 +120,7 @@ def _request(provider, service, operation, params, item_key, static=False):
             _usage[budget_key] = (today, count + 1)
         query = {"serviceKey": unquote(api_key), **params}
         if provider == "seoul":
-            url = f"https://ws.bus.go.kr/api/rest/{service}/{operation}"
+            url = f"{SEOUL_BUS_API_BASE_URL}/{service}/{operation}"
             query["resultType"] = "json"
         elif provider == "gyeonggi":
             url = f"https://apis.data.go.kr/6410000/{service}/v2/{operation}v2"

@@ -132,6 +132,7 @@ def test_seoul_message_and_vehicle_share_one_arrival_call(monkeypatch):
     assert result.arrival_minutes == 4
     assert result.vehicle_number == "v1"
     assert len(calls) == 3
+    assert all(url.startswith("http://ws.bus.go.kr/api/rest/") for url in calls)
 
 
 def test_missing_key_and_unsupported_modes_make_no_calls():
