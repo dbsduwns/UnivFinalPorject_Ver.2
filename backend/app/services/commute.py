@@ -40,6 +40,9 @@ from app.schemas.commute import (
     RouteSummaryResponse,
 )
 from app.services import timetable as timetable_services
+from app.services.transit_cache import RequestCache
+
+_google_routes_cache = RequestCache(max_entries=128)
 
 
 class GeocodingError(Exception):
@@ -453,21 +456,7 @@ def get_today_commute(db: Session, user: User) -> CommuteTodayResponse:
             for route in routes
         ]
 
-    if first_class is not None:
-        class_start = datetime.combine(
-            now.date(),
-            first_class.start_time,
-            tzinfo=timezone_info,
-        )
-        routes = [
-            _apply_realtime_bus_feasibility(
-                route=route,
-                now=now,
-                class_start=class_start,
-            )
-            for route in routes
-        ]
-
+    # 예상 화면은 시간표 기반 경로만 계산한다. 실시간 조회/차량 선택은 상세 화면 책임이다.
     route, alternatives = _select_route_options(routes)
 
     return CommuteTodayResponse(
@@ -1222,7 +1211,34 @@ def get_transit_routes(
     departure_time: datetime | None = None,
     arrival_time: datetime | None = None,
 ) -> list[RouteSummaryResponse]:
-    """Google 추천·대체 대중교통 경로를 조회하고 TAGO 정보로 보강한다."""
+    """Google 한 번의 요청으로 후보를 받아 60초간 공유한다. 공공 API는 호출하지 않는다."""
+    if departure_time is not None and arrival_time is not None:
+        raise ValueError("departure_time과 arrival_time은 동시에 지정할 수 없습니다")
+    # 초 단위 now 차이로 캐시가 무력화되지 않도록 출발 요청은 분 단위 키를 쓴다.
+    departure_key = (departure_time or datetime.now(timezone.utc)).replace(
+        second=0, microsecond=0
+    ) if arrival_time is None else None
+    key = (start_latitude, start_longitude, end_latitude, end_longitude,
+           departure_key, arrival_time)
+    return _google_routes_cache.get(
+        key,
+        lambda: _request_google_routes(
+            start_latitude, start_longitude, end_latitude, end_longitude,
+            departure_time, arrival_time,
+        ),
+        ttl=60,
+        error_ttl=5,
+    )
+
+
+def _request_google_routes(
+    start_latitude: float,
+    start_longitude: float,
+    end_latitude: float,
+    end_longitude: float,
+    departure_time: datetime | None = None,
+    arrival_time: datetime | None = None,
+) -> list[RouteSummaryResponse]:
     if not GOOGLE_MAPS_SERVER_API_KEY:
         raise TransitRouteError("Google Maps 서버 API 키가 설정되지 않았습니다.")
 
@@ -1355,68 +1371,10 @@ def _parse_google_transit_route(route: dict) -> RouteSummaryResponse:
     else:
         transport_type = "mixed"
 
-    boarding_stop_name = None
-    bus_arrival_minutes = None
-    next_bus_arrival_minutes = None
-    bus_remaining_stops = None
-    recommendation_reason = "Google Maps 추천 경로"
-    transit_live_contexts: dict[int, dict[str, object]] = {}
-
-    # 환승 경로에서도 각 버스 구간별 탑승 정류장과 다음 차량 한 대를 보강한다.
-    for transit_step in transit_steps:
-        transit_details = transit_step.get("transitDetails", {})
-        transit_line = transit_details.get("transitLine", {})
-        vehicle_type = str(
-            transit_line.get("vehicle", {}).get("type") or ""
-        )
-        if "BUS" not in vehicle_type:
-            continue
-
-        departure_stop = (
-            transit_details.get("stopDetails", {}).get("departureStop", {})
-        )
-        departure_stop_name = departure_stop.get("name")
-        stop_location = departure_stop.get("location", {}).get("latLng", {})
-        try:
-            tago_stop = resolve_tago_stop(
-                latitude=float(stop_location["latitude"]),
-                longitude=float(stop_location["longitude"]),
-                stop_name=departure_stop_name,
-            )
-            if not tago_stop:
-                continue
-
-            arrival = _get_tago_bus_arrival(
-                city_code=tago_stop["city_code"],
-                node_id=tago_stop["node_id"],
-                route_name=(
-                    transit_line.get("nameShort") or transit_line.get("name")
-                ),
-            )
-            if not arrival:
-                continue
-
-            transit_live_contexts[id(transit_step)] = {
-                "tago_city_code": tago_stop["city_code"],
-                "tago_route_id": arrival["route_id"],
-                "tago_boarding_stop_id": tago_stop["node_id"],
-                "next_vehicle_arrival_minutes": arrival["arrival_minutes"],
-            }
-
-            # 기존 등교 가능성 계산은 경로에서 처음 탑승하는 버스를 기준으로 한다.
-            if bus_arrival_minutes is None:
-                boarding_stop_name = departure_stop_name
-                bus_arrival_minutes = arrival["arrival_minutes"]
-                next_bus_arrival_minutes = arrival["next_arrival_minutes"]
-                bus_remaining_stops = arrival["remaining_stops"]
-                recommendation_reason = (
-                    "Google Maps 추천 경로 · "
-                    f"{arrival['route_number']}번 버스 "
-                    f"약 {bus_arrival_minutes}분 후 도착"
-                )
-        except (TransitRouteError, KeyError, TypeError, ValueError):
-            # TAGO 보강 정보가 실패해도 Google 경로 자체는 반환한다.
-            logger.info("TAGO 버스 도착정보 보강에 실패했습니다.", exc_info=True)
+    boarding_stop_name = next((
+        step.get("transitDetails", {}).get("stopDetails", {}).get("departureStop", {}).get("name")
+        for step in transit_steps
+    ), None)
 
     duration_minutes = max(
         1,
@@ -1452,7 +1410,6 @@ def _parse_google_transit_route(route: dict) -> RouteSummaryResponse:
         transit_details = step.get("transitDetails", {})
         transit_line = transit_details.get("transitLine", {})
         stop_details = transit_details.get("stopDetails", {})
-        live_context = transit_live_contexts.get(id(step), {})
 
         route_steps.append(
             {
@@ -1475,7 +1432,15 @@ def _parse_google_transit_route(route: dict) -> RouteSummaryResponse:
                 "arrival_stop_name": stop_details.get("arrivalStop", {}).get(
                     "name"
                 ),
-                **live_context,
+                # 상세 조회용 식별 정보만 전달하며 여기서는 외부 조회를 하지 않는다.
+                "departure_stop_location": stop_details.get("departureStop", {}).get("location", {}).get("latLng"),
+                "arrival_stop_location": stop_details.get("arrivalStop", {}).get("location", {}).get("latLng"),
+                "transit_agency_name": " / ".join(
+                    agency.get("name", "") for agency in transit_line.get("agencies", [])
+                ) or None,
+                "transit_headsign": transit_details.get("headsign"),
+                "scheduled_departure_time": stop_details.get("departureTime"),
+                "stop_count": transit_details.get("stopCount"),
                 "route_path": [
                     {
                         "latitude": latitude,
@@ -1495,11 +1460,8 @@ def _parse_google_transit_route(route: dict) -> RouteSummaryResponse:
         route_path=route_path,
         route_steps=route_steps,
         boarding_stop_name=boarding_stop_name,
-        bus_arrival_minutes=bus_arrival_minutes,
-        next_bus_arrival_minutes=next_bus_arrival_minutes,
-        bus_remaining_stops=bus_remaining_stops,
         is_recommended=True,
-        recommendation_reason=recommendation_reason,
+        recommendation_reason="Google Maps 예상 경로",
     )
 
 

@@ -137,6 +137,12 @@ export type RouteStep = {
   vehicle_type: string | null;
   departure_stop_name: string | null;
   arrival_stop_name: string | null;
+  departure_stop_location?: RouteCoordinate | null;
+  arrival_stop_location?: RouteCoordinate | null;
+  transit_agency_name?: string | null;
+  transit_headsign?: string | null;
+  scheduled_departure_time?: string | null;
+  stop_count?: number | null;
   tago_city_code: string | null;
   tago_route_id: string | null;
   tago_boarding_stop_id: string | null;
@@ -155,8 +161,8 @@ export type RouteStop = {
 export type LiveBusPosition = {
   vehicle_number: string;
   route_name: string | null;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   current_stop_order: number | null;
   current_stop_id: string | null;
   current_stop_name: string | null;
@@ -169,4 +175,19 @@ export type LiveBusPositions = {
   cache_ttl_seconds: number;
   vehicles: LiveBusPosition[];
   route_stops: RouteStop[];
+};
+
+export type TransitLive = {
+  status: "ok" | "no_data" | "unsupported" | "unmatched" | "not_configured" | "provider_error";
+  provider: string | null;
+  message: string | null;
+  cached_at: string;
+  refresh_after_seconds: number;
+  arrival_minutes: number | null;
+  arrival_message: string | null;
+  vehicle_number: string | null;
+  boarding_stop_order: number | null;
+  alighting_stop_order: number | null;
+  route_stops: RouteStop[];
+  vehicles: LiveBusPosition[];
 };

@@ -1,5 +1,6 @@
 import { apiClient } from "@/api/client";
 import { isAxiosError } from "axios";
+import { queryOptions } from "@tanstack/react-query";
 
 import type {
   CommuteProfile,
@@ -9,11 +10,45 @@ import type {
   CommuteSettingsUpdate,
   CommuteToday,
   LiveBusPositions,
+  TransitLive,
+  RouteStep,
 } from "./types";
 
 
-export async function getTodayCommute(): Promise<CommuteToday> {
-  const { data } = await apiClient.get<CommuteToday>("/api/commute/today");
+export async function getTodayCommute(signal?: AbortSignal): Promise<CommuteToday> {
+  const { data } = await apiClient.get<CommuteToday>("/api/commute/today", { signal });
+  return data;
+}
+
+// Home and map share the same user-scoped prediction; navigating does not recalculate it.
+export const commuteTodayOptions = (userId: number | undefined) => queryOptions({
+  queryKey: ["commute", "today", userId],
+  queryFn: ({ signal }) => getTodayCommute(signal),
+  staleTime: 60_000,
+  gcTime: 5 * 60_000,
+  retry: false,
+  refetchOnReconnect: false,
+  refetchOnWindowFocus: false,
+});
+
+export function transitLiveRequest(step: RouteStep) {
+  return {
+    route_name: step.transit_line_name ?? "",
+    vehicle_type: step.vehicle_type ?? "",
+    departure_stop_name: step.departure_stop_name ?? "",
+    arrival_stop_name: step.arrival_stop_name ?? "",
+    departure_stop_location: step.departure_stop_location ?? null,
+    arrival_stop_location: step.arrival_stop_location ?? null,
+    agency_name: step.transit_agency_name ?? "",
+    headsign: step.transit_headsign ?? "",
+  };
+}
+
+export async function getTransitLive(
+  request: ReturnType<typeof transitLiveRequest>,
+  signal?: AbortSignal,
+): Promise<TransitLive> {
+  const { data } = await apiClient.post<TransitLive>("/api/commute/transit-live", request, { signal });
   return data;
 }
 

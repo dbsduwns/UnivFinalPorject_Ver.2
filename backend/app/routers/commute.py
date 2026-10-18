@@ -13,11 +13,24 @@ from app.schemas.commute import (
     CommuteSettingsUpdate,
     CommuteTodayResponse,
     LiveBusPositionsResponse,
+    TransitLiveRequest,
+    TransitLiveResponse,
 )
 from app.services import commute as commute_service
+from app.services.transit_live import get_transit_live
 
 
 router = APIRouter(prefix="/api/commute", tags=["commute"])
+
+
+@router.post("/transit-live", response_model=TransitLiveResponse)
+def get_transit_segment_live(
+    data: TransitLiveRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """선택한 경유 정류장 목록을 펼쳤을 때만 호출하는 지연 조회."""
+    del current_user
+    return get_transit_live(data)
 
 
 @router.get("/addresses", response_model=list[CommuteAddressSearchResult])

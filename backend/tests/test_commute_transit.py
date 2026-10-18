@@ -1,8 +1,18 @@
 from datetime import datetime, time
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
+from unittest.mock import Mock
+
+import pytest
 
 from app.services import commute
+
+
+@pytest.fixture(autouse=True)
+def clear_google_cache():
+    commute._google_routes_cache.clear()
+    yield
+    commute._google_routes_cache.clear()
 
 
 class FakeResponse:
@@ -60,7 +70,7 @@ def test_resolve_tago_stop_selects_nearest_same_name(monkeypatch):
     assert result["city_code"] == "31190"
 
 
-def test_get_transit_route_adds_matching_tago_arrival(monkeypatch):
+def test_get_transit_route_never_calls_public_apis(monkeypatch):
     monkeypatch.setattr(commute, "GOOGLE_MAPS_SERVER_API_KEY", "google-key")
     monkeypatch.setattr(commute, "PUBLIC_API_KEY", "public-key")
 
@@ -157,45 +167,7 @@ def test_get_transit_route_adds_matching_tago_arrival(monkeypatch):
 
     monkeypatch.setattr(commute.requests, "post", fake_post)
 
-    def fake_get(url, **kwargs):
-        if url == commute.TAGO_STOP_API_URL:
-            return FakeResponse(
-                tago_response(
-                    {
-                        "nodeid": "GGB123",
-                        "citycode": "31190",
-                        "nodenm": "기흥역",
-                        "gpslati": "37.275010",
-                        "gpslong": "127.115010",
-                    }
-                )
-            )
-        assert url == commute.TAGO_ARRIVAL_API_URL
-        return FakeResponse(
-            tago_response(
-                [
-                    {
-                        "routeid": "GGB_OTHER",
-                        "routeno": "5005",
-                        "arrtime": "120",
-                        "arrprevstationcnt": "1",
-                    },
-                    {
-                        "routeid": "GGB_5000",
-                        "routeno": "5000",
-                        "arrtime": "481",
-                        "arrprevstationcnt": "4",
-                    },
-                    {
-                        "routeid": "GGB_5000",
-                        "routeno": "5000",
-                        "arrtime": "900",
-                        "arrprevstationcnt": "7",
-                    },
-                ]
-            )
-        )
-
+    fake_get = Mock(side_effect=AssertionError("Prediction must not call public APIs"))
     monkeypatch.setattr(commute.requests, "get", fake_get)
 
     result = commute.get_transit_route(
@@ -227,10 +199,10 @@ def test_get_transit_route_adds_matching_tago_arrival(monkeypatch):
     assert result.walking_minutes == 10
     assert result.transfer_count == 0
     assert result.boarding_stop_name == "기흥역"
-    assert result.bus_arrival_minutes == 9
-    assert result.next_bus_arrival_minutes == 15
-    assert result.bus_remaining_stops == 4
-    assert "5000번 버스" in result.recommendation_reason
+    fake_get.assert_not_called()
+    assert result.bus_arrival_minutes is None
+    assert result.next_bus_arrival_minutes is None
+    assert result.bus_remaining_stops is None
     assert result.route_path[0].latitude == 37.2
     assert result.route_path[0].longitude == 127.1
     assert len(result.route_steps) == 3
@@ -238,11 +210,49 @@ def test_get_transit_route_adds_matching_tago_arrival(monkeypatch):
     assert result.route_steps[0].instruction == "기흥역까지 걷기"
     assert result.route_steps[1].transit_line_name == "5000"
     assert result.route_steps[1].departure_stop_name == "기흥역"
-    assert result.route_steps[1].tago_city_code == "31190"
-    assert result.route_steps[1].tago_route_id == "GGB_5000"
-    assert result.route_steps[1].tago_boarding_stop_id == "GGB123"
-    assert result.route_steps[1].next_vehicle_arrival_minutes == 9
+    assert result.route_steps[1].tago_route_id is None
+    assert result.route_steps[1].next_vehicle_arrival_minutes is None
+    assert result.route_steps[1].departure_stop_location.latitude == 37.275
     assert result.route_steps[1].route_path[-1].longitude == 127.19
+
+
+def test_google_prediction_reuses_cache_and_returns_isolated_copies(monkeypatch):
+    monkeypatch.setattr(commute, "GOOGLE_MAPS_SERVER_API_KEY", "test")
+    post = Mock(return_value=FakeResponse({"routes": [{"duration": "120s"}]}))
+    monkeypatch.setattr(commute.requests, "post", post)
+    timestamp = datetime(2026, 10, 19, 9, tzinfo=ZoneInfo("Asia/Seoul"))
+    first = commute.get_transit_routes(37.2, 127.1, 37.3, 127.2, departure_time=timestamp)
+    first[0].duration_minutes = 999
+    second = commute.get_transit_routes(37.2, 127.1, 37.3, 127.2, departure_time=timestamp.replace(second=15))
+    assert post.call_count == 1
+    assert second[0].duration_minutes == 2
+    commute.get_transit_routes(37.2, 127.1, 37.4, 127.2, departure_time=timestamp)
+    assert post.call_count == 2
+
+
+def test_today_prediction_keeps_class_buffer_without_realtime_enrichment(monkeypatch):
+    monkeypatch.setattr(commute, "GOOGLE_MAPS_SERVER_API_KEY", "test")
+    monkeypatch.setattr(commute, "get_commute_profile", lambda db, user: SimpleNamespace(
+        home_latitude=37.2, home_longitude=127.1, use_shuttle=False, departure_buffer_minutes=10,
+    ))
+    monkeypatch.setattr(commute, "get_first_class", lambda db, user: commute.FirstClassResponse(
+        course_name="테스트 수업", start_time=time(10), latitude=37.3, longitude=127.2,
+    ))
+    monkeypatch.setattr(commute, "get_commute_display_mode", lambda first_class: "departure_recommendation")
+    get = Mock(side_effect=AssertionError("Prediction must not call public APIs"))
+    post = Mock(return_value=FakeResponse({"routes": [{"duration": "1800s"}]}))
+    monkeypatch.setattr(commute.requests, "get", get)
+    monkeypatch.setattr(commute.requests, "post", post)
+    feasibility = Mock(side_effect=AssertionError("Prediction must not select a live vehicle"))
+    monkeypatch.setattr(commute, "_apply_realtime_bus_feasibility", feasibility)
+    result = commute.get_today_commute(db=object(), user=object())
+    assert result.status == "ready"
+    assert result.recommended_route.departure_time == time(9, 20)
+    assert result.recommended_route.arrival_time == time(9, 50)
+    assert result.recommended_route.buffer_minutes == 10
+    assert post.call_count == 1
+    get.assert_not_called()
+    feasibility.assert_not_called()
 
 
 def test_realtime_feasibility_selects_next_bus_when_slack_is_enough():

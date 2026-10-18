@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { ChevronRight, Clock3, Home, MapPin, Navigation } from "lucide-react-native";
 import {
@@ -12,7 +12,8 @@ import {
   View,
 } from "react-native";
 
-import { getTodayCommute } from "@/features/commute/api/commute";
+import { commuteTodayOptions } from "@/features/commute/api/commute";
+import { useAuthStore } from "@/features/auth/store/auth-store";
 import type { CommuteToday, RouteSummary } from "@/features/commute/api/types";
 
 const formatTime = (value: string | null | undefined) => value?.slice(0, 5) ?? null;
@@ -85,24 +86,18 @@ function getCardCopy(commute: CommuteToday | undefined) {
 
 function getSecondaryInfo(route: RouteSummary | null | undefined) {
   if (!route) return "대중교통 추천";
-  const selectedBusArrival =
-    route.selected_bus_arrival_minutes ?? route.bus_arrival_minutes;
-  if (selectedBusArrival !== null) {
-    return route.realtime_status === "next_bus"
-      ? `다음 버스 ${selectedBusArrival}분 후`
-      : `버스 ${selectedBusArrival}분 후`;
-  }
   const shuttleTime = formatTime(route.shuttle_departure_time);
   if (shuttleTime) return `셔틀 ${shuttleTime}`;
   return route.transfer_count > 0 ? `환승 ${route.transfer_count}회` : "환승 없음";
 }
 
 export const CampusRouteCard = () => {
+  const userId = useAuthStore((state) => state.user?.id);
+  const queryClient = useQueryClient();
   const [isSetupModalVisible, setIsSetupModalVisible] = useState(false);
   const [hasRequestedCommute, setHasRequestedCommute] = useState(false);
   const commuteQuery = useQuery({
-    queryKey: ["commute", "today"],
-    queryFn: getTodayCommute,
+    ...commuteTodayOptions(userId),
     enabled: false,
     retry: false,
     refetchOnMount: false,
@@ -125,9 +120,16 @@ export const CampusRouteCard = () => {
   const isCalculating = hasRequestedCommute && commuteQuery.isFetching;
 
   const calculateCommute = () => {
-    if (commuteQuery.isFetching) return;
+    if (commuteQuery.isFetching || userId === undefined) return;
     setHasRequestedCommute(true);
-    void commuteQuery.refetch();
+    // Reuse a fresh result; only an explicit retry bypasses it.
+    if (shouldRetry) {
+      void commuteQuery.refetch();
+    } else {
+      void queryClient.fetchQuery(commuteTodayOptions(userId)).catch(() => {
+        // The query error is rendered by hasRequestError.
+      });
+    }
   };
 
   const handlePress = () => {

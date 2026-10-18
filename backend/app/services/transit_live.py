@@ -1,0 +1,410 @@
+"""Lazy public-transit enrichment. Never called by the route prediction service.
+
+Static route matching is cached for six hours; real-time reads are shared for
+30 seconds, empty responses for two minutes, and failures for one minute.
+Seoul/GBIS arrival responses already identify the approaching vehicle's stop,
+so the stop-list UI does not need an additional vehicle-location request.
+"""
+
+from datetime import datetime, timezone
+import logging
+import math
+import os
+import re
+from threading import Lock
+from time import monotonic
+from urllib.parse import unquote
+from zoneinfo import ZoneInfo
+from xml.etree import ElementTree
+
+import requests
+
+from app.schemas.commute import (
+    LiveBusPositionResponse, RouteStopResponse, TransitLiveRequest, TransitLiveResponse,
+)
+from app.services.transit_cache import RequestCache
+
+logger = logging.getLogger(__name__)
+STATIC_TTL = 6 * 3600
+LIVE_TTL = 30
+EMPTY_TTL = 120
+FAILURE_TTL = 60
+_cache = RequestCache(1024)
+_policy_lock = Lock()
+_cooldown = {}
+_usage = {}
+
+
+class ProviderError(Exception):
+    pass
+
+
+def _key(provider):
+    # New APIs require separate activation even if the portal uses the same key.
+    # Explicit opt-in avoids repeatedly trying APIs not enabled for the account.
+    return os.getenv(f"{provider.upper()}_BUS_API_KEY") or (
+        os.getenv("PUBLIC_API_KEY") if provider == "tago" else None
+    )
+
+
+def _list(value):
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, dict)]
+    return [value] if isinstance(value, dict) else []
+
+
+def _text(value):
+    return str(value if value is not None else "").strip()
+
+
+def _number(value):
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return None
+
+
+def _name(value):
+    return re.sub(r"[\s.·ㆍ()（）]", "", _text(value)).lower()
+
+
+def _route_name(value):
+    return re.sub(r"(?:번|버스)$", "", _name(value)).upper()
+
+
+def _xml_value(node):
+    if not len(node):
+        return node.text or ""
+    result = {}
+    for child in node:
+        value = _xml_value(child)
+        if child.tag in result:
+            if not isinstance(result[child.tag], list):
+                result[child.tag] = [result[child.tag]]
+            result[child.tag].append(value)
+        else:
+            result[child.tag] = value
+    return result
+
+
+def _request(provider, service, operation, params, item_key, static=False):
+    """Cache the provider operation, allowing different users/segments to share it."""
+    cache_key = (provider, service, operation, tuple(sorted(params.items())))
+
+    def load():
+        api_key = _key(provider)
+        if not api_key:
+            raise ProviderError("실시간 API 키가 설정되지 않았습니다.")
+        # Authentication/quota failures must not trigger a fresh call for each stop.
+        with _policy_lock:
+            if _cooldown.get((provider, service), 0) > monotonic():
+                raise ProviderError("실시간 제공기관에 잠시 연결할 수 없습니다.")
+            today = datetime.now(ZoneInfo("Asia/Seoul")).date()
+            default_limit = 9000 if provider == "tago" else 900
+            try:
+                limit = max(0, int(os.getenv(f"{provider.upper()}_BUS_DAILY_LIMIT", str(default_limit))))
+            except ValueError:
+                limit = default_limit
+            budget_key = (provider, service)
+            usage_day, count = _usage.get(budget_key, (today, 0))
+            if usage_day != today:
+                count = 0
+            if count >= limit:
+                raise ProviderError("오늘의 실시간 조회 한도에 도달했습니다.")
+            _usage[budget_key] = (today, count + 1)
+        query = {"serviceKey": unquote(api_key), **params}
+        if provider == "seoul":
+            url = f"https://ws.bus.go.kr/api/rest/{service}/{operation}"
+            query["resultType"] = "json"
+        elif provider == "gyeonggi":
+            url = f"https://apis.data.go.kr/6410000/{service}/v2/{operation}v2"
+            query["format"] = "json"
+        else:
+            url = f"https://apis.data.go.kr/1613000/{service}/{operation}"
+            query.update(_type="json", numOfRows=300, pageNo=1)
+        try:
+            response = requests.get(url, params=query, timeout=(2, 5))
+            response.raise_for_status()
+            try:
+                data = response.json()
+            except ValueError:
+                data = _xml_value(ElementTree.fromstring(response.content))
+            if not isinstance(data, dict):
+                raise ProviderError("실시간 응답 형식을 확인할 수 없습니다.")
+            if "cmmMsgHeader" in data:
+                raise ProviderError("공공 API 인증 또는 호출 한도를 확인해주세요.")
+            if provider == "tago":
+                envelope = data.get("response", data)
+                code = _text((envelope.get("header") or {}).get("resultCode"))
+                body = envelope.get("body") or {}
+                items = (body.get("items") or {}).get("item") if isinstance(body.get("items"), dict) else None
+                ok, empty = {"00", "0"}, {"03"}
+            else:
+                envelope = data.get("response", data)
+                header = envelope.get("msgHeader") or {}
+                code = _text(header.get("headerCd") if provider == "seoul" else header.get("resultCode"))
+                body = envelope.get("msgBody") or {}
+                items = body.get(item_key) if isinstance(body, dict) else None
+                ok, empty = {"0", "00"}, {"4"}
+            if code in empty:
+                return []
+            if code not in ok:
+                raise ProviderError("실시간 API 응답 오류입니다.")
+            fetched_at = datetime.now(timezone.utc).isoformat()
+            return [{**item, "_fetched_at": fetched_at} for item in _list(items)]
+        except (requests.RequestException, ValueError, ElementTree.ParseError, ProviderError, TypeError, AttributeError) as exc:
+            with _policy_lock:
+                _cooldown[(provider, service)] = monotonic() + FAILURE_TTL
+            # URLs/exceptions can contain credentials. Log only provider and operation.
+            logger.warning("Transit provider failed: provider=%s operation=%s", provider, operation)
+            raise ProviderError("실시간 정보를 일시적으로 조회하지 못했습니다.") from exc
+
+    return _cache.get(cache_key, load, ttl=STATIC_TTL if static else LIVE_TTL,
+                      empty_ttl=EMPTY_TTL, error_ttl=FAILURE_TTL)
+
+
+def _stops(provider, route_id, city_code=""):
+    if provider == "seoul":
+        items = _request(provider, "busRouteInfo", "getStaionByRoute",
+                         {"busRouteId": route_id}, "itemList", static=True)
+        fields = ("seq", "station", "stationNm", "gpsY", "gpsX")
+    elif provider == "gyeonggi":
+        items = _request(provider, "busrouteservice", "getBusRouteStationList",
+                         {"routeId": route_id}, "busRouteStationList", static=True)
+        fields = ("stationSeq", "stationId", "stationName", "y", "x")
+    else:
+        items = _request(provider, "BusRouteInfoInqireService", "getRouteAcctoThrghSttnList",
+                         {"cityCode": city_code, "routeId": route_id}, "item", static=True)
+        fields = ("nodeord", "nodeid", "nodenm", "gpslati", "gpslong")
+    stops = []
+    for item in items:
+        order = _number(item.get(fields[0]))
+        stop_id, name = _text(item.get(fields[1])), _text(item.get(fields[2]))
+        if order is None or order < 0 or not stop_id or not name:
+            continue
+        try:
+            lat, lng = float(item[fields[3]]), float(item[fields[4]])
+            if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+                lat, lng = None, None
+        except (TypeError, ValueError, KeyError):
+            lat, lng = None, None
+        stops.append(RouteStopResponse(stop_order=order, stop_id=stop_id,
+                                       stop_name=name, latitude=lat, longitude=lng))
+    return sorted(stops, key=lambda stop: stop.stop_order)
+
+
+def _stop_score(stop, name, location):
+    name_matches = _name(stop.stop_name) == _name(name)
+    distance = None
+    if location and stop.latitude is not None and stop.longitude is not None:
+        # Local-distance approximation, sufficient for a <=200m matching gate.
+        dy = (location.latitude - stop.latitude) * 111_000
+        dx = (location.longitude - stop.longitude) * 111_000 * math.cos(math.radians(location.latitude))
+        distance = math.hypot(dx, dy)
+        if distance > 200:
+            return None
+    if not name_matches and (distance is None or distance > 50):
+        return None
+    return (0 if name_matches else 500) + (distance or 0)
+
+
+def _match_segment(stops, request):
+    """Require boarding and downstream alighting; never pick a route by number alone."""
+    matches = []
+    for start in stops:
+        score = _stop_score(start, request.departure_stop_name, request.departure_stop_location)
+        if score is None:
+            continue
+        for end in stops:
+            if end.stop_order <= start.stop_order:
+                continue
+            end_score = _stop_score(end, request.arrival_stop_name, request.arrival_stop_location)
+            if end_score is not None:
+                matches.append((score + end_score, end.stop_order - start.stop_order, start, end))
+    if not matches:
+        return None
+    matches.sort(key=lambda match: (match[0], match[1]))
+    # Same-name/coordinate stops can exist in both directions on a loop. Refuse ties.
+    if len(matches) > 1 and matches[0][:2] == matches[1][:2]:
+        return None
+    return matches[0][2:]
+
+
+def _provider_order(request):
+    agency = request.agency_name.lower()
+    route = _route_name(request.route_name)
+    if "인천" in agency or "incheon" in agency:
+        return ["tago"]
+    if "서울" in agency or "seoul" in agency or re.match(r"^(N\d|[가-힣]{2,4}\d)", route):
+        return ["seoul", "gyeonggi", "tago"]
+    return ["gyeonggi", "seoul", "tago"]
+
+
+def _resolve(request):
+    target = _route_name(request.route_name)
+    had_error = False
+    for provider in _provider_order(request):
+        if not _key(provider):
+            continue
+        city_code = ""
+        try:
+            if provider == "seoul":
+                routes = _request(provider, "busRouteInfo", "getBusRouteList",
+                                  {"strSrch": target}, "itemList", static=True)
+                id_field, name_field = "busRouteId", "busRouteNm"
+            elif provider == "gyeonggi":
+                routes = _request(provider, "busrouteservice", "getBusRouteList",
+                                  {"keyword": target}, "busRouteList", static=True)
+                id_field, name_field = "routeId", "routeName"
+            else:
+                if not request.departure_stop_location:
+                    continue
+                coord = request.departure_stop_location
+                nearby = _request(provider, "BusSttnInfoInqireService", "getCrdntPrxmtSttnList",
+                                  {"gpsLati": coord.latitude, "gpsLong": coord.longitude}, "item", static=True)
+                # Cross-city routes are resolved from static stop/route data, not arrivals.
+                city_codes = sorted({_text(item.get("citycode")) for item in nearby if item.get("citycode")})
+                candidates = []
+                for city in city_codes[:3]:
+                    for item in _request(provider, "BusRouteInfoInqireService", "getRouteNoList",
+                                         {"cityCode": city, "routeNo": target}, "item", static=True):
+                        candidates.append({**item, "_city": city})
+                routes = candidates
+                id_field, name_field = "routeid", "routeno"
+            candidates = [item for item in routes if _route_name(item.get(name_field)) == target]
+            if len(candidates) > 5:
+                # Do not accept a seemingly unique match from a truncated candidate set.
+                return None
+            matches = []
+            for item in candidates[:5]:
+                route_id = _text(item.get(id_field))
+                city_code = item.get("_city", "")
+                if not route_id:
+                    continue
+                # GBIS's search catalog can include Seoul/Incheon. Use their own feeds.
+                if provider == "gyeonggi" and str(item.get("districtCd", "2")) != "2":
+                    continue
+                stops = _stops(provider, route_id, city_code)
+                segment = _match_segment(stops, request)
+                if segment:
+                    matches.append((provider, route_id, city_code, stops, *segment))
+            if len(matches) == 1:
+                return matches[0]
+            if len(matches) > 1:
+                return None
+        except ProviderError:
+            # Avoid a cascade of slow calls when an enabled provider is unavailable.
+            had_error = True
+            break
+    if had_error:
+        raise ProviderError("실시간 제공기관의 API 권한 또는 연결 상태를 확인해주세요.")
+    return None
+
+
+def _vehicle(number, order, stops):
+    stop = next((stop for stop in stops if stop.stop_order == order), None)
+    if not stop or not number or number == "0":
+        return []
+    # Provider reports a stop, not GPS. Coordinates remain null intentionally.
+    return [LiveBusPositionResponse(vehicle_number=number, current_stop_order=order,
+                                   current_stop_id=stop.stop_id, current_stop_name=stop.stop_name)]
+
+
+def _read_arrival(provider, route_id, city_code, stops, start):
+    """One approaching vehicle is enough for the expanded stop-list UI."""
+    if provider == "gyeonggi":
+        items = _request(provider, "busarrivalservice", "getBusArrivalItem",
+                         {"routeId": route_id, "stationId": start.stop_id, "staOrder": start.stop_order},
+                         "busArrivalItem")
+        item = items[0] if items else {}
+        minutes = _number(item.get("predictTime1"))
+        seconds = _number(item.get("predictTimeSec1"))
+        number = _text(item.get("plateNo1"))
+        if item.get("flag") in {"STOP", "WAIT"} or not number or (minutes is None and seconds is None):
+            return None, None, [], item.get("_fetched_at")
+        if seconds is not None and seconds >= 0:
+            minutes = math.ceil(seconds / 60)
+        remaining = _number(item.get("locationNo1"))
+        order = start.stop_order - remaining if remaining is not None and remaining >= 0 else None
+        return minutes if minutes is not None and minutes >= 0 else None, None, _vehicle(number, order, stops), item.get("_fetched_at")
+    if provider == "seoul":
+        # All stops on a route share one cached arrival response.
+        items = _request(provider, "arrive", "getArrInfoByRouteAll", {"busRouteId": route_id}, "itemList")
+        item = next((item for item in items
+                     if _text(item.get("stId")) == start.stop_id
+                     and _number(item.get("staOrd")) == start.stop_order), {})
+        message = _text(item.get("arrmsg1"))
+        if not message or any(word in message for word in ("출발대기", "운행종료", "정보없음")):
+            return None, message or None, [], item.get("_fetched_at")
+        # arrmsg is the public-facing prediction; exps/kals are internal estimates.
+        match = re.search(r"(\d+)분(?:\s*(\d+)초)?", message)
+        seconds_match = re.search(r"(\d+)초", message)
+        minutes = (math.ceil((int(match[1]) * 60 + int(match[2] or 0)) / 60) if match
+                   else math.ceil(int(seconds_match[1]) / 60) if seconds_match
+                   else 0 if "곧 도착" in message else None)
+        return minutes, message, _vehicle(_text(item.get("vehId1")), _number(item.get("sectOrd1")), stops), item.get("_fetched_at")
+    items = _request(provider, "ArvlInfoInqireService", "getSttnAcctoArvlPrearngeInfoList",
+                     {"cityCode": city_code, "nodeId": start.stop_id}, "item")
+    arrivals = [item for item in items if _text(item.get("routeid")) == route_id
+                and _number(item.get("arrtime")) is not None and int(item["arrtime"]) >= 0]
+    if not arrivals:
+        return None, None, [], None
+    first = min(arrivals, key=lambda item: int(item["arrtime"]))
+    # Arrival lacks a vehicle ID. Do not invent a vehicle match/position from proximity.
+    try:
+        positions = _request(provider, "BusLcInfoInqireService", "getRouteAcctoBusLcList",
+                             {"cityCode": city_code, "routeId": route_id}, "item")
+    except ProviderError:
+        # Location permission/outages must not hide a successfully fetched ETA.
+        positions = []
+    vehicles = []
+    for item in positions:
+        order = _number(item.get("nodeord"))
+        if order is not None and order <= start.stop_order:
+            vehicles.extend(_vehicle(_text(item.get("vehicleno")), order, stops))
+    return math.ceil(int(first["arrtime"]) / 60), None, vehicles, first.get("_fetched_at")
+
+
+def _result(status, **kwargs):
+    kwargs.setdefault("cached_at", datetime.now(timezone.utc))
+    return TransitLiveResponse(status=status, **kwargs)
+
+
+def get_transit_live(request: TransitLiveRequest):
+    if "BUS" not in request.vehicle_type.upper():
+        return _result("unsupported", refresh_after_seconds=STATIC_TTL,
+                       message="이 구간은 예정 시간으로 안내합니다.")
+    if not any(_key(provider) for provider in _provider_order(request)):
+        return _result("not_configured", refresh_after_seconds=STATIC_TTL,
+                       message="실시간 정보 연결이 준비되지 않았습니다.")
+    descriptor = request.model_dump_json()
+    try:
+        resolved = _cache.get(("resolve", descriptor), lambda: _resolve(request),
+                              ttl=STATIC_TTL, empty_ttl=EMPTY_TTL, error_ttl=FAILURE_TTL)
+    except ProviderError:
+        return _result("provider_error", refresh_after_seconds=FAILURE_TTL,
+                       message="실시간 정보를 잠시 불러올 수 없습니다.")
+    if not resolved:
+        return _result("unmatched", refresh_after_seconds=STATIC_TTL,
+                       message="이 구간의 정류장과 운행 방향을 확인하지 못했습니다.")
+    provider, route_id, city_code, stops, start, end = resolved
+
+    def load():
+        common = dict(provider=provider, route_stops=stops,
+                      boarding_stop_order=start.stop_order, alighting_stop_order=end.stop_order)
+        try:
+            minutes, message, vehicles, fetched_at = _read_arrival(provider, route_id, city_code, stops, start)
+        except ProviderError:
+            return _result("provider_error", **common, refresh_after_seconds=FAILURE_TTL,
+                           message="정류장 정보는 확인했지만 실시간 조회에 실패했습니다.")
+        return _result("ok" if minutes is not None or vehicles else "no_data", **common,
+                       cached_at=fetched_at or datetime.now(timezone.utc),
+                       arrival_minutes=minutes, arrival_message=message, vehicles=vehicles,
+                       vehicle_number=vehicles[0].vehicle_number if len(vehicles) == 1 else None,
+                       refresh_after_seconds=LIVE_TTL if minutes is not None or vehicles else EMPTY_TTL,
+                       message=None if minutes is not None else "현재 도착 예정을 제공하지 않습니다.")
+
+    # Cache failures/empty envelopes for their advertised backoff, not just HTTP data.
+    cache_key = ("live", provider, city_code, route_id, start.stop_order, end.stop_order)
+    result = _cache.get(cache_key, load, ttl=lambda result: result.refresh_after_seconds)
+    return result

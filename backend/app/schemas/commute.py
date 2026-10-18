@@ -112,6 +112,12 @@ class RouteStepResponse(BaseModel):
     vehicle_type: str | None = None
     departure_stop_name: str | None = None
     arrival_stop_name: str | None = None
+    departure_stop_location: RouteCoordinateResponse | None = None
+    arrival_stop_location: RouteCoordinateResponse | None = None
+    transit_agency_name: str | None = None
+    transit_headsign: str | None = None
+    scheduled_departure_time: datetime | None = None
+    stop_count: int | None = Field(default=None, ge=0)
     tago_city_code: str | None = None
     tago_route_id: str | None = None
     tago_boarding_stop_id: str | None = None
@@ -130,8 +136,8 @@ class RouteStopResponse(BaseModel):
 class LiveBusPositionResponse(BaseModel):
     vehicle_number: str
     route_name: str | None = None
-    latitude: float = Field(ge=-90, le=90)
-    longitude: float = Field(ge=-180, le=180)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
     current_stop_order: int | None = Field(default=None, ge=0)
     current_stop_id: str | None = None
     current_stop_name: str | None = None
@@ -144,6 +150,33 @@ class LiveBusPositionsResponse(BaseModel):
     cache_ttl_seconds: int = Field(default=15, ge=1)
     vehicles: list[LiveBusPositionResponse] = Field(default_factory=list)
     route_stops: list[RouteStopResponse] = Field(default_factory=list)
+
+
+class TransitLiveRequest(BaseModel):
+    """Google stop descriptors, resolved lazily only when a segment is expanded."""
+    route_name: str = Field(min_length=1, max_length=120)
+    vehicle_type: str = Field(min_length=1, max_length=40)
+    departure_stop_name: str = Field(min_length=1, max_length=120)
+    arrival_stop_name: str = Field(min_length=1, max_length=120)
+    departure_stop_location: RouteCoordinateResponse | None = None
+    arrival_stop_location: RouteCoordinateResponse | None = None
+    agency_name: str = Field(default="", max_length=200)
+    headsign: str = Field(default="", max_length=120)
+
+
+class TransitLiveResponse(BaseModel):
+    status: Literal["ok", "no_data", "unsupported", "unmatched", "not_configured", "provider_error"]
+    provider: str | None = None
+    message: str | None = None
+    cached_at: datetime
+    refresh_after_seconds: int = Field(default=30, ge=1)
+    arrival_minutes: int | None = Field(default=None, ge=0)
+    arrival_message: str | None = None
+    vehicle_number: str | None = None
+    boarding_stop_order: int | None = None
+    alighting_stop_order: int | None = None
+    route_stops: list[RouteStopResponse] = Field(default_factory=list)
+    vehicles: list[LiveBusPositionResponse] = Field(default_factory=list)
 
 
 class RouteSummaryResponse(BaseModel):

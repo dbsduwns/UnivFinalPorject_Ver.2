@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  AppState,
   Dimensions,
   PanResponder,
   Platform,
@@ -29,13 +30,14 @@ import {
 
 import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
 import {
-  getLiveBusPositions,
-  getTodayCommute,
+  getTransitLive,
+  transitLiveRequest,
+  commuteTodayOptions,
 } from "@/features/commute/api/commute";
+import { useAuthStore } from "@/features/auth/store/auth-store";
 import type {
   LiveBusPosition,
   RouteCoordinate,
-  RouteStop,
   RouteStep,
 } from "@/features/commute/api/types";
 
@@ -270,33 +272,10 @@ function buildDashedRouteSegments(
   return segments;
 }
 
-function normalizeStopName(name: string | null | undefined) {
-  return (name ?? "").replace(/\s|\([^)]*\)/g, "").toLowerCase();
-}
-
-function findTransitStopRange(stops: RouteStop[], step: RouteStep) {
-  const orderedStops = [...stops].sort(
-    (first, second) => first.stop_order - second.stop_order,
-  );
-  const departureName = normalizeStopName(step.departure_stop_name);
-  const arrivalName = normalizeStopName(step.arrival_stop_name);
-  const startIndex = orderedStops.findIndex((stop) =>
-    stop.stop_id === step.tago_boarding_stop_id ||
-    normalizeStopName(stop.stop_name) === departureName,
-  );
-  if (startIndex < 0) return [];
-
-  const relativeEndIndex = orderedStops.slice(startIndex + 1).findIndex(
-    (stop) => normalizeStopName(stop.stop_name) === arrivalName,
-  );
-  if (relativeEndIndex < 0) return [];
-  return orderedStops.slice(startIndex, startIndex + relativeEndIndex + 2);
-}
-
 function selectApproachingBus(
   vehicles: LiveBusPosition[],
   boardingOrder: number | undefined,
-  preferredIndex: number,
+  vehicleNumber: string | null | undefined,
 ) {
   if (boardingOrder === undefined) return null;
   const approaching = vehicles
@@ -308,64 +287,62 @@ function selectApproachingBus(
       (first, second) =>
         (second.current_stop_order ?? 0) - (first.current_stop_order ?? 0),
     );
-  if (approaching.length > 0) {
-    return approaching[Math.min(preferredIndex, approaching.length - 1)];
-  }
-
-  const nearest = vehicles
-    .filter((vehicle) => vehicle.current_stop_order !== null)
-    .sort(
-      (first, second) =>
-        Math.abs((first.current_stop_order ?? 0) - boardingOrder) -
-        Math.abs((second.current_stop_order ?? 0) - boardingOrder),
-    );
-  return nearest[0] ?? null;
+  // Never display an already-passed vehicle as the next bus.
+  return approaching.find((vehicle) => vehicle.vehicle_number === vehicleNumber)
+    ?? approaching[0] ?? null;
 }
 
 function TransitStopAccordion({
   step,
   color,
   pollingEnabled,
-  preferredVehicleIndex,
+  expanded,
+  onToggle,
 }: {
   step: RouteStep;
   color: string;
   pollingEnabled: boolean;
-  preferredVehicleIndex: number;
+  expanded: boolean;
+  onToggle: () => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const canLoadRealtime = Boolean(step.tago_city_code && step.tago_route_id);
-  const { data, isFetching } = useQuery({
-    queryKey: [
-      "commute",
-      "live-buses",
-      step.tago_city_code,
-      step.tago_route_id,
-    ],
-    queryFn: () => {
-      if (!step.tago_city_code || !step.tago_route_id) {
-        throw new Error("실시간 버스 조회에 필요한 노선 정보가 없습니다.");
-      }
-      return getLiveBusPositions(step.tago_city_code, step.tago_route_id);
+  const request = useMemo(() => transitLiveRequest(step), [step]);
+  const canLoadRealtime = Boolean(
+    step.vehicle_type?.includes("BUS") && step.transit_line_name &&
+    step.departure_stop_name && step.arrival_stop_name,
+  );
+  const realtimeQueryEnabled = pollingEnabled && expanded && canLoadRealtime;
+  const { data, isFetching, isError: isLiveError } = useQuery({
+    queryKey: ["commute", "transit-live", request],
+    queryFn: ({ signal }) => getTransitLive(request, signal),
+    enabled: realtimeQueryEnabled,
+    staleTime: (query) => (query.state.data?.refresh_after_seconds ?? 30) * 1000,
+    gcTime: 10 * 60_000,
+    refetchInterval: (query) => {
+      if (!realtimeQueryEnabled) return false;
+      if (["unsupported", "unmatched", "not_configured"].includes(query.state.data?.status ?? "")) return false;
+      if (query.state.error) return 60_000;
+      return (query.state.data?.refresh_after_seconds ?? 30) * 1000;
     },
-    enabled: pollingEnabled && canLoadRealtime,
-    staleTime: 15_000,
-    refetchInterval: pollingEnabled && canLoadRealtime ? 15_000 : false,
     refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     retry: false,
   });
   const segmentStops = useMemo(
-    () => findTransitStopRange(data?.route_stops ?? [], step),
-    [data?.route_stops, step],
+    () => (data?.route_stops ?? []).filter((stop) =>
+      data?.boarding_stop_order != null && data?.alighting_stop_order != null &&
+      stop.stop_order >= data.boarding_stop_order && stop.stop_order <= data.alighting_stop_order,
+    ),
+    [data],
   );
   const boardingOrder = segmentStops[0]?.stop_order;
   const liveBus = useMemo(
     () => selectApproachingBus(
-      data?.vehicles ?? [],
+      isLiveError ? [] : data?.vehicles ?? [],
       boardingOrder,
-      preferredVehicleIndex,
+      data?.vehicle_number,
     ),
-    [boardingOrder, data?.vehicles, preferredVehicleIndex],
+    [boardingOrder, data?.vehicles, data?.vehicle_number, isLiveError],
   );
   const visibleStops = useMemo(() => {
     if (!liveBus || liveBus.current_stop_order === null || segmentStops.length === 0) {
@@ -384,7 +361,19 @@ function TransitStopAccordion({
       .filter((stop) => stop.stop_order <= arrivalOrder);
   }, [boardingOrder, data?.route_stops, liveBus, segmentStops]);
 
-  const arrivalMinutes = step.next_vehicle_arrival_minutes;
+  const arrivalMinutes = isLiveError ? null : data?.arrival_minutes ?? null;
+  const scheduledDeparture = step.scheduled_departure_time
+    ? new Date(step.scheduled_departure_time).toLocaleTimeString("ko-KR", {
+        hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Seoul",
+      })
+    : null;
+  const arrivalLabel = isLiveError ? "실시간 조회 실패"
+    : !expanded ? (scheduledDeparture ? `${scheduledDeparture} 예정` : "펼쳐서 확인")
+    : arrivalMinutes !== null ? (arrivalMinutes === 0 ? "곧 도착" : `${arrivalMinutes}분 후`)
+    : isFetching && !data ? "확인 중"
+    : data?.status === "provider_error" ? "실시간 조회 실패"
+    : data?.status === "no_data" ? "도착 예정 미제공"
+    : scheduledDeparture ? `${scheduledDeparture} 예정` : "실시간 정보 미지원";
   return (
     <View style={styles.transitStopCard}>
       <View style={styles.transitStopHeader}>
@@ -398,11 +387,7 @@ function TransitStopAccordion({
         </View>
         <View style={[styles.nextVehicleBadge, { backgroundColor: `${color}18` }]}>
           <Text style={[styles.nextVehicleText, { color }]}>
-            {arrivalMinutes === null
-              ? "도착 정보 없음"
-              : arrivalMinutes === 0
-                ? "곧 도착"
-                : `${arrivalMinutes}분 후`}
+            {arrivalLabel}
           </Text>
         </View>
       </View>
@@ -410,14 +395,18 @@ function TransitStopAccordion({
       <TouchableOpacity
         style={styles.stopExpandButton}
         activeOpacity={0.7}
-        onPress={() => setExpanded((value) => !value)}
+        onPress={onToggle}
       >
         <Text style={styles.stopExpandText}>
           {segmentStops.length > 0
             ? `${Math.max(0, segmentStops.length - 1)}개 정류장`
-            : isFetching
+            : expanded && isFetching
               ? "정류장 확인 중"
-              : "정류장 정보 없음"}
+              : step.stop_count
+                ? `${step.stop_count}개 정류장 · 펼쳐서 확인`
+                : canLoadRealtime
+                ? "경유 정류장 보기"
+                : "정류장 정보 없음"}
         </Text>
         <ChevronDown
           size={18}
@@ -428,6 +417,11 @@ function TransitStopAccordion({
 
       {expanded && (
         <View style={styles.stopList}>
+          {data && (
+            <Text style={styles.stopEmptyText}>
+              {data.message ?? `${new Date(data.cached_at).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul" })} 조회 기준`}
+            </Text>
+          )}
           {visibleStops.map((stop) => {
             const isBoarding = stop.stop_order === boardingOrder;
             const isArrival =
@@ -467,9 +461,9 @@ function TransitStopAccordion({
           })}
           {visibleStops.length === 0 && (
             <Text style={styles.stopEmptyText}>
-              {canLoadRealtime
-                ? "경유 정류장 정보를 불러오지 못했습니다."
-                : "이 구간은 실시간 정류장 정보를 지원하지 않습니다."}
+              {isFetching && !data ? "경유 정류장을 확인하고 있어요"
+                : isLiveError ? "잠시 후 다시 확인해주세요."
+                : data?.message ?? "이 구간은 예정 시간으로 안내합니다."}
             </Text>
           )}
         </View>
@@ -516,6 +510,14 @@ function getRouteCamera(routePath: RouteCoordinate[]) {
 export default function CampusMapScreen() {
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const isFocused = useIsFocused();
+  const userId = useAuthStore((state) => state.user?.id);
+  const [isAppActive, setIsAppActive] = useState(AppState.currentState === "active");
+  const [expandedStepIndex, setExpandedStepIndex] = useState<number | null>(null);
+  const [isSheetExpanded, setIsSheetExpanded] = useState(true);
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => setIsAppActive(state === "active"));
+    return () => subscription.remove();
+  }, []);
   // Android Expo Maps가 안정적으로 처리하는 PNG 브랜드 마커를 로드한다.
   const originMarkerIcon = useImage(
     require("../../../src/assets/images/map-marker-origin.png"),
@@ -543,6 +545,7 @@ export default function CampusMapScreen() {
 
   const snapSheet = useCallback((position: number) => {
     const clampedPosition = Math.max(0, Math.min(SHEET_COLLAPSED_Y, position));
+    setIsSheetExpanded(clampedPosition < SHEET_COLLAPSED_Y);
     sheetPositionRef.current = clampedPosition;
     Animated.spring(sheetTranslateY, {
       toValue: clampedPosition,
@@ -601,11 +604,8 @@ export default function CampusMapScreen() {
     isError,
     refetch,
   } = useQuery({
-    queryKey: ["commute", "today"],
-    queryFn: getTodayCommute,
-    enabled: mapMode === "commute",
-    staleTime: 60_000,
-    retry: false,
+    ...commuteTodayOptions(userId),
+    enabled: mapMode === "commute" && isFocused && isAppActive && userId !== undefined,
   });
 
   const routeOptions = useMemo(
@@ -681,12 +681,14 @@ export default function CampusMapScreen() {
   // 새로운 등교 계산 결과가 도착하면 Google 추천 경로를 기본 선택한다.
   useEffect(() => {
     setSelectedRouteIndex(0);
+    setExpandedStepIndex(null);
     setIsDetailView(false);
     snapSheet(SHEET_HALF_Y);
   }, [commute?.calculated_at, snapSheet]);
 
   const openRouteDetail = (index: number) => {
     setSelectedRouteIndex(index);
+    setExpandedStepIndex(null);
     setIsDetailView(true);
     setRouteFocusRequest((request) => request + 1);
     // 선택한 경로를 지도에서 확인할 수 있도록 상세 화면은 유지한 채 시트를 접는다.
@@ -1026,10 +1028,9 @@ export default function CampusMapScreen() {
                             <TransitStopAccordion
                               step={item.step}
                               color={color}
-                              pollingEnabled={isFocused && isDetailView}
-                              preferredVehicleIndex={
-                                route.realtime_status === "next_bus" ? 1 : 0
-                              }
+                              pollingEnabled={isFocused && isAppActive && isDetailView && isSheetExpanded && mapMode === "commute"}
+                              expanded={expandedStepIndex === item.stepIndex}
+                              onToggle={() => setExpandedStepIndex((current) => current === item.stepIndex ? null : item.stepIndex)}
                             />
                           )}
                         </View>
