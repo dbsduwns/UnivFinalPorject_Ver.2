@@ -24,11 +24,11 @@
 
 ### 제공기관별 동작
 
-- 서울: 노선 검색·정류장 조회 후 노선 전체 도착정보 한 번으로 해당 정류장의 다음 차량을 선택한다. 도착 응답의 차량 ID와 구간 순서를 사용하므로 별도 차량 위치 API 호출이 없다.
-- 경기: GBIS v2 노선·정류장 조회 후 `routeId + stationId + staOrder`로 도착정보를 받는다. 첫 차량의 남은 정류장 수로 현재 정류장 순서를 표현하므로 별도 차량 위치 API 호출이 없다.
-- TAGO: 서울/경기 직접 연동이 설정되지 않았거나 노선이 매칭되지 않으면 지원 지역에 한해 사용한다. 도착 예정이 있을 때만 차량 위치도 조회한다. 위치 조회 실패 시 도착시간은 유지한다.
+- 서울: 노선 검색·정류장·도착정보 조회 후, 다음 차량 ID가 있으면 버스위치정보 API를 한 번 호출한다. 위치 응답의 도로 맵 매칭 좌표를 지도 마커로 사용하며 권한·연결 오류 시 도착정보의 구간 순서와 정류장 좌표로 대체한다.
+- 경기: GBIS v2 노선·정류장 조회 후 `routeId + stationId + staOrder`로 도착정보를 받는다. 공개 위치 API가 GPS 좌표를 제공하지 않으므로 추가 위치 호출 없이 첫 차량의 남은 정류장 수와 정류장 좌표로 표시한다.
+- TAGO: 서울/경기 직접 연동이 설정되지 않았거나 노선이 매칭되지 않으면 지원 지역에 한해 사용한다. 도착 예정이 있을 때만 차량 위치도 조회하고 GPS 좌표가 있으면 지도 마커로 사용한다. 위치 조회 실패 시 도착시간은 유지한다.
 - 같은 번호의 다른 노선/반대 방향을 피하기 위해 탑승·하차 정류장의 이름/좌표와 순서를 검증한다. 불확실한 매칭은 표시하지 않는다.
-- 차량 표시는 **정류장 순서 기반**이며 정확한 GPS 위치를 뜻하지 않는다. TAGO는 도착 응답에 차량 ID가 없어 ETA와 위치의 동일 차량 여부를 보장하지 않는다.
+- 차량 응답의 `position_source`는 `gps`, `map_matched`, `stop` 중 하나다. 경기의 `stop`은 정류장 기준 추정 위치이며 GPS로 표기하지 않는다. TAGO는 도착 응답에 차량 ID가 없어 ETA와 위치의 동일 차량 여부를 보장하지 않고, 탑승 정류장에 가장 가까운 접근 차량을 선택한다.
 - 인천 BIS 직접 연동과 지하철 실시간 어댑터는 이번 변경에 포함하지 않았다. TAGO 미지원 구간 및 지하철은 Google 예정 정보로 안내하며 수도권 전체 실시간 지원을 보장하지 않는다.
 
 ## 설정/운영
@@ -37,7 +37,7 @@
 
 - `GOOGLE_MAPS_SERVER_API_KEY`: 기존 경로 예상 키.
 - `PUBLIC_API_KEY`: 기존 TAGO 키. 선택적으로 `TAGO_BUS_API_KEY`가 있으면 우선한다.
-- `SEOUL_BUS_API_KEY`: 서울 버스 노선정보·도착정보 활용 신청 후 설정.
+- `SEOUL_BUS_API_KEY`: 서울 버스 노선정보·도착정보·위치정보 활용 신청 후 설정.
 - `GYEONGGI_BUS_API_KEY`: 경기도 버스 노선조회·도착정보 v2 활용 신청 후 설정.
 - 공공데이터포털 키 문자열이 같아도 각 서비스의 활용 승인은 별도로 필요하다. 미설정 기관에는 요청하지 않는다.
 - `SEOUL_BUS_DAILY_LIMIT`, `GYEONGGI_BUS_DAILY_LIMIT`, `TAGO_BUS_DAILY_LIMIT`: **프로세스·서비스별 자체 안전 상한**. 기본 900/900/9000회는 실제 승인 한도를 조회한 값이 아니므로 계정에 승인된 양과 다른 소비자의 사용량에 맞춰 낮춰야 한다.
@@ -69,6 +69,17 @@
 - `timeout`, `network_error`: 연결 또는 응답 시간 문제
 - `invalid_payload`, `xml_parse_error`, `response_parse_error`: 예상 응답 형식과 다름
 
+차량 위치가 없거나 정류장 기준으로 대체되면 `Transit vehicle position` 로그와 응답의 `vehicle_position_reason`, `vehicle_position_message`를 확인한다.
+
+- `gps_coordinates`: TAGO GPS 좌표 사용
+- `map_matched_coordinates`: 서울 도로 맵 매칭 좌표 사용
+- `provider_stop_level_only`: 경기 도착정보의 정류장 순번 사용
+- `location_api_failed`: 위치 API 권한·한도·연결 문제로 위치 조회 실패
+- `no_active_arrival_vehicle`: 현재 도착 예정 차량이 없음
+- `arrival_vehicle_not_in_location_feed`: 도착 차량 ID가 위치 목록에 없음
+- `no_approaching_vehicle_in_location_feed`: 탑승 정류장으로 접근 중인 차량이 없음
+- `location_coordinates_missing`, `stop_coordinates_missing`: 차량 또는 정류장은 찾았으나 지도 좌표가 없음
+
 ## 검증
 
 외부 API 과금을 발생시키지 않는 모의 응답 테스트:
@@ -86,6 +97,11 @@ cd backend
 
 - [서울 버스 노선정보](https://www.data.go.kr/data/15000193/openapi.do)
 - [서울 버스 도착정보](https://www.data.go.kr/data/15000314/openapi.do)
+- [서울 버스 위치정보](https://www.data.go.kr/data/15000332/openapi.do)
 - [GBIS 노선조회 v2](https://www.gbis.go.kr/gbis2014/publicService.action?cmd=mBusRoute)
 - [GBIS 경유 정류장 v2](https://www.gbis.go.kr/gbis2014/publicService.action?cmd=mBusRouteStation)
 - [GBIS 도착정보 v2](https://www.gbis.go.kr/gbis2014/publicService.action?cmd=mBusArrival)
+- [TAGO 버스정류소정보](https://www.data.go.kr/data/15098534/openapi.do)
+- [TAGO 버스노선정보](https://www.data.go.kr/data/15098529/openapi.do)
+- [TAGO 버스도착정보](https://www.data.go.kr/data/15098530/openapi.do)
+- [TAGO 버스위치정보](https://www.data.go.kr/data/15098533/openapi.do)

@@ -14,6 +14,7 @@ CommuteStatus = Literal[
     "provider_error",
 ]
 DisplayMode = Literal["departure_recommendation", "travel_time_only"]
+CommuteCalculationMode = Literal["class_arrival", "depart_now"]
 RouteCategory = Literal[
     "google_recommended",
     "fastest",
@@ -138,6 +139,7 @@ class LiveBusPositionResponse(BaseModel):
     route_name: str | None = None
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
+    position_source: Literal["gps", "map_matched", "stop"] = "stop"
     current_stop_order: int | None = Field(default=None, ge=0)
     current_stop_id: str | None = None
     current_stop_name: str | None = None
@@ -173,6 +175,9 @@ class TransitLiveResponse(BaseModel):
     arrival_minutes: int | None = Field(default=None, ge=0)
     arrival_message: str | None = None
     vehicle_number: str | None = None
+    vehicle_position_status: Literal["available", "fallback", "unavailable", "not_applicable"] = "unavailable"
+    vehicle_position_reason: str | None = None
+    vehicle_position_message: str | None = None
     boarding_stop_order: int | None = None
     alighting_stop_order: int | None = None
     route_stops: list[RouteStopResponse] = Field(default_factory=list)

@@ -1,4 +1,4 @@
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 from unittest.mock import Mock
@@ -253,6 +253,52 @@ def test_today_prediction_keeps_class_buffer_without_realtime_enrichment(monkeyp
     assert post.call_count == 1
     get.assert_not_called()
     feasibility.assert_not_called()
+
+
+def test_map_navigation_uses_current_departure_time(monkeypatch):
+    profile = SimpleNamespace(
+        home_latitude=37.2,
+        home_longitude=127.1,
+        use_shuttle=False,
+        departure_buffer_minutes=10,
+    )
+    route = commute.RouteSummaryResponse(
+        transport_type="bus",
+        route_name="5000",
+        duration_minutes=30,
+    )
+    route_request = {}
+
+    monkeypatch.setattr(commute, "get_commute_profile", lambda db, user: profile)
+    monkeypatch.setattr(commute, "get_first_class", lambda db, user: commute.FirstClassResponse(
+        course_name="테스트 수업",
+        start_time=time(23, 59),
+        latitude=37.3,
+        longitude=127.2,
+    ))
+
+    def fake_get_transit_routes(**kwargs):
+        route_request.update(kwargs)
+        return [route]
+
+    monkeypatch.setattr(commute, "get_transit_routes", fake_get_transit_routes)
+    before = datetime.now(ZoneInfo("Asia/Seoul"))
+
+    result = commute.get_today_commute(
+        db=object(),
+        user=object(),
+        calculation_mode="depart_now",
+    )
+
+    after = datetime.now(ZoneInfo("Asia/Seoul"))
+    assert result.status == "ready"
+    assert result.display_mode == "travel_time_only"
+    assert route_request["arrival_time"] is None
+    assert before <= route_request["departure_time"] <= after
+    assert result.recommended_route.departure_time == route_request["departure_time"].time()
+    assert result.recommended_route.arrival_time == (
+        route_request["departure_time"] + timedelta(minutes=30)
+    ).time()
 
 
 def test_realtime_feasibility_selects_next_bus_when_slack_is_enough():

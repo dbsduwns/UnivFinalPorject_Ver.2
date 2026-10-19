@@ -39,6 +39,7 @@ import type {
   LiveBusPosition,
   RouteCoordinate,
   RouteStep,
+  TransitLive,
 } from "@/features/commute/api/types";
 
 const GOOGLE_MAP_ID = process.env.EXPO_PUBLIC_GOOGLE_MAP_ID?.trim();
@@ -48,6 +49,19 @@ const SHEET_MIN_HEIGHT = 112;
 const SHEET_COLLAPSED_Y = SHEET_MAX_HEIGHT - SHEET_MIN_HEIGHT;
 const SHEET_HALF_Y = SHEET_COLLAPSED_Y * 0.48;
 const TRANSIT_FALLBACK_COLORS = ["#13708D", "#7C3AED", "#DC2626", "#D97706"];
+const VEHICLE_MARKER_ANIMATION_MS = 700;
+const VEHICLE_MARKER_ANIMATION_STEPS = 10;
+const BUS_MARKER_ICON = `data:image/svg+xml;utf8,${encodeURIComponent(`
+  <svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72">
+    <circle cx="36" cy="36" r="32" fill="#13708D" stroke="#FFFFFF" stroke-width="5"/>
+    <rect x="20" y="19" width="32" height="31" rx="7" fill="#FFFFFF"/>
+    <rect x="25" y="24" width="22" height="11" rx="2" fill="#BFE8F2"/>
+    <rect x="25" y="39" width="7" height="5" rx="1" fill="#13708D"/>
+    <rect x="40" y="39" width="7" height="5" rx="1" fill="#13708D"/>
+    <circle cx="27" cy="52" r="4" fill="#0F4F63"/>
+    <circle cx="45" cy="52" r="4" fill="#0F4F63"/>
+  </svg>
+`)}`;
 
 const CAMPUS_CENTER: RouteCoordinate = {
   latitude: 37.2757,
@@ -294,16 +308,20 @@ function selectApproachingBus(
 
 function TransitStopAccordion({
   step,
+  stepIndex,
   color,
   pollingEnabled,
   expanded,
   onToggle,
+  onLiveDataChange,
 }: {
   step: RouteStep;
+  stepIndex: number;
   color: string;
   pollingEnabled: boolean;
   expanded: boolean;
   onToggle: () => void;
+  onLiveDataChange: (stepIndex: number, data: TransitLive | null) => void;
 }) {
   const request = useMemo(() => transitLiveRequest(step), [step]);
   const canLoadRealtime = Boolean(
@@ -328,6 +346,10 @@ function TransitStopAccordion({
     refetchOnReconnect: false,
     retry: false,
   });
+  useEffect(() => {
+    onLiveDataChange(stepIndex, realtimeQueryEnabled ? data ?? null : null);
+    return () => onLiveDataChange(stepIndex, null);
+  }, [data, onLiveDataChange, realtimeQueryEnabled, stepIndex]);
   const segmentStops = useMemo(
     () => (data?.route_stops ?? []).filter((stop) =>
       data?.boarding_stop_order != null && data?.alighting_stop_order != null &&
@@ -419,7 +441,25 @@ function TransitStopAccordion({
         <View style={styles.stopList}>
           {data && (
             <Text style={styles.stopEmptyText}>
-              {data.message ?? `${new Date(data.cached_at).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul" })} 조회 기준`}
+              {`${new Date(data.cached_at).toLocaleTimeString("ko-KR", {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                timeZone: "Asia/Seoul",
+              })} 조회 기준`}
+            </Text>
+          )}
+          {data?.message && (
+            <Text style={[styles.vehiclePositionNotice, styles.vehiclePositionWarning]}>
+              {data.message}
+            </Text>
+          )}
+          {data?.vehicle_position_message && (
+            <Text style={[
+              styles.vehiclePositionNotice,
+              data.vehicle_position_status === "unavailable" && styles.vehiclePositionWarning,
+            ]}>
+              {data.vehicle_position_message}
             </Text>
           )}
           {visibleStops.map((stop) => {
@@ -453,7 +493,13 @@ function TransitStopAccordion({
                 {hasLiveBus && (
                   <View style={[styles.vehiclePositionBadge, { borderColor: color }]}>
                     <Bus size={12} color={color} />
-                    <Text style={[styles.vehiclePositionText, { color }]}>실시간 차량</Text>
+                    <Text style={[styles.vehiclePositionText, { color }]}>
+                      {liveBus.position_source === "gps"
+                        ? "GPS 차량"
+                        : liveBus.position_source === "map_matched"
+                          ? "도로 기준 차량"
+                          : "정류장 기준 차량"}
+                    </Text>
                   </View>
                 )}
               </View>
@@ -514,6 +560,12 @@ export default function CampusMapScreen() {
   const [isAppActive, setIsAppActive] = useState(AppState.currentState === "active");
   const [expandedStepIndex, setExpandedStepIndex] = useState<number | null>(null);
   const [isSheetExpanded, setIsSheetExpanded] = useState(true);
+  const [activeTransitLive, setActiveTransitLive] = useState<{
+    stepIndex: number;
+    data: TransitLive;
+  } | null>(null);
+  const [displayedLiveVehicles, setDisplayedLiveVehicles] = useState<LiveBusPosition[]>([]);
+  const displayedLiveVehiclesRef = useRef<LiveBusPosition[]>([]);
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (state) => setIsAppActive(state === "active"));
     return () => subscription.remove();
@@ -531,6 +583,7 @@ export default function CampusMapScreen() {
     require("../../../src/assets/images/map-marker-campus.png"),
     { maxWidth: 108, maxHeight: 135 },
   );
+  const busMarkerIcon = useImage(BUS_MARKER_ICON, { maxWidth: 72, maxHeight: 72 });
   const [mapMode, setMapMode] = useState<MapMode>(
     mode === "commute" ? "commute" : "campus",
   );
@@ -542,6 +595,64 @@ export default function CampusMapScreen() {
   const sheetTranslateY = useRef(new Animated.Value(SHEET_HALF_Y)).current;
   const sheetPositionRef = useRef(SHEET_HALF_Y);
   const dragStartRef = useRef(SHEET_HALF_Y);
+
+  const handleLiveDataChange = useCallback((
+    stepIndex: number,
+    data: TransitLive | null,
+  ) => {
+    setActiveTransitLive((current) => {
+      if (data) return { stepIndex, data };
+      return current?.stepIndex === stepIndex ? null : current;
+    });
+  }, []);
+
+  // 새 위치가 도착하면 마커를 짧게 보간해 API 갱신 사이의 급격한 점프를 줄인다.
+  useEffect(() => {
+    const targets = activeTransitLive?.data.vehicles.filter(
+      (vehicle) => vehicle.latitude !== null && vehicle.longitude !== null,
+    ) ?? [];
+    if (targets.length === 0) {
+      displayedLiveVehiclesRef.current = [];
+      setDisplayedLiveVehicles([]);
+      return;
+    }
+
+    const previousByNumber = new Map(
+      displayedLiveVehiclesRef.current.map((vehicle) => [vehicle.vehicle_number, vehicle]),
+    );
+    const canAnimate = targets.some((vehicle) => {
+      const previous = previousByNumber.get(vehicle.vehicle_number);
+      return previous?.latitude !== null && previous?.longitude !== null;
+    });
+    if (!canAnimate) {
+      displayedLiveVehiclesRef.current = targets;
+      setDisplayedLiveVehicles(targets);
+      return;
+    }
+
+    let step = 0;
+    const timer = setInterval(() => {
+      step += 1;
+      const progress = step / VEHICLE_MARKER_ANIMATION_STEPS;
+      const eased = 1 - (1 - progress) ** 3;
+      const next = targets.map((target) => {
+        const previous = previousByNumber.get(target.vehicle_number);
+        if (
+          !previous || previous.latitude === null || previous.longitude === null ||
+          target.latitude === null || target.longitude === null
+        ) return target;
+        return {
+          ...target,
+          latitude: previous.latitude + (target.latitude - previous.latitude) * eased,
+          longitude: previous.longitude + (target.longitude - previous.longitude) * eased,
+        };
+      });
+      displayedLiveVehiclesRef.current = next;
+      setDisplayedLiveVehicles(next);
+      if (step >= VEHICLE_MARKER_ANIMATION_STEPS) clearInterval(timer);
+    }, VEHICLE_MARKER_ANIMATION_MS / VEHICLE_MARKER_ANIMATION_STEPS);
+    return () => clearInterval(timer);
+  }, [activeTransitLive]);
 
   const snapSheet = useCallback((position: number) => {
     const clampedPosition = Math.max(0, Math.min(SHEET_COLLAPSED_Y, position));
@@ -604,7 +715,7 @@ export default function CampusMapScreen() {
     isError,
     refetch,
   } = useQuery({
-    ...commuteTodayOptions(userId),
+    ...commuteTodayOptions(userId, "depart_now"),
     enabled: mapMode === "commute" && isFocused && isAppActive && userId !== undefined,
   });
 
@@ -682,6 +793,7 @@ export default function CampusMapScreen() {
   useEffect(() => {
     setSelectedRouteIndex(0);
     setExpandedStepIndex(null);
+    setActiveTransitLive(null);
     setIsDetailView(false);
     snapSheet(SHEET_HALF_Y);
   }, [commute?.calculated_at, snapSheet]);
@@ -713,6 +825,28 @@ export default function CampusMapScreen() {
     routePath.length,
   ]);
 
+  const liveVehicleMarkers = useMemo(
+    () => activeTransitLive ? displayedLiveVehicles
+      .map((vehicle, index) => ({
+        id: `live-bus-${activeTransitLive.stepIndex}-${vehicle.vehicle_number}-${index}`,
+        coordinates: {
+          latitude: vehicle.latitude as number,
+          longitude: vehicle.longitude as number,
+        },
+        title: `🚌 ${vehicle.vehicle_number}`,
+        snippet: vehicle.position_source === "gps"
+          ? "GPS 기반 실시간 위치"
+          : vehicle.position_source === "map_matched"
+            ? "도로에 보정된 실시간 위치"
+            : `정류장 기준 위치${vehicle.current_stop_name ? ` · ${vehicle.current_stop_name}` : ""}`,
+        zIndex: 20,
+        icon: busMarkerIcon ?? undefined,
+        anchor: { x: 0.5, y: 0.5 },
+        showCallout: true,
+      })) : [],
+    [activeTransitLive, busMarkerIcon, displayedLiveVehicles],
+  );
+
   const markers =
     mapMode === "commute" && routePath.length > 1
       ? [
@@ -734,6 +868,7 @@ export default function CampusMapScreen() {
             zIndex: 10,
             showCallout: true,
           },
+          ...liveVehicleMarkers,
         ]
       : CAMPUS_LOCATIONS.map((location) => ({
           id: `campus-${location.name}`,
@@ -1027,10 +1162,12 @@ export default function CampusMapScreen() {
                           {item.step.travel_mode === "TRANSIT" && (
                             <TransitStopAccordion
                               step={item.step}
+                              stepIndex={item.stepIndex}
                               color={color}
                               pollingEnabled={isFocused && isAppActive && isDetailView && isSheetExpanded && mapMode === "commute"}
                               expanded={expandedStepIndex === item.stepIndex}
                               onToggle={() => setExpandedStepIndex((current) => current === item.stepIndex ? null : item.stepIndex)}
+                              onLiveDataChange={handleLiveDataChange}
                             />
                           )}
                         </View>
@@ -1352,6 +1489,19 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   vehiclePositionText: { fontSize: 10, fontWeight: "800" },
+  vehiclePositionNotice: {
+    marginHorizontal: 6,
+    marginBottom: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    borderRadius: 9,
+    backgroundColor: "#EAF8FC",
+    textAlign: "center",
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#0F5D73",
+  },
+  vehiclePositionWarning: { backgroundColor: "#FFF1F2", color: "#BE123C" },
   stopEmptyText: {
     paddingVertical: 14,
     textAlign: "center",

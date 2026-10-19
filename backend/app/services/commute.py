@@ -27,6 +27,7 @@ from app.models.shuttle_map import (
 )
 from app.models.user import User
 from app.schemas.commute import (
+    CommuteCalculationMode,
     CommuteProfileCreate,
     CommuteProfileUpdate,
     CommuteSettingsUpdate,
@@ -338,8 +339,12 @@ def get_first_class(
     return FirstClassResponse(**first_class)
 
 
-def get_today_commute(db: Session, user: User) -> CommuteTodayResponse:
-    """오늘의 첫 정규 수업을 기준으로 통학 출발시간을 계산한다."""
+def get_today_commute(
+    db: Session,
+    user: User,
+    calculation_mode: CommuteCalculationMode = "class_arrival",
+) -> CommuteTodayResponse:
+    """홈은 수업 도착 기준, 지도는 현재 출발 기준으로 통학 경로를 계산한다."""
     profile = get_commute_profile(db, user)
     if profile is None:
         return CommuteTodayResponse(
@@ -348,7 +353,11 @@ def get_today_commute(db: Session, user: User) -> CommuteTodayResponse:
         )
 
     first_class = get_first_class(db, user)
-    display_mode = get_commute_display_mode(first_class)
+    display_mode = (
+        "travel_time_only"
+        if calculation_mode == "depart_now"
+        else get_commute_display_mode(first_class)
+    )
     no_class_message = None
 
     if first_class is None:
@@ -401,7 +410,10 @@ def get_today_commute(db: Session, user: User) -> CommuteTodayResponse:
     timezone_info = ZoneInfo("Asia/Seoul")
     now = datetime.now(timezone_info)
     target_arrival = None
-    if display_mode == "departure_recommendation":
+    if (
+        calculation_mode == "class_arrival"
+        and display_mode == "departure_recommendation"
+    ):
         target_arrival = datetime.combine(
             now.date(),
             first_class.start_time,
@@ -415,9 +427,7 @@ def get_today_commute(db: Session, user: User) -> CommuteTodayResponse:
             end_latitude=destination.latitude,
             end_longitude=destination.longitude,
             arrival_time=target_arrival,
-            departure_time=(
-                now if display_mode == "travel_time_only" else None
-            ),
+            departure_time=(now if target_arrival is None else None),
         )
     except TransitRouteError:
         return CommuteTodayResponse(

@@ -6,6 +6,7 @@ from app.core.dependencies import get_current_user
 from app.database import get_db
 from app.models.user import User
 from app.schemas.commute import (
+    CommuteCalculationMode,
     CommuteProfileCreate,
     CommuteAddressSearchResult,
     CommuteProfileResponse,
@@ -116,10 +117,15 @@ def update_commute_settings(
 
 @router.get("/today", response_model=CommuteTodayResponse)
 def get_today_commute(
+    calculation_mode: CommuteCalculationMode = Query(default="class_arrival"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return commute_service.get_today_commute(db, current_user)
+    return commute_service.get_today_commute(
+        db,
+        current_user,
+        calculation_mode=calculation_mode,
+    )
 
 
 @router.get("/live-buses", response_model=LiveBusPositionsResponse)

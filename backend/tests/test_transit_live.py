@@ -55,9 +55,9 @@ def gg_api(monkeypatch, arrival=None):
             return gg_response("busRouteList", {"routeId": 500, "routeName": "5000", "districtCd": 2})
         if "getBusRouteStationListv2" in url:
             return gg_response("busRouteStationList", [
-                {"stationId": 10, "stationSeq": 10, "stationName": "이전정류장"},
-                {"stationId": 11, "stationSeq": 11, "stationName": "기흥역"},
-                {"stationId": 12, "stationSeq": 12, "stationName": "강남대역"},
+                {"stationId": 10, "stationSeq": 10, "stationName": "이전정류장", "y": 37.1, "x": 127.1},
+                {"stationId": 11, "stationSeq": 11, "stationName": "기흥역", "y": 37.2, "x": 127.2},
+                {"stationId": 12, "stationSeq": 12, "stationName": "강남대역", "y": 37.3, "x": 127.3},
             ])
         assert "getBusArrivalItemv2" in url  # No buslocationservice needed.
         assert kwargs["params"]["staOrder"] == 11
@@ -79,7 +79,10 @@ def test_gyeonggi_lazy_lookup_shares_cache_without_location_api(monkeypatch):
     assert first.boarding_stop_order == 11
     assert first.alighting_stop_order == 12
     assert first.vehicles[0].current_stop_order == 10
-    assert first.vehicles[0].latitude is None  # Stop position is not GPS.
+    assert first.vehicles[0].latitude == 37.1
+    assert first.vehicles[0].position_source == "stop"
+    assert first.vehicle_position_status == "fallback"
+    assert first.vehicle_position_reason == "provider_stop_level_only"
     assert first.cached_at == second.cached_at
     assert len(calls) == 3
 
@@ -118,8 +121,11 @@ def test_seoul_message_and_vehicle_share_one_arrival_call(monkeypatch):
         if "getBusRouteList" in url:
             items = {"busRouteId": "100", "busRouteNm": "마포12"}
         elif "getStaionByRoute" in url:
-            items = [{"seq": 10, "station": "a", "stationNm": "출발"},
-                     {"seq": 11, "station": "b", "stationNm": "도착"}]
+            items = [{"seq": 10, "station": "a", "stationNm": "출발", "gpsY": 37.5, "gpsX": 127.0},
+                     {"seq": 11, "station": "b", "stationNm": "도착", "gpsY": 37.6, "gpsX": 127.1}]
+        elif "getBusPosByRouteSt" in url:
+            items = {"vehId": "v1", "plainNo": "서울12가3456", "sectOrd": 9,
+                     "posY": 37.49, "posX": 126.99}
         else:
             assert "getArrInfoByRouteAll" in url
             items = {"stId": "a", "staOrd": 10, "arrmsg1": "3분18초후[1번째 전]",
@@ -130,9 +136,46 @@ def test_seoul_message_and_vehicle_share_one_arrival_call(monkeypatch):
     result = live.get_transit_live(request(route_name="마포 12", departure_stop_name="출발", arrival_stop_name="도착"))
     assert result.provider == "seoul"
     assert result.arrival_minutes == 4
-    assert result.vehicle_number == "v1"
-    assert len(calls) == 3
+    assert result.vehicle_number == "서울12가3456"
+    assert result.vehicles[0].position_source == "map_matched"
+    assert result.vehicles[0].latitude == 37.49
+    assert result.vehicle_position_status == "available"
+    assert result.vehicle_position_reason == "map_matched_coordinates"
+    assert len(calls) == 4
     assert all(url.startswith("http://ws.bus.go.kr/api/rest/") for url in calls)
+
+
+def test_seoul_location_failure_uses_stop_fallback_and_explains_cause(monkeypatch, caplog):
+    monkeypatch.setenv("SEOUL_BUS_API_KEY", "test")
+
+    def get(url, **kwargs):
+        if "getBusRouteList" in url:
+            items = {"busRouteId": "100", "busRouteNm": "마포12"}
+        elif "getStaionByRoute" in url:
+            items = [{"seq": 10, "station": "a", "stationNm": "출발", "gpsY": 37.5, "gpsX": 127.0},
+                     {"seq": 11, "station": "b", "stationNm": "도착", "gpsY": 37.6, "gpsX": 127.1}]
+        elif "getArrInfoByRouteAll" in url:
+            items = {"stId": "a", "staOrd": 10, "arrmsg1": "3분후[1번째 전]",
+                     "vehId1": "v1", "sectOrd1": "10"}
+        else:
+            assert "getBusPosByRouteSt" in url
+            raise live.requests.Timeout()
+        return Response({"msgHeader": {"headerCd": "0"}, "msgBody": {"itemList": items}})
+
+    monkeypatch.setattr(live.requests, "get", get)
+    with caplog.at_level(logging.INFO, logger=live.__name__):
+        result = live.get_transit_live(request(
+            route_name="마포 12", departure_stop_name="출발", arrival_stop_name="도착",
+        ))
+
+    assert result.status == "ok"
+    assert result.arrival_minutes == 3
+    assert result.vehicles[0].position_source == "stop"
+    assert result.vehicles[0].latitude == 37.5
+    assert result.vehicle_position_status == "fallback"
+    assert result.vehicle_position_reason == "location_api_failed"
+    assert "서울 버스 위치 API" in result.vehicle_position_message
+    assert any("location_api_failed" in record.getMessage() for record in caplog.records)
 
 
 def test_missing_key_and_unsupported_modes_make_no_calls():
@@ -321,7 +364,7 @@ def test_tago_fallback_and_location_failure_preserves_arrival(monkeypatch, posit
             assert "getRouteAcctoBusLcList" in url
             if positions_fail:
                 raise live.requests.Timeout()
-            items = {"nodeord": 1, "vehicleno": "BUS1"}
+            items = {"nodeord": 1, "vehicleno": "BUS1", "gpslati": 37.21, "gpslong": 127.11}
         return Response({"response": {"header": {"resultCode": "00"}, "body": {"items": {"item": items}}}})
 
     monkeypatch.setattr(live.requests, "get", get)
@@ -331,5 +374,9 @@ def test_tago_fallback_and_location_failure_preserves_arrival(monkeypatch, posit
     assert result.provider == "tago"
     assert result.arrival_minutes == 2
     assert len(result.vehicles) == (0 if positions_fail else 1)
+    assert result.vehicle_position_reason == ("location_api_failed" if positions_fail else "gps_coordinates")
+    if not positions_fail:
+        assert result.vehicles[0].position_source == "gps"
+        assert result.vehicles[0].latitude == 37.21
     live.get_transit_live(query)
     assert len(calls) == 5

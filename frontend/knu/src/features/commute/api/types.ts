@@ -163,6 +163,7 @@ export type LiveBusPosition = {
   route_name: string | null;
   latitude: number | null;
   longitude: number | null;
+  position_source: "gps" | "map_matched" | "stop";
   current_stop_order: number | null;
   current_stop_id: string | null;
   current_stop_name: string | null;
@@ -186,6 +187,9 @@ export type TransitLive = {
   arrival_minutes: number | null;
   arrival_message: string | null;
   vehicle_number: string | null;
+  vehicle_position_status: "available" | "fallback" | "unavailable" | "not_applicable";
+  vehicle_position_reason: string | null;
+  vehicle_position_message: string | null;
   boarding_stop_order: number | null;
   alighting_stop_order: number | null;
   route_stops: RouteStop[];

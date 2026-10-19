@@ -15,15 +15,26 @@ import type {
 } from "./types";
 
 
-export async function getTodayCommute(signal?: AbortSignal): Promise<CommuteToday> {
-  const { data } = await apiClient.get<CommuteToday>("/api/commute/today", { signal });
+export type CommuteCalculationMode = "class_arrival" | "depart_now";
+
+export async function getTodayCommute(
+  calculationMode: CommuteCalculationMode,
+  signal?: AbortSignal,
+): Promise<CommuteToday> {
+  const { data } = await apiClient.get<CommuteToday>("/api/commute/today", {
+    params: { calculation_mode: calculationMode },
+    signal,
+  });
   return data;
 }
 
-// Home and map share the same user-scoped prediction; navigating does not recalculate it.
-export const commuteTodayOptions = (userId: number | undefined) => queryOptions({
-  queryKey: ["commute", "today", userId],
-  queryFn: ({ signal }) => getTodayCommute(signal),
+// 수업 기준 홈 예측과 현재 출발 지도 경로는 별도 캐시로 관리한다.
+export const commuteTodayOptions = (
+  userId: number | undefined,
+  calculationMode: CommuteCalculationMode = "class_arrival",
+) => queryOptions({
+  queryKey: ["commute", "today", userId, calculationMode],
+  queryFn: ({ signal }) => getTodayCommute(calculationMode, signal),
   staleTime: 60_000,
   gcTime: 5 * 60_000,
   retry: false,
