@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
@@ -48,6 +50,22 @@ from fastapi.staticfiles import StaticFiles
 
 from app.models import ai_chat_room, ai_message
 from app.routers import ai_chat
+
+
+def configure_app_logging():
+    """Cloud Run에서 app.* INFO 로그가 누락되지 않도록 전용 핸들러를 구성한다."""
+    app_logger = logging.getLogger("app")
+    app_logger.setLevel(logging.INFO)
+    if not any(getattr(handler, "_knu_app_log_handler", False) for handler in app_logger.handlers):
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+        handler._knu_app_log_handler = True
+        app_logger.addHandler(handler)
+    # Uvicorn의 루트 핸들러와 중복 출력하지 않는다.
+    app_logger.propagate = False
+
+
+configure_app_logging()
 
 STATIC_DIR = "static"
 SHUTTLE_DIR = os.path.join(STATIC_DIR, "shuttle")
