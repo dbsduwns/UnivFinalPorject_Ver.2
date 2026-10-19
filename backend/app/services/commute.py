@@ -296,7 +296,7 @@ def get_first_class(
         None,
     )
     if target_timetable is None and timetables:
-        # get_my_timetables가 최신순으로 정렬되어 있다는 전제의 fallback
+        # get_my_timetables가 최신순으로 정렬되어 있다는 전제의 대체 처리
         target_timetable = timetables[0]
 
     if target_timetable is None:
@@ -1685,7 +1685,7 @@ def _to_google_timestamp(value: datetime) -> str:
 
 
 def _google_duration_seconds(value: str | None) -> float:
-    """Google Duration 변환(Seconds)"""
+    """Google Duration 값을 초 단위로 변환한다."""
     if not value or not value.endswith("s"):
         return 0
 
@@ -1696,6 +1696,6 @@ def _google_duration_seconds(value: str | None) -> float:
 
 
 def _google_duration_minutes(value: str | None) -> int:
-    """Google Duration 변환(Minutes)"""
+    """Google Duration 값을 분 단위로 변환한다."""
     seconds = _google_duration_seconds(value)
     return math.ceil(seconds / 60)

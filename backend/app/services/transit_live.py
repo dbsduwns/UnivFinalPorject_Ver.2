@@ -1,9 +1,9 @@
-"""Lazy public-transit enrichment. Never called by the route prediction service.
+"""지연 방식의 대중교통 실시간 정보 보강 모듈.
 
-Static route matching is cached for six hours; real-time reads are shared for
-30 seconds, empty responses for two minutes, and failures for one minute.
-Seoul/GBIS arrival responses already identify the approaching vehicle's stop,
-so the stop-list UI does not need an additional vehicle-location request.
+경로 예측 서비스에서는 호출하지 않는다. 정적 노선 매칭은 6시간,
+실시간 조회 결과는 30초, 빈 응답은 2분, 실패 결과는 1분 동안 공유한다.
+서울·GBIS 도착 응답에는 접근 중인 차량의 정류장 정보가 이미 포함되므로,
+정류장 목록 화면에서 별도의 차량 위치 조회를 추가로 요청하지 않는다.
 """
 
 from datetime import datetime, timezone
@@ -46,8 +46,8 @@ class ProviderError(Exception):
 
 
 def _key(provider):
-    # New APIs require separate activation even if the portal uses the same key.
-    # Explicit opt-in avoids repeatedly trying APIs not enabled for the account.
+    # 포털에서 같은 키를 사용하더라도 새 API는 별도로 활성화해야 한다.
+    # 명시적으로 활성화한 제공기관만 사용해 계정에서 사용할 수 없는 API를 반복 호출하지 않는다.
     return os.getenv(f"{provider.upper()}_BUS_API_KEY") or (
         os.getenv("PUBLIC_API_KEY") if provider == "tago" else None
     )
@@ -94,14 +94,14 @@ def _xml_value(node):
 
 
 def _request(provider, service, operation, params, item_key, static=False):
-    """Cache the provider operation, allowing different users/segments to share it."""
+    """제공기관 조회를 캐시해 여러 사용자와 경로 구간이 결과를 공유하도록 한다."""
     cache_key = (provider, service, operation, tuple(sorted(params.items())))
 
     def load():
         api_key = _key(provider)
         if not api_key:
             raise ProviderError("실시간 API 키가 설정되지 않았습니다.")
-        # Authentication/quota failures must not trigger a fresh call for each stop.
+        # 인증·할당량 실패가 정류장마다 새 요청을 발생시키지 않도록 한다.
         with _policy_lock:
             if _cooldown.get((provider, service), 0) > monotonic():
                 raise ProviderError("실시간 제공기관에 잠시 연결할 수 없습니다.")
@@ -177,7 +177,7 @@ def _request(provider, service, operation, params, item_key, static=False):
         except (requests.RequestException, ValueError, ElementTree.ParseError, ProviderError, TypeError, AttributeError) as exc:
             with _policy_lock:
                 _cooldown[(provider, service)] = monotonic() + FAILURE_TTL
-            # URLs/exceptions can contain credentials. Log only safe classifications.
+            # URL이나 예외에 인증키가 포함될 수 있으므로 안전한 분류 정보만 기록한다.
             if isinstance(exc, requests.Timeout):
                 reason, result_code = "timeout", None
             elif isinstance(exc, requests.HTTPError):
@@ -245,7 +245,7 @@ def _stop_score(stop, name, location):
     name_matches = _name(stop.stop_name) == _name(name)
     distance = None
     if location and stop.latitude is not None and stop.longitude is not None:
-        # Local-distance approximation, sufficient for a <=200m matching gate.
+        # 200m 이내 매칭 여부를 판단하기에 충분한 지역 거리 근사값이다.
         dy = (location.latitude - stop.latitude) * 111_000
         dx = (location.longitude - stop.longitude) * 111_000 * math.cos(math.radians(location.latitude))
         distance = math.hypot(dx, dy)
@@ -279,7 +279,7 @@ def _same_name_distance(stops, name, location):
 
 
 def _match_segment_diagnostic(stops, request):
-    """Return a direction-safe segment and a non-sensitive matching diagnostic."""
+    """방향이 맞는 경로 구간과 민감정보를 제외한 매칭 진단 정보를 반환한다."""
     matches = []
     starts = []
     arrivals = []
@@ -335,7 +335,7 @@ def _match_segment_diagnostic(stops, request):
         details["reason"] = "direction_order_mismatch"
         return None, details
     matches.sort(key=lambda match: (match[0], match[1]))
-    # Same-name/coordinate stops can exist in both directions on a loop. Refuse ties.
+    # 순환 노선에서는 같은 이름·좌표의 정류장이 양방향에 존재할 수 있으므로 동점은 거부한다.
     if len(matches) > 1 and matches[0][:2] == matches[1][:2]:
         details["reason"] = "ambiguous_stop_pair"
         details["segment_matches"] = len(matches)
@@ -357,13 +357,13 @@ def _match_segment_diagnostic(stops, request):
 
 
 def _match_segment(stops, request):
-    """Require boarding and downstream alighting; never pick a route by number alone."""
+    """탑승 정류장과 이후 하차 정류장을 모두 확인하며 노선 번호만으로 선택하지 않는다."""
     segment, _ = _match_segment_diagnostic(stops, request)
     return segment
 
 
 def _log_unmatched(request, providers, attempts, reason):
-    # One JSON line is easier to filter in Cloud Run. Never include keys or exact coordinates.
+    # Cloud Run에서 한 줄 JSON이 필터링하기 쉽다. 키나 정확한 좌표는 절대 기록하지 않는다.
     failure_reasons = []
     for attempt in attempts:
         if attempt.get("reason") and attempt["reason"] != "matched":
@@ -464,7 +464,7 @@ def _resolve(request):
                 coord = request.departure_stop_location
                 nearby = _request(provider, "BusSttnInfoInqireService", "getCrdntPrxmtSttnList",
                                   {"gpsLati": coord.latitude, "gpsLong": coord.longitude}, "item", static=True)
-                # Cross-city routes are resolved from static stop/route data, not arrivals.
+                # 광역 노선은 도착정보가 아닌 정적 정류장·노선 데이터로 확인한다.
                 city_codes = sorted({_text(item.get("citycode")) for item in nearby if item.get("citycode")})
                 candidates = []
                 for city in city_codes[:3]:
@@ -480,7 +480,7 @@ def _resolve(request):
                 provider_attempt["reason"] = "route_not_found"
                 continue
             if len(candidates) > 5:
-                # Do not accept a seemingly unique match from a truncated candidate set.
+                # 후보 목록이 잘린 상태에서는 유일해 보이는 매칭도 채택하지 않는다.
                 provider_attempt["reason"] = "too_many_route_candidates"
                 _log_unmatched(request, providers, attempts, "too_many_route_candidates")
                 return None
@@ -495,7 +495,7 @@ def _resolve(request):
                 if not route_id:
                     route_attempt["reason"] = "route_id_missing"
                     continue
-                # GBIS's search catalog can include Seoul/Incheon. Use their own feeds.
+                # GBIS 검색 목록에는 서울·인천 노선이 포함될 수 있으므로 자체 제공기관 데이터를 사용한다.
                 if provider == "gyeonggi" and str(item.get("districtCd", "2")) != "2":
                     route_attempt["reason"] = "non_gyeonggi_catalog_entry"
                     continue
@@ -526,7 +526,7 @@ def _resolve(request):
                 return None
             provider_attempt["reason"] = "no_route_contains_requested_segment"
         except ProviderError:
-            # Avoid a cascade of slow calls when an enabled provider is unavailable.
+            # 활성화된 제공기관에 연결할 수 없을 때 느린 요청이 연쇄적으로 발생하지 않도록 한다.
             provider_attempt["reason"] = "provider_error"
             had_error = True
             break
@@ -592,8 +592,6 @@ def _apply_stop_coordinate_fallback(vehicles, stops):
 
 
 def _log_position_result(provider, route_id, status, reason, vehicles):
-    if status == "available":
-        return
     payload = {
         "event": "transit_vehicle_position",
         "provider": provider,
@@ -614,7 +612,7 @@ def _log_position_result(provider, route_id, status, reason, vehicles):
 
 
 def _read_arrival(provider, route_id, city_code, stops, start):
-    """Read the next arrival and the best position precision the provider exposes."""
+    """다음 도착정보와 제공기관이 제공하는 가장 정확한 위치 정밀도를 읽는다."""
     if provider == "gyeonggi":
         items = _request(provider, "busarrivalservice", "getBusArrivalItem",
                          {"routeId": route_id, "stationId": start.stop_id, "staOrder": start.stop_order},
@@ -644,7 +642,7 @@ def _read_arrival(provider, route_id, city_code, stops, start):
         return (minutes if minutes is not None and minutes >= 0 else None, None,
                 vehicles, item.get("_fetched_at"), status, reason, position_message)
     if provider == "seoul":
-        # All stops on a route share one cached arrival response.
+        # 한 노선의 모든 정류장은 하나의 캐시된 도착 응답을 공유한다.
         items = _request(provider, "arrive", "getArrInfoByRouteAll", {"busRouteId": route_id}, "itemList")
         item = next((item for item in items
                      if _text(item.get("stId")) == start.stop_id
@@ -654,7 +652,7 @@ def _read_arrival(provider, route_id, city_code, stops, start):
             return (None, message or None, [], item.get("_fetched_at"),
                     "unavailable", "no_active_arrival_vehicle",
                     "현재 운행 중인 다음 차량의 위치가 제공되지 않습니다.")
-        # arrmsg is the public-facing prediction; exps/kals are internal estimates.
+        # arrmsg는 사용자에게 표시할 예측값이고 exps·kals는 내부 추정값이다.
         match = re.search(r"(\d+)분(?:\s*(\d+)초)?", message)
         seconds_match = re.search(r"(\d+)초", message)
         minutes = (math.ceil((int(match[1]) * 60 + int(match[2] or 0)) / 60) if match
@@ -709,12 +707,12 @@ def _read_arrival(provider, route_id, city_code, stops, start):
         return (None, None, [], None, "unavailable", "no_active_arrival_vehicle",
                 "현재 운행 중인 다음 차량의 위치가 제공되지 않습니다.")
     first = min(arrivals, key=lambda item: int(item["arrtime"]))
-    # Arrival lacks a vehicle ID. Do not invent a vehicle match/position from proximity.
+    # 도착정보에 차량 ID가 없으므로 근접성만으로 차량 매칭·위치를 추정하지 않는다.
     try:
         positions = _request(provider, "BusLcInfoInqireService", "getRouteAcctoBusLcList",
                              {"cityCode": city_code, "routeId": route_id}, "item")
     except ProviderError:
-        # Location permission/outages must not hide a successfully fetched ETA.
+        # 위치 API 권한이나 장애 때문에 정상적으로 받은 도착 예정시간을 숨기지 않는다.
         return (math.ceil(int(first["arrtime"]) / 60), None, [], first.get("_fetched_at"),
                 "unavailable", "location_api_failed",
                 "TAGO 버스 위치 API 권한 또는 연결 상태를 확인해주세요.")
@@ -813,7 +811,7 @@ def get_transit_live(request: TransitLiveRequest):
                        refresh_after_seconds=LIVE_TTL if minutes is not None or vehicles else EMPTY_TTL,
                        message=None if minutes is not None else "현재 도착 예정을 제공하지 않습니다.")
 
-    # Cache failures/empty envelopes for their advertised backoff, not just HTTP data.
+    # HTTP 데이터뿐 아니라 실패·빈 응답도 지정된 재시도 대기시간만큼 캐시한다.
     cache_key = ("live", provider, city_code, route_id, start.stop_order, end.stop_order)
     result = _cache.get(cache_key, load, ttl=lambda result: result.refresh_after_seconds)
     return result

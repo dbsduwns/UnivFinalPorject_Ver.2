@@ -155,7 +155,7 @@ class LiveBusPositionsResponse(BaseModel):
 
 
 class TransitLiveRequest(BaseModel):
-    """Google stop descriptors, resolved lazily only when a segment is expanded."""
+    """구간을 펼칠 때만 지연 조회하는 Google 정류장 설명 정보."""
     route_name: str = Field(min_length=1, max_length=120)
     vehicle_type: str = Field(min_length=1, max_length=40)
     departure_stop_name: str = Field(min_length=1, max_length=120)
