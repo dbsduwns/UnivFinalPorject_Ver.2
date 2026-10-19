@@ -78,6 +78,15 @@ def _route_name(value):
     return re.sub(r"(?:번|버스)$", "", _name(value)).upper()
 
 
+def _relaxed_route_name_match(value, target):
+    """노선명 뒤에 붙은 방면 표기를 허용하되 다른 번호 노선은 제외한다."""
+    candidate = _route_name(value)
+    if not candidate.startswith(target) or candidate == target:
+        return False
+    suffix = candidate[len(target):]
+    return bool(suffix) and not suffix[0].isdigit() and suffix[0] not in "-_"
+
+
 def _xml_value(node):
     if not len(node):
         return node.text or ""
@@ -473,9 +482,24 @@ def _resolve(request):
                         candidates.append({**item, "_city": city})
                 routes = candidates
                 id_field, name_field = "routeid", "routeno"
-            candidates = [item for item in routes if _route_name(item.get(name_field)) == target]
+            route_names = [_text(item.get(name_field)) for item in routes if item.get(name_field)]
+            exact_candidates = [item for item in routes if _route_name(item.get(name_field)) == target]
+            candidates = exact_candidates
+            match_type = "exact" if exact_candidates else None
+            if not exact_candidates:
+                relaxed = [
+                    item for item in routes
+                    if _relaxed_route_name_match(item.get(name_field), target)
+                ]
+                # 부가 방면 표기가 붙은 후보가 하나일 때만 안전하게 보정 매칭한다.
+                if len(relaxed) == 1:
+                    candidates = relaxed
+                    match_type = "normalized_suffix"
             provider_attempt["route_results"] = len(routes)
-            provider_attempt["exact_route_candidates"] = len(candidates)
+            provider_attempt["route_names"] = route_names[:10]
+            provider_attempt["exact_route_candidates"] = len(exact_candidates)
+            provider_attempt["matched_route_candidates"] = len(candidates)
+            provider_attempt["route_match_type"] = match_type
             if not candidates:
                 provider_attempt["reason"] = "route_not_found"
                 continue

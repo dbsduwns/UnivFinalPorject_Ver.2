@@ -41,6 +41,12 @@ def request(**updates):
     })
 
 
+def test_relaxed_route_name_match_accepts_direction_suffix_but_not_branch_number():
+    assert live._relaxed_route_name_match("110B(국민대)", "110B")
+    assert live._relaxed_route_name_match("110B 국민대", "110B")
+    assert not live._relaxed_route_name_match("110B-1", "110B")
+
+
 def gg_response(name, items, code=0):
     return Response({"response": {"msgHeader": {"resultCode": code}, "msgBody": {name: items}}})
 
