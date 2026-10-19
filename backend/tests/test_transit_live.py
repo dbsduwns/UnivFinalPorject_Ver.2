@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from app.schemas.commute import RouteStopResponse, TransitLiveRequest
+from app.schemas.commute import LiveBusPositionResponse, RouteStopResponse, TransitLiveRequest
 from app.services import transit_live as live
 from app.services import transit_cache
 
@@ -85,6 +85,29 @@ def test_gyeonggi_lazy_lookup_shares_cache_without_location_api(monkeypatch):
     assert first.vehicle_position_reason == "provider_stop_level_only"
     assert first.cached_at == second.cached_at
     assert len(calls) == 3
+
+
+def test_stop_coordinate_fallback_enriches_vehicle_without_gps():
+    vehicle = LiveBusPositionResponse(
+        vehicle_number="BUS1",
+        current_stop_order=10,
+        position_source="stop",
+    )
+    stops = [RouteStopResponse(
+        stop_order=10,
+        stop_id="STOP10",
+        stop_name="현재 정류장",
+        latitude=37.1,
+        longitude=127.1,
+    )]
+
+    vehicles, applied = live._apply_stop_coordinate_fallback([vehicle], stops)
+
+    assert applied is True
+    assert vehicles[0].latitude == 37.1
+    assert vehicles[0].longitude == 127.1
+    assert vehicles[0].position_source == "stop"
+    assert vehicles[0].current_stop_id == "STOP10"
 
 
 def test_live_cache_expires_but_static_mapping_survives(monkeypatch):

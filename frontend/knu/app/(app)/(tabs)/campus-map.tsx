@@ -51,17 +51,6 @@ const SHEET_HALF_Y = SHEET_COLLAPSED_Y * 0.48;
 const TRANSIT_FALLBACK_COLORS = ["#13708D", "#7C3AED", "#DC2626", "#D97706"];
 const VEHICLE_MARKER_ANIMATION_MS = 700;
 const VEHICLE_MARKER_ANIMATION_STEPS = 10;
-const BUS_MARKER_ICON = `data:image/svg+xml;utf8,${encodeURIComponent(`
-  <svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72">
-    <circle cx="36" cy="36" r="32" fill="#13708D" stroke="#FFFFFF" stroke-width="5"/>
-    <rect x="20" y="19" width="32" height="31" rx="7" fill="#FFFFFF"/>
-    <rect x="25" y="24" width="22" height="11" rx="2" fill="#BFE8F2"/>
-    <rect x="25" y="39" width="7" height="5" rx="1" fill="#13708D"/>
-    <rect x="40" y="39" width="7" height="5" rx="1" fill="#13708D"/>
-    <circle cx="27" cy="52" r="4" fill="#0F4F63"/>
-    <circle cx="45" cy="52" r="4" fill="#0F4F63"/>
-  </svg>
-`)}`;
 
 const CAMPUS_CENTER: RouteCoordinate = {
   latitude: 37.2757,
@@ -583,7 +572,10 @@ export default function CampusMapScreen() {
     require("../../../src/assets/images/map-marker-campus.png"),
     { maxWidth: 108, maxHeight: 135 },
   );
-  const busMarkerIcon = useImage(BUS_MARKER_ICON, { maxWidth: 72, maxHeight: 72 });
+  const busMarkerIcon = useImage(
+    require("../../../src/assets/images/map-marker-bus.png"),
+    { maxWidth: 72, maxHeight: 72 },
+  );
   const [mapMode, setMapMode] = useState<MapMode>(
     mode === "commute" ? "commute" : "campus",
   );

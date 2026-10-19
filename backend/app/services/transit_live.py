@@ -343,6 +343,16 @@ def _match_segment_diagnostic(stops, request):
     details["reason"] = "matched"
     details["boarding_order"] = matches[0][2].stop_order
     details["alighting_order"] = matches[0][3].stop_order
+    details["boarding_stop_id"] = matches[0][2].stop_id
+    details["boarding_stop_name"] = matches[0][2].stop_name
+    details["alighting_stop_id"] = matches[0][3].stop_id
+    details["alighting_stop_name"] = matches[0][3].stop_name
+    details["boarding_match_distance_m"] = _distance_to_stop(
+        matches[0][2], request.departure_stop_location
+    )
+    details["alighting_match_distance_m"] = _distance_to_stop(
+        matches[0][3], request.arrival_stop_location
+    )
     return matches[0][2:], details
 
 
@@ -379,6 +389,39 @@ def _log_unmatched(request, providers, attempts, reason):
     }
     logger.warning(
         "Transit route resolution failed: %s",
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+    )
+
+
+def _log_matched_segment(request, provider, route_id, city_code, details):
+    """Google 정류장과 공공데이터 정류장의 매칭 결과를 추적한다."""
+    payload = {
+        "event": "transit_route_matched",
+        "provider": provider,
+        "route_id": route_id,
+        "city_code": city_code or None,
+        "google_route": _route_name(request.route_name),
+        "google_departure_stop": request.departure_stop_name,
+        "google_arrival_stop": request.arrival_stop_name,
+        "google_headsign": request.headsign or None,
+        "has_departure_location": request.departure_stop_location is not None,
+        "has_arrival_location": request.arrival_stop_location is not None,
+        "provider_stop_count": details.get("stop_count"),
+        "departure_name_matches": details.get("departure_name_matches"),
+        "arrival_name_matches": details.get("arrival_name_matches"),
+        "departure_candidates": details.get("departure_candidates"),
+        "arrival_candidates": details.get("arrival_candidates"),
+        "boarding_order": details.get("boarding_order"),
+        "alighting_order": details.get("alighting_order"),
+        "boarding_stop_id": details.get("boarding_stop_id"),
+        "alighting_stop_id": details.get("alighting_stop_id"),
+        "boarding_match_distance_m": details.get("boarding_match_distance_m"),
+        "alighting_match_distance_m": details.get("alighting_match_distance_m"),
+        "headsign_used_for_matching": False,
+        "matching_strategy": "normalized_name_and_coordinate_then_direction_order",
+    }
+    logger.info(
+        "Transit route resolution matched: %s",
         json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
     )
 
@@ -462,6 +505,19 @@ def _resolve(request):
                 if segment:
                     matches.append((provider, route_id, city_code, stops, *segment))
             if len(matches) == 1:
+                matched_provider, matched_route_id, matched_city_code, _, start, end = matches[0]
+                _log_matched_segment(
+                    request,
+                    matched_provider,
+                    matched_route_id,
+                    matched_city_code,
+                    next(
+                        route_attempt
+                        for route_attempt in route_attempts
+                        if route_attempt.get("route_id") == matched_route_id
+                        and route_attempt.get("reason") == "matched"
+                    ),
+                )
                 return matches[0]
             if len(matches) > 1:
                 provider_attempt["reason"] = "ambiguous_route_candidates"
@@ -506,6 +562,33 @@ def _vehicle(number, order, stops, *, latitude=None, longitude=None, position_so
         current_stop_id=stop.stop_id if stop else None,
         current_stop_name=stop.stop_name if stop else None,
     )]
+
+
+def _apply_stop_coordinate_fallback(vehicles, stops):
+    """GPS가 없을 때 같은 순번/ID의 정류장 좌표를 차량 위치로 사용한다."""
+    stops_by_order = {stop.stop_order: stop for stop in stops}
+    stops_by_id = {stop.stop_id: stop for stop in stops}
+    enriched = []
+    applied = False
+    for vehicle in vehicles:
+        if vehicle.latitude is not None and vehicle.longitude is not None:
+            enriched.append(vehicle)
+            continue
+        stop = stops_by_order.get(vehicle.current_stop_order)
+        if stop is None and vehicle.current_stop_id:
+            stop = stops_by_id.get(vehicle.current_stop_id)
+        if stop is None or stop.latitude is None or stop.longitude is None:
+            enriched.append(vehicle)
+            continue
+        enriched.append(vehicle.model_copy(update={
+            "latitude": stop.latitude,
+            "longitude": stop.longitude,
+            "position_source": "stop",
+            "current_stop_id": stop.stop_id,
+            "current_stop_name": stop.stop_name,
+        }))
+        applied = True
+    return enriched, applied
 
 
 def _log_position_result(provider, route_id, status, reason, vehicles):
@@ -710,6 +793,15 @@ def get_transit_live(request: TransitLiveRequest):
                            message="정류장 정보는 확인했지만 실시간 조회에 실패했습니다.",
                            vehicle_position_reason="arrival_api_failed",
                            vehicle_position_message="도착정보 API 권한 또는 연결 상태를 확인해주세요.")
+        had_coordinates = any(
+            vehicle.latitude is not None and vehicle.longitude is not None
+            for vehicle in vehicles
+        )
+        vehicles, fallback_applied = _apply_stop_coordinate_fallback(vehicles, stops)
+        if fallback_applied and not had_coordinates:
+            position_status = "fallback"
+            position_reason = "stop_coordinate_fallback"
+            position_message = "GPS 좌표가 없어 현재 정류장 위치에 차량을 표시합니다."
         _log_position_result(provider, route_id, position_status, position_reason, vehicles)
         return _result("ok" if minutes is not None or vehicles else "no_data", **common,
                        cached_at=fetched_at or datetime.now(timezone.utc),
