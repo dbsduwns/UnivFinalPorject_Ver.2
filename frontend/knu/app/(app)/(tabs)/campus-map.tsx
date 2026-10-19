@@ -38,6 +38,7 @@ import { useAuthStore } from "@/features/auth/store/auth-store";
 import type {
   LiveBusPosition,
   RouteCoordinate,
+  RouteStop,
   RouteStep,
   TransitLive,
 } from "@/features/commute/api/types";
@@ -279,16 +280,29 @@ function selectApproachingBus(
   vehicles: LiveBusPosition[],
   boardingOrder: number | undefined,
   vehicleNumber: string | null | undefined,
+  routeStops: RouteStop[] = [],
 ) {
   if (boardingOrder === undefined) return null;
+  const normalizeStopName = (value: string | null | undefined) =>
+    (value ?? "").replace(/[\s.·ㆍ()（）]/g, "").toLowerCase();
+  const getRouteStopOrder = (vehicle: LiveBusPosition) => {
+    const matchedStop = vehicle.current_stop_id
+      ? routeStops.find((stop) => stop.stop_id === vehicle.current_stop_id)
+      : undefined;
+    const matchedByName = !matchedStop && vehicle.current_stop_name
+      ? routeStops.find((stop) => normalizeStopName(stop.stop_name) === normalizeStopName(vehicle.current_stop_name))
+      : undefined;
+    return matchedStop?.stop_order ?? matchedByName?.stop_order ?? vehicle.current_stop_order;
+  };
   const approaching = vehicles
     .filter((vehicle) =>
-      vehicle.current_stop_order !== null &&
-      vehicle.current_stop_order <= boardingOrder,
+      getRouteStopOrder(vehicle) !== null &&
+      getRouteStopOrder(vehicle) !== undefined &&
+      getRouteStopOrder(vehicle)! <= boardingOrder,
     )
     .sort(
       (first, second) =>
-        (second.current_stop_order ?? 0) - (first.current_stop_order ?? 0),
+        (getRouteStopOrder(second) ?? 0) - (getRouteStopOrder(first) ?? 0),
     );
   // Never display an already-passed vehicle as the next bus.
   return approaching.find((vehicle) => vehicle.vehicle_number === vehicleNumber)
@@ -314,7 +328,7 @@ function TransitStopAccordion({
 }) {
   const request = useMemo(() => transitLiveRequest(step), [step]);
   const canLoadRealtime = Boolean(
-    step.vehicle_type?.includes("BUS") && step.transit_line_name &&
+    (step.vehicle_type?.includes("BUS") || step.vehicle_type?.includes("SUBWAY")) && step.transit_line_name &&
     step.departure_stop_name && step.arrival_stop_name,
   );
   const realtimeQueryEnabled = pollingEnabled && expanded && canLoadRealtime;
@@ -352,25 +366,38 @@ function TransitStopAccordion({
       isLiveError ? [] : data?.vehicles ?? [],
       boardingOrder,
       data?.vehicle_number,
+      data?.route_stops ?? [],
     ),
-    [boardingOrder, data?.vehicles, data?.vehicle_number, isLiveError],
+    [boardingOrder, data?.route_stops, data?.vehicles, data?.vehicle_number, isLiveError],
   );
+  const liveBusStopOrder = useMemo(() => {
+    if (!liveBus) return null;
+    const matchedStop = liveBus.current_stop_id
+      ? segmentStops.find((stop) => stop.stop_id === liveBus.current_stop_id)
+      : undefined;
+    const normalizeStopName = (value: string | null | undefined) =>
+      (value ?? "").replace(/[\s.·ㆍ()（）]/g, "").toLowerCase();
+    const matchedByName = !matchedStop && liveBus.current_stop_name
+      ? segmentStops.find((stop) => normalizeStopName(stop.stop_name) === normalizeStopName(liveBus.current_stop_name))
+      : undefined;
+    return matchedStop?.stop_order ?? matchedByName?.stop_order ?? liveBus.current_stop_order;
+  }, [liveBus, segmentStops]);
   const visibleStops = useMemo(() => {
-    if (!liveBus || liveBus.current_stop_order === null || segmentStops.length === 0) {
+    if (!liveBus || liveBusStopOrder === null || liveBusStopOrder === undefined || segmentStops.length === 0) {
       return segmentStops;
     }
     const allStops = data?.route_stops ?? [];
     const vehicleIndex = allStops.findIndex(
-      (stop) => stop.stop_order === liveBus.current_stop_order,
+      (stop) => stop.stop_order === liveBusStopOrder,
     );
     const arrivalOrder = segmentStops[segmentStops.length - 1].stop_order;
-    if (vehicleIndex < 0 || liveBus.current_stop_order >= boardingOrder) {
+    if (vehicleIndex < 0 || liveBusStopOrder >= boardingOrder) {
       return segmentStops;
     }
     return allStops
       .slice(vehicleIndex)
       .filter((stop) => stop.stop_order <= arrivalOrder);
-  }, [boardingOrder, data?.route_stops, liveBus, segmentStops]);
+  }, [boardingOrder, data?.route_stops, liveBus, liveBusStopOrder, segmentStops]);
 
   const arrivalMinutes = isLiveError ? null : data?.arrival_minutes ?? null;
   const scheduledDeparture = step.scheduled_departure_time
@@ -451,56 +478,68 @@ function TransitStopAccordion({
               {data.vehicle_position_message}
             </Text>
           )}
-          {visibleStops.map((stop) => {
-            const isBoarding = stop.stop_order === boardingOrder;
-            const isArrival =
-              stop.stop_order === segmentStops[segmentStops.length - 1]?.stop_order;
-            const hasLiveBus = stop.stop_order === liveBus?.current_stop_order;
-            const isBeforeBoarding =
-              boardingOrder !== undefined && stop.stop_order < boardingOrder;
-            return (
-              <View key={`${stop.stop_id}-${stop.stop_order}`} style={styles.stopRow}>
-                <View style={styles.stopRail}>
-                  <View style={[
-                    styles.stopDot,
-                    { borderColor: color },
-                    (isBoarding || isArrival) && { backgroundColor: color },
-                  ]} />
-                  {!isArrival && <View style={[styles.stopLine, { backgroundColor: color }]} />}
-                </View>
-                <View style={styles.stopNameWrap}>
-                  <Text style={[
-                    styles.stopName,
-                    (isBoarding || isArrival) && styles.stopNameEmphasis,
-                    isBeforeBoarding && styles.stopNameApproaching,
-                  ]}>
-                    {stop.stop_name}
-                  </Text>
-                  {isBoarding && <Text style={styles.stopCaption}>탑승</Text>}
-                  {isArrival && <Text style={styles.stopCaption}>하차</Text>}
-                </View>
-                {hasLiveBus && (
-                  <View style={[styles.vehiclePositionBadge, { borderColor: color }]}>
-                    <Bus size={12} color={color} />
-                    <Text style={[styles.vehiclePositionText, { color }]}>
-                      {liveBus.position_source === "gps"
-                        ? "GPS 차량"
-                        : liveBus.position_source === "map_matched"
-                          ? "도로 기준 차량"
-                          : "정류장 기준 차량"}
-                    </Text>
+          <ScrollView
+            style={styles.stopListScroll}
+            contentContainerStyle={styles.stopListScrollContent}
+            nestedScrollEnabled
+            showsVerticalScrollIndicator
+          >
+            {visibleStops.map((stop) => {
+              const isBoarding = stop.stop_order === boardingOrder;
+              const isArrival =
+                stop.stop_order === segmentStops[segmentStops.length - 1]?.stop_order;
+              const hasLiveBus = Boolean(liveBus && (
+                (liveBus.current_stop_id && liveBus.current_stop_id === stop.stop_id) ||
+                stop.stop_order === liveBusStopOrder ||
+                (liveBus.current_stop_name && liveBus.current_stop_name === stop.stop_name)
+              ));
+              const liveBusPositionSource = liveBus?.position_source;
+              const isBeforeBoarding =
+                boardingOrder !== undefined && stop.stop_order < boardingOrder;
+              return (
+                <View key={`${stop.stop_id}-${stop.stop_order}`} style={styles.stopRow}>
+                  <View style={styles.stopRail}>
+                    <View style={[
+                      styles.stopDot,
+                      { borderColor: color },
+                      (isBoarding || isArrival) && { backgroundColor: color },
+                    ]} />
+                    {!isArrival && <View style={[styles.stopLine, { backgroundColor: color }]} />}
                   </View>
-                )}
-              </View>
-            );
-          })}
-          {visibleStops.length === 0 && (
-            <Text style={styles.stopEmptyText}>
-              {isFetching && !data ? "경유 정류장을 확인하고 있어요"
-                : isLiveError ? "잠시 후 다시 확인해주세요."
-                : data?.message ?? "이 구간은 예정 시간으로 안내합니다."}
-            </Text>
-          )}
+                  <View style={styles.stopNameWrap}>
+                    <Text style={[
+                      styles.stopName,
+                      (isBoarding || isArrival) && styles.stopNameEmphasis,
+                      isBeforeBoarding && styles.stopNameApproaching,
+                    ]}>
+                      {stop.stop_name}
+                    </Text>
+                    {isBoarding && <Text style={styles.stopCaption}>탑승</Text>}
+                    {isArrival && <Text style={styles.stopCaption}>하차</Text>}
+                  </View>
+                  {hasLiveBus && (
+                    <View style={[styles.vehiclePositionBadge, { borderColor: color }]}>
+                      <Bus size={12} color={color} />
+                      <Text style={[styles.vehiclePositionText, { color }]}>
+                        {liveBusPositionSource === "gps"
+                          ? "GPS 차량"
+                          : liveBusPositionSource === "map_matched"
+                            ? "도로 기준 차량"
+                            : "정류장 기준 차량"}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+            {visibleStops.length === 0 && (
+              <Text style={styles.stopEmptyText}>
+                {isFetching && !data ? "경유 정류장을 확인하고 있어요"
+                  : isLiveError ? "잠시 후 다시 확인해주세요."
+                  : data?.message ?? "이 구간은 예정 시간으로 안내합니다."}
+              </Text>
+            )}
+          </ScrollView>
         </View>
       )}
     </View>
@@ -1446,6 +1485,8 @@ const styles = StyleSheet.create({
     borderTopColor: "#E2E8F0",
     backgroundColor: "#FCFDFE",
   },
+  stopListScroll: { maxHeight: 260 },
+  stopListScrollContent: { paddingBottom: 4 },
   stopRow: { minHeight: 42, flexDirection: "row", alignItems: "stretch" },
   stopRail: { width: 24, alignItems: "center" },
   stopDot: {

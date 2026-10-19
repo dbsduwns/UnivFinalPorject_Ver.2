@@ -14,7 +14,7 @@ import os
 import re
 from threading import Lock
 from time import monotonic
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 from zoneinfo import ZoneInfo
 from xml.etree import ElementTree
 
@@ -32,6 +32,7 @@ EMPTY_TTL = 120
 FAILURE_TTL = 60
 # 서울 버스 api URL
 SEOUL_BUS_API_BASE_URL = "http://ws.bus.go.kr/api/rest"
+SEOUL_SUBWAY_API_BASE_URL = "https://openapi.seoul.go.kr:8088"
 _cache = RequestCache(1024)
 _policy_lock = Lock()
 _cooldown = {}
@@ -51,6 +52,11 @@ def _key(provider):
     return os.getenv(f"{provider.upper()}_BUS_API_KEY") or (
         os.getenv("PUBLIC_API_KEY") if provider == "tago" else None
     )
+
+
+def _subway_key():
+    """서울교통공사 지하철 정적 API 전용 인증키를 반환한다."""
+    return os.getenv("SEOUL_SUBWAY_API_KEY")
 
 
 def _list(value):
@@ -100,6 +106,56 @@ def _xml_value(node):
         else:
             result[child.tag] = value
     return result
+
+
+def _subway_line_name(value):
+    """Google 노선명을 서울교통공사 노선 검색용 이름으로 정규화한다."""
+    normalized = _text(value).replace("호선", "").replace("Line", "").replace("line", "")
+    return re.sub(r"\s+", "", normalized)
+
+
+def _subway_stations(line_name):
+    """서울교통공사 노선별 역 목록을 캐시해 반환한다."""
+    key = _subway_key()
+    if not key:
+        raise ProviderError("서울 지하철 API 키가 설정되지 않았습니다.", reason="api_key_not_configured")
+    cache_key = ("subway_stations", _subway_line_name(line_name))
+
+    def load():
+        line = _subway_line_name(line_name)
+        url = (
+            f"{SEOUL_SUBWAY_API_BASE_URL}/{quote(unquote(key), safe='')}/json/"
+            f"SearchSTNBySubwayLineInfo/1/1000///{quote(line, safe='')}"
+        )
+        try:
+            response = requests.get(url, timeout=(2, 5))
+            response.raise_for_status()
+            data = response.json()
+        except (requests.RequestException, ValueError) as exc:
+            logger.warning("지하철 정적 노선 API 요청 실패: reason=%s", type(exc).__name__)
+            raise ProviderError("지하철 노선 정보를 불러오지 못했습니다.", reason="subway_static_api_failed") from exc
+        envelope = data.get("SearchSTNBySubwayLineInfo") or {}
+        result = envelope.get("RESULT") or {}
+        if result and _text(result.get("CODE")) not in {"INFO-000", "INFO-200"}:
+            raise ProviderError("지하철 노선 API 응답 오류입니다.", reason="subway_static_result_error")
+        rows = envelope.get("row") or []
+        if isinstance(rows, dict):
+            rows = [rows]
+        stops = []
+        for order, row in enumerate(rows, start=1):
+            station_id = _text(row.get("STATION_CD") or row.get("FR_CODE"))
+            station_name = _text(row.get("STATION_NM"))
+            if station_id and station_name:
+                stops.append(RouteStopResponse(
+                    stop_order=order,
+                    stop_id=station_id,
+                    stop_name=station_name,
+                ))
+        if not stops:
+            raise ProviderError("지하철 노선에 역 정보가 없습니다.", reason="subway_stations_empty")
+        return stops
+
+    return _cache.get(cache_key, load, ttl=STATIC_TTL, empty_ttl=EMPTY_TTL, error_ttl=FAILURE_TTL)
 
 
 def _request(provider, service, operation, params, item_key, static=False):
@@ -445,7 +501,25 @@ def _provider_order(request):
     return ["gyeonggi", "seoul", "tago"]
 
 
+def _resolve_subway(request):
+    """Google 지하철 구간을 서울교통공사 정적 역 순서로 매칭한다."""
+    stops = _subway_stations(request.route_name)
+    segment, _ = _match_segment_diagnostic(stops, request)
+    if segment:
+        return "seoul_subway", _subway_line_name(request.route_name), "", stops, *segment
+    reversed_stops = [
+        stop.model_copy(update={"stop_order": index})
+        for index, stop in enumerate(reversed(stops), start=1)
+    ]
+    segment, _ = _match_segment_diagnostic(reversed_stops, request)
+    if segment:
+        return "seoul_subway", _subway_line_name(request.route_name), "", reversed_stops, *segment
+    return None
+
+
 def _resolve(request):
+    if "SUBWAY" in request.vehicle_type.upper():
+        return _resolve_subway(request)
     target = _route_name(request.route_name)
     providers = _provider_order(request)
     attempts = []
@@ -635,7 +709,7 @@ def _log_position_result(provider, route_id, status, reason, vehicles):
     )
 
 
-def _read_arrival(provider, route_id, city_code, stops, start):
+def _read_arrival(provider, route_id, city_code, stops, start, end):
     """다음 도착정보와 제공기관이 제공하는 가장 정확한 위치 정밀도를 읽는다."""
     if provider == "gyeonggi":
         items = _request(provider, "busarrivalservice", "getBusArrivalItem",
@@ -690,7 +764,7 @@ def _read_arrival(provider, route_id, city_code, stops, start):
                 provider,
                 "buspos",
                 "getBusPosByRouteSt",
-                {"busRouteId": route_id, "startOrd": 1, "endOrd": start.stop_order},
+                {"busRouteId": route_id, "startOrd": 1, "endOrd": end.stop_order},
                 "itemList",
             )
         except ProviderError:
@@ -698,27 +772,40 @@ def _read_arrival(provider, route_id, city_code, stops, start):
             return (minutes, message, fallback, item.get("_fetched_at"), status,
                     "location_api_failed",
                     "서울 버스 위치 API 권한 또는 연결 상태를 확인해주세요.")
-        position = next(
-            (position for position in positions if _text(position.get("vehId")) == vehicle_id),
-            None,
-        )
-        if position:
+        all_vehicles = []
+        for position in positions:
+            position_order = _number(position.get("sectOrd"))
+            if position_order is not None and position_order > end.stop_order:
+                continue
             latitude, longitude = _coordinates(position, ("posY", "tmY"), ("posX", "tmX"))
-            precise = _vehicle(
-                _text(position.get("plainNo")) or vehicle_id,
+            all_vehicles.extend(_vehicle(
+                _text(position.get("plainNo")) or _text(position.get("vehId")),
                 _number(position.get("sectOrd")),
                 stops,
                 latitude=latitude,
                 longitude=longitude,
                 position_source="map_matched" if latitude is not None else "stop",
+            ))
+        # 위치 목록에 없거나 중복으로 포함된 도착 예정 차량은 한 번만 유지한다.
+        known_numbers = {vehicle.vehicle_number for vehicle in all_vehicles}
+        position_ids = {_text(position.get("vehId")) for position in positions}
+        all_vehicles.extend(
+            vehicle for vehicle in fallback
+            if vehicle.vehicle_number not in known_numbers
+            and vehicle.vehicle_number not in position_ids
+        )
+        if all_vehicles:
+            has_coordinates = any(
+                vehicle.latitude is not None and vehicle.longitude is not None
+                for vehicle in all_vehicles
             )
-            if precise and latitude is not None:
-                return (minutes, message, precise, position.get("_fetched_at") or item.get("_fetched_at"),
-                        "available", "map_matched_coordinates", "도로에 보정된 실시간 차량 위치입니다.")
-            if precise:
-                return (minutes, message, precise, position.get("_fetched_at") or item.get("_fetched_at"),
-                        "fallback", "location_coordinates_missing",
-                        "차량은 확인했지만 좌표가 없어 정류장 기준으로 표시합니다.")
+            return (minutes, message, all_vehicles,
+                    next((vehicle.get("_fetched_at") for vehicle in positions if vehicle.get("_fetched_at")), None)
+                    or item.get("_fetched_at"),
+                    "available" if has_coordinates else "fallback",
+                    "map_matched_coordinates" if has_coordinates else "location_coordinates_missing",
+                    "노선의 접근 차량 위치를 표시합니다." if has_coordinates
+                    else "차량은 확인했지만 좌표가 없어 정류장 기준으로 표시합니다.")
         status = "fallback" if fallback else "unavailable"
         return (minutes, message, fallback, item.get("_fetched_at"), status,
                 "arrival_vehicle_not_in_location_feed",
@@ -740,28 +827,33 @@ def _read_arrival(provider, route_id, city_code, stops, start):
         return (math.ceil(int(first["arrtime"]) / 60), None, [], first.get("_fetched_at"),
                 "unavailable", "location_api_failed",
                 "TAGO 버스 위치 API 권한 또는 연결 상태를 확인해주세요.")
-    approaching = [
+    same_direction = [
         item for item in positions
         if _number(item.get("nodeord")) is not None
-        and _number(item.get("nodeord")) <= start.stop_order
+        and _number(item.get("nodeord")) <= end.stop_order
     ]
-    position = max(approaching, key=lambda item: _number(item.get("nodeord")), default=None)
-    if not position:
+    if not same_direction:
         return (math.ceil(int(first["arrtime"]) / 60), None, [], first.get("_fetched_at"),
                 "unavailable", "no_approaching_vehicle_in_location_feed",
                 "탑승 정류장으로 접근 중인 차량을 위치정보에서 찾지 못했습니다.")
-    latitude, longitude = _coordinates(position, ("gpslati",), ("gpslong",))
-    vehicles = _vehicle(
-        _text(position.get("vehicleno")),
-        _number(position.get("nodeord")),
-        stops,
-        latitude=latitude,
-        longitude=longitude,
-        position_source="gps" if latitude is not None else "stop",
+    vehicles = []
+    for position in same_direction:
+        latitude, longitude = _coordinates(position, ("gpslati",), ("gpslong",))
+        vehicles.extend(_vehicle(
+            _text(position.get("vehicleno")),
+            _number(position.get("nodeord")),
+            stops,
+            latitude=latitude,
+            longitude=longitude,
+            position_source="gps" if latitude is not None else "stop",
+        ))
+    has_coordinates = any(
+        vehicle.latitude is not None and vehicle.longitude is not None
+        for vehicle in vehicles
     )
-    if vehicles and latitude is not None:
+    if vehicles and has_coordinates:
         status, reason = "available", "gps_coordinates"
-        position_message = "GPS 기반 실시간 차량 위치입니다."
+        position_message = "접근 중인 전체 차량의 GPS 위치입니다."
     elif vehicles:
         status, reason = "fallback", "location_coordinates_missing"
         position_message = "GPS 좌표가 없어 현재 정류장 기준으로 표시합니다."
@@ -779,12 +871,16 @@ def _result(status, **kwargs):
 
 
 def get_transit_live(request: TransitLiveRequest):
-    if "BUS" not in request.vehicle_type.upper():
+    vehicle_type = request.vehicle_type.upper()
+    if "BUS" not in vehicle_type and "SUBWAY" not in vehicle_type:
         return _result("unsupported", refresh_after_seconds=STATIC_TTL,
                        message="이 구간은 예정 시간으로 안내합니다.",
                        vehicle_position_status="not_applicable",
                        vehicle_position_reason="unsupported_vehicle_type")
-    if not any(_key(provider) for provider in _provider_order(request)):
+    configured = _subway_key() if "SUBWAY" in vehicle_type else any(
+        _key(provider) for provider in _provider_order(request)
+    )
+    if not configured:
         return _result("not_configured", refresh_after_seconds=STATIC_TTL,
                        message="실시간 정보 연결이 준비되지 않았습니다.",
                        vehicle_position_reason="provider_api_key_not_configured")
@@ -801,6 +897,19 @@ def get_transit_live(request: TransitLiveRequest):
                        message="이 구간의 정류장과 운행 방향을 확인하지 못했습니다.",
                        vehicle_position_reason="route_not_matched")
     provider, route_id, city_code, stops, start, end = resolved
+    if provider == "seoul_subway":
+        return _result(
+            "unsupported",
+            provider=provider,
+            route_stops=stops,
+            boarding_stop_order=start.stop_order,
+            alighting_stop_order=end.stop_order,
+            vehicle_position_status="not_applicable",
+            vehicle_position_reason="subway_realtime_not_connected",
+            vehicle_position_message="지하철 실시간 API 연결 전 정적 역 목록을 표시합니다.",
+            refresh_after_seconds=STATIC_TTL,
+            message="지하철 실시간 위치는 다음 단계에서 연결합니다.",
+        )
 
     def load():
         common = dict(provider=provider, route_stops=stops,
@@ -808,7 +917,7 @@ def get_transit_live(request: TransitLiveRequest):
         try:
             (minutes, message, vehicles, fetched_at, position_status,
              position_reason, position_message) = _read_arrival(
-                provider, route_id, city_code, stops, start
+                provider, route_id, city_code, stops, start, end
             )
         except ProviderError:
             return _result("provider_error", **common, refresh_after_seconds=FAILURE_TTL,

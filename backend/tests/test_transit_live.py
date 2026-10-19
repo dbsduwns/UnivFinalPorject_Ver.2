@@ -24,7 +24,7 @@ class Response:
 
 @pytest.fixture(autouse=True)
 def isolate(monkeypatch):
-    for key in ("PUBLIC_API_KEY", "SEOUL_BUS_API_KEY", "GYEONGGI_BUS_API_KEY", "TAGO_BUS_API_KEY"):
+    for key in ("PUBLIC_API_KEY", "SEOUL_BUS_API_KEY", "SEOUL_SUBWAY_API_KEY", "GYEONGGI_BUS_API_KEY", "TAGO_BUS_API_KEY"):
         monkeypatch.delenv(key, raising=False)
     for provider in ("SEOUL", "GYEONGGI", "TAGO"):
         monkeypatch.delenv(f"{provider}_BUS_DAILY_LIMIT", raising=False)
@@ -45,6 +45,34 @@ def test_relaxed_route_name_match_accepts_direction_suffix_but_not_branch_number
     assert live._relaxed_route_name_match("110B(국민대)", "110B")
     assert live._relaxed_route_name_match("110B 국민대", "110B")
     assert not live._relaxed_route_name_match("110B-1", "110B")
+
+
+def test_subway_static_route_returns_ordered_stops(monkeypatch):
+    monkeypatch.setenv("SEOUL_SUBWAY_API_KEY", "test")
+
+    def get(url, **kwargs):
+        assert "SearchSTNBySubwayLineInfo" in url
+        return Response({
+            "SearchSTNBySubwayLineInfo": {
+                "RESULT": {"CODE": "INFO-000"},
+                "row": [
+                    {"STATION_CD": "100", "STATION_NM": "강남"},
+                    {"STATION_CD": "101", "STATION_NM": "역삼"},
+                    {"STATION_CD": "102", "STATION_NM": "선릉"},
+                ],
+            },
+        })
+
+    monkeypatch.setattr(live.requests, "get", get)
+    result = live.get_transit_live(request(
+        route_name="2호선",
+        vehicle_type="SUBWAY",
+        departure_stop_name="강남",
+        arrival_stop_name="선릉",
+    ))
+    assert result.status == "unsupported"
+    assert [stop.stop_name for stop in result.route_stops] == ["강남", "역삼", "선릉"]
+    assert result.vehicle_position_reason == "subway_realtime_not_connected"
 
 
 def gg_response(name, items, code=0):
@@ -209,7 +237,7 @@ def test_seoul_location_failure_uses_stop_fallback_and_explains_cause(monkeypatc
 
 def test_missing_key_and_unsupported_modes_make_no_calls():
     assert live.get_transit_live(request()).status == "not_configured"
-    assert live.get_transit_live(request(vehicle_type="SUBWAY")).status == "unsupported"
+    assert live.get_transit_live(request(vehicle_type="SUBWAY")).status == "not_configured"
     live.requests.get.assert_not_called()
 
 
