@@ -34,7 +34,8 @@ DISPLAY_BEFORE_BOARDING_STOP_COUNT = 5
 DISPLAY_AFTER_ALIGHTING_STOP_COUNT = 3
 # 서울 버스 api URL
 SEOUL_BUS_API_BASE_URL = "http://ws.bus.go.kr/api/rest"
-SEOUL_SUBWAY_API_BASE_URL = "https://openapi.seoul.go.kr:8088"
+# 서울 열린데이터광장의 해당 지하철 API는 공식적으로 HTTP 8088 포트만 제공한다.
+SEOUL_SUBWAY_API_BASE_URL = "http://openapi.seoul.go.kr:8088"
 _cache = RequestCache(1024)
 _policy_lock = Lock()
 _cooldown = {}

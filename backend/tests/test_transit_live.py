@@ -66,6 +66,7 @@ def test_subway_static_route_returns_ordered_stops(monkeypatch):
     monkeypatch.setenv("SEOUL_SUBWAY_API_KEY", "test")
 
     def get(url, **kwargs):
+        assert url.startswith("http://openapi.seoul.go.kr:8088/")
         assert "SearchSTNBySubwayLineInfo" in url
         return Response({
             "SearchSTNBySubwayLineInfo": {
