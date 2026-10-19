@@ -276,37 +276,16 @@ function buildDashedRouteSegments(
   return segments;
 }
 
-function selectApproachingBus(
-  vehicles: LiveBusPosition[],
-  boardingOrder: number | undefined,
-  vehicleNumber: string | null | undefined,
-  routeStops: RouteStop[] = [],
-) {
-  if (boardingOrder === undefined) return null;
+function getVehicleRouteStopOrder(vehicle: LiveBusPosition, routeStops: RouteStop[]) {
   const normalizeStopName = (value: string | null | undefined) =>
     (value ?? "").replace(/[\s.·ㆍ()（）]/g, "").toLowerCase();
-  const getRouteStopOrder = (vehicle: LiveBusPosition) => {
-    const matchedStop = vehicle.current_stop_id
-      ? routeStops.find((stop) => stop.stop_id === vehicle.current_stop_id)
-      : undefined;
-    const matchedByName = !matchedStop && vehicle.current_stop_name
-      ? routeStops.find((stop) => normalizeStopName(stop.stop_name) === normalizeStopName(vehicle.current_stop_name))
-      : undefined;
-    return matchedStop?.stop_order ?? matchedByName?.stop_order ?? vehicle.current_stop_order;
-  };
-  const approaching = vehicles
-    .filter((vehicle) =>
-      getRouteStopOrder(vehicle) !== null &&
-      getRouteStopOrder(vehicle) !== undefined &&
-      getRouteStopOrder(vehicle)! <= boardingOrder,
-    )
-    .sort(
-      (first, second) =>
-        (getRouteStopOrder(second) ?? 0) - (getRouteStopOrder(first) ?? 0),
-    );
-  // Never display an already-passed vehicle as the next bus.
-  return approaching.find((vehicle) => vehicle.vehicle_number === vehicleNumber)
-    ?? approaching[0] ?? null;
+  const matchedStop = vehicle.current_stop_id
+    ? routeStops.find((stop) => stop.stop_id === vehicle.current_stop_id)
+    : undefined;
+  const matchedByName = !matchedStop && vehicle.current_stop_name
+    ? routeStops.find((stop) => normalizeStopName(stop.stop_name) === normalizeStopName(vehicle.current_stop_name))
+    : undefined;
+  return matchedStop?.stop_order ?? matchedByName?.stop_order ?? vehicle.current_stop_order;
 }
 
 function TransitStopAccordion({
@@ -361,43 +340,15 @@ function TransitStopAccordion({
     [data],
   );
   const boardingOrder = segmentStops[0]?.stop_order;
-  const liveBus = useMemo(
-    () => selectApproachingBus(
-      isLiveError ? [] : data?.vehicles ?? [],
-      boardingOrder,
-      data?.vehicle_number,
-      data?.route_stops ?? [],
-    ),
-    [boardingOrder, data?.route_stops, data?.vehicles, data?.vehicle_number, isLiveError],
+  const liveBuses = useMemo(
+    () => (isLiveError ? [] : data?.vehicles ?? [])
+      .slice()
+      .sort((first, second) =>
+        (getVehicleRouteStopOrder(first, data?.route_stops ?? []) ?? Number.MAX_SAFE_INTEGER) -
+        (getVehicleRouteStopOrder(second, data?.route_stops ?? []) ?? Number.MAX_SAFE_INTEGER)),
+    [data?.route_stops, data?.vehicles, isLiveError],
   );
-  const liveBusStopOrder = useMemo(() => {
-    if (!liveBus) return null;
-    const matchedStop = liveBus.current_stop_id
-      ? segmentStops.find((stop) => stop.stop_id === liveBus.current_stop_id)
-      : undefined;
-    const normalizeStopName = (value: string | null | undefined) =>
-      (value ?? "").replace(/[\s.·ㆍ()（）]/g, "").toLowerCase();
-    const matchedByName = !matchedStop && liveBus.current_stop_name
-      ? segmentStops.find((stop) => normalizeStopName(stop.stop_name) === normalizeStopName(liveBus.current_stop_name))
-      : undefined;
-    return matchedStop?.stop_order ?? matchedByName?.stop_order ?? liveBus.current_stop_order;
-  }, [liveBus, segmentStops]);
-  const visibleStops = useMemo(() => {
-    if (!liveBus || liveBusStopOrder === null || liveBusStopOrder === undefined || segmentStops.length === 0) {
-      return segmentStops;
-    }
-    const allStops = data?.route_stops ?? [];
-    const vehicleIndex = allStops.findIndex(
-      (stop) => stop.stop_order === liveBusStopOrder,
-    );
-    const arrivalOrder = segmentStops[segmentStops.length - 1].stop_order;
-    if (vehicleIndex < 0 || liveBusStopOrder >= boardingOrder) {
-      return segmentStops;
-    }
-    return allStops
-      .slice(vehicleIndex)
-      .filter((stop) => stop.stop_order <= arrivalOrder);
-  }, [boardingOrder, data?.route_stops, liveBus, liveBusStopOrder, segmentStops]);
+  const visibleStops = liveBuses.length > 0 ? data?.route_stops ?? segmentStops : segmentStops;
 
   const arrivalMinutes = isLiveError ? null : data?.arrival_minutes ?? null;
   const scheduledDeparture = step.scheduled_departure_time
@@ -488,12 +439,9 @@ function TransitStopAccordion({
               const isBoarding = stop.stop_order === boardingOrder;
               const isArrival =
                 stop.stop_order === segmentStops[segmentStops.length - 1]?.stop_order;
-              const hasLiveBus = Boolean(liveBus && (
-                (liveBus.current_stop_id && liveBus.current_stop_id === stop.stop_id) ||
-                stop.stop_order === liveBusStopOrder ||
-                (liveBus.current_stop_name && liveBus.current_stop_name === stop.stop_name)
-              ));
-              const liveBusPositionSource = liveBus?.position_source;
+              const vehiclesAtStop = liveBuses.filter((vehicle) =>
+                getVehicleRouteStopOrder(vehicle, data?.route_stops ?? []) === stop.stop_order,
+              );
               const isBeforeBoarding =
                 boardingOrder !== undefined && stop.stop_order < boardingOrder;
               return (
@@ -517,16 +465,23 @@ function TransitStopAccordion({
                     {isBoarding && <Text style={styles.stopCaption}>탑승</Text>}
                     {isArrival && <Text style={styles.stopCaption}>하차</Text>}
                   </View>
-                  {hasLiveBus && (
-                    <View style={[styles.vehiclePositionBadge, { borderColor: color }]}>
-                      <Bus size={12} color={color} />
-                      <Text style={[styles.vehiclePositionText, { color }]}>
-                        {liveBusPositionSource === "gps"
-                          ? "GPS 차량"
-                          : liveBusPositionSource === "map_matched"
-                            ? "도로 기준 차량"
-                            : "정류장 기준 차량"}
-                      </Text>
+                  {vehiclesAtStop.length > 0 && (
+                    <View style={styles.vehiclePositionBadges}>
+                      {vehiclesAtStop.map((vehicle) => (
+                        <View
+                          key={`${stop.stop_id}-${vehicle.vehicle_number}`}
+                          style={[styles.vehiclePositionBadge, { borderColor: color }]}
+                        >
+                          <Bus size={12} color={color} />
+                          <Text style={[styles.vehiclePositionText, { color }]}>
+                            {vehicle.vehicle_number} · {vehicle.position_source === "gps"
+                              ? "GPS"
+                              : vehicle.position_source === "map_matched"
+                                ? "도로"
+                                : "정류장"}
+                          </Text>
+                        </View>
+                      ))}
                     </View>
                   )}
                 </View>
@@ -1511,7 +1466,6 @@ const styles = StyleSheet.create({
   stopNameApproaching: { color: "#94A3B8" },
   stopCaption: { fontSize: 10, fontWeight: "800", color: "#13708D" },
   vehiclePositionBadge: {
-    alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
@@ -1520,6 +1474,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 10,
     backgroundColor: "#FFFFFF",
+  },
+  vehiclePositionBadges: {
+    maxWidth: "55%",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+    alignContent: "center",
+    gap: 4,
+    paddingVertical: 4,
   },
   vehiclePositionText: { fontSize: 10, fontWeight: "800" },
   vehiclePositionNotice: {

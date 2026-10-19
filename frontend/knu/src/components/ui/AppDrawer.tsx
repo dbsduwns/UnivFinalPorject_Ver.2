@@ -23,8 +23,10 @@ import {
   MapPin,
   MessageCircle,
   Megaphone,
+  Settings,
   Utensils,
   User,
+  Users,
 } from "lucide-react-native";
 
 type AppDrawerContextValue = {
@@ -50,9 +52,11 @@ const drawerItems: DrawerItem[] = [
   { label: "AI 챗봇", href: "/(app)/(tabs)/ai_chat", icon: Bot },
   { label: "공지사항", href: "/(app)/(tabs)/notice", icon: Megaphone },
   { label: "마이페이지", href: "/(app)/(tabs)/my", icon: User },
-  { label: "셔틀", href: "/(app)/shuttle", icon: BusFront },
-  { label: "학식", href: "/(app)/meal", icon: Utensils },
-  { label: "캠퍼스맵", href: "/(app)/campus-map", icon: MapPin },
+  { label: "캠퍼스맵", href: "/(app)/(tabs)/campus-map", icon: MapPin },
+  { label: "셔틀", href: "/(app)/(tabs)/shuttle", icon: BusFront },
+  { label: "학식", href: "/(app)/(tabs)/meal", icon: Utensils },
+  { label: "통학 설정", href: "/(app)/commute-settings", icon: Settings },
+  { label: "친구 초대", href: "/(app)/friends/invite", icon: Users },
 ];
 
 export const AppDrawerProvider = ({ children }: PropsWithChildren) => {

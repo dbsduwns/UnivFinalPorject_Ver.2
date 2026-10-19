@@ -2,8 +2,8 @@
 
 경로 예측 서비스에서는 호출하지 않는다. 정적 노선 매칭은 6시간,
 실시간 조회 결과는 30초, 빈 응답은 2분, 실패 결과는 1분 동안 공유한다.
-서울·GBIS 도착 응답에는 접근 중인 차량의 정류장 정보가 이미 포함되므로,
-정류장 목록 화면에서 별도의 차량 위치 조회를 추가로 요청하지 않는다.
+정류장 목록이 펼쳐져 있을 때만 호출하며, 노선 단위 위치 API 결과를 캐시해
+화면에서 경로 전체 차량의 현재 정류장을 표시한다.
 """
 
 from datetime import datetime, timezone
@@ -262,10 +262,11 @@ def _request(provider, service, operation, params, item_key, static=False):
             )
             logger.warning(
                 "Transit provider failed: provider=%s service=%s operation=%s "
-                "reason=%s http_status=%s result_code=%s",
+                "route_id=%s reason=%s http_status=%s result_code=%s",
                 provider,
                 service,
                 operation,
+                _text(params.get("routeId") or params.get("busRouteId")) or None,
                 reason,
                 status_code,
                 result_code,
@@ -689,18 +690,29 @@ def _apply_stop_coordinate_fallback(vehicles, stops):
     return enriched, applied
 
 
-def _log_position_result(provider, route_id, status, reason, vehicles):
+def _log_position_result(provider, route_id, route_name, status, reason, vehicles):
     payload = {
         "event": "transit_vehicle_position",
         "provider": provider,
         "route_id": route_id,
+        "route_name": route_name,
         "status": status,
         "reason": reason,
         "vehicle_count": len(vehicles),
-        "has_coordinates": any(
-            vehicle.latitude is not None and vehicle.longitude is not None
+        "vehicles": [
+            {
+                "vehicle_number": vehicle.vehicle_number,
+                "current_stop_id": vehicle.current_stop_id,
+                "current_stop_name": vehicle.current_stop_name,
+                "current_stop_order": vehicle.current_stop_order,
+                "latitude": vehicle.latitude,
+                "longitude": vehicle.longitude,
+                "position_source": vehicle.position_source,
+            }
             for vehicle in vehicles
-        ),
+        ],
+        "has_coordinates": any(vehicle.latitude is not None and vehicle.longitude is not None
+                               for vehicle in vehicles),
     }
     log = logger.warning if status == "unavailable" else logger.info
     log(
@@ -719,26 +731,57 @@ def _read_arrival(provider, route_id, city_code, stops, start, end):
         minutes = _number(item.get("predictTime1"))
         seconds = _number(item.get("predictTimeSec1"))
         number = _text(item.get("plateNo1"))
-        if item.get("flag") in {"STOP", "WAIT"} or not number or (minutes is None and seconds is None):
-            return (None, None, [], item.get("_fetched_at"), "unavailable",
-                    "no_active_arrival_vehicle",
-                    "현재 운행 중인 다음 차량의 위치가 제공되지 않습니다.")
+        has_arrival = bool(number and item.get("flag") not in {"STOP", "WAIT"}
+                           and (minutes is not None or seconds is not None))
         if seconds is not None and seconds >= 0:
             minutes = math.ceil(seconds / 60)
         remaining = _number(item.get("locationNo1"))
         order = start.stop_order - remaining if remaining is not None and remaining >= 0 else None
-        vehicles = _vehicle(number, order, stops, position_source="stop")
-        if vehicles and vehicles[0].latitude is not None:
-            status, reason = "fallback", "provider_stop_level_only"
-            position_message = "경기도는 정류장 기준 차량 위치를 제공합니다."
-        elif vehicles:
-            status, reason = "fallback", "stop_coordinates_missing"
-            position_message = "차량의 현재 정류장은 확인했지만 지도 좌표가 없습니다."
+        arrival_vehicle = _vehicle(number, order, stops, position_source="stop") if has_arrival else []
+        try:
+            positions = _request(
+                provider, "buslocationservice", "getBusLocationList",
+                {"routeId": route_id}, "busLocationList",
+            )
+        except ProviderError:
+            if arrival_vehicle:
+                return (minutes, None, arrival_vehicle, item.get("_fetched_at"),
+                        "fallback", "location_api_failed_using_arrival_data",
+                        "전체 차량 위치 조회에 실패해 도착정보의 차량만 표시합니다.")
+            raise
+        vehicles = []
+        for position in positions:
+            stop_id = _text(position.get("stationId"))
+            stop_order = _number(position.get("stationSeq"))
+            if stop_order is None and stop_id:
+                matched_stop = next((stop for stop in stops if stop.stop_id == stop_id), None)
+                stop_order = matched_stop.stop_order if matched_stop else None
+            vehicles.extend(_vehicle(
+                _text(position.get("plateNo")) or _text(position.get("vehId")),
+                stop_order,
+                stops,
+                position_source="stop",
+            ))
+        known_numbers = {vehicle.vehicle_number for vehicle in vehicles}
+        vehicles.extend(vehicle for vehicle in arrival_vehicle
+                        if vehicle.vehicle_number not in known_numbers)
+        if vehicles:
+            return (minutes if minutes is not None and minutes >= 0 else None, None,
+                    vehicles, positions[0].get("_fetched_at") if positions else item.get("_fetched_at"),
+                    "fallback", "provider_stop_level_only",
+                    "경기도 버스 위치정보 API의 차량별 정류장을 표시합니다.")
+        if positions and not vehicles:
+            reason = "vehicle_location_records_unmatched_to_route_stops"
+            message = "차량 위치 응답은 받았지만 정류장 순번·ID가 노선 정류장과 일치하지 않습니다."
+        elif has_arrival and not arrival_vehicle:
+            reason = "arrival_position_fields_missing"
+            message = "도착 차량은 확인했지만 해당 위치를 노선 정류장과 연결하지 못했습니다."
         else:
-            status, reason = "unavailable", "arrival_position_fields_missing"
-            position_message = "도착정보에 차량의 현재 정류장 순번이 없습니다."
+            reason = "no_vehicle_records_for_route"
+            message = "해당 노선의 실시간 차량 위치 정보가 없습니다."
         return (minutes if minutes is not None and minutes >= 0 else None, None,
-                vehicles, item.get("_fetched_at"), status, reason, position_message)
+                [], positions[0].get("_fetched_at") if positions else item.get("_fetched_at"),
+                "unavailable", reason, message)
     if provider == "seoul":
         # 한 노선의 모든 정류장은 하나의 캐시된 도착 응답을 공유한다.
         items = _request(provider, "arrive", "getArrInfoByRouteAll", {"busRouteId": route_id}, "itemList")
@@ -764,7 +807,8 @@ def _read_arrival(provider, route_id, city_code, stops, start, end):
                 provider,
                 "buspos",
                 "getBusPosByRouteSt",
-                {"busRouteId": route_id, "startOrd": 1, "endOrd": end.stop_order},
+                {"busRouteId": route_id, "startOrd": 1,
+                 "endOrd": max((stop.stop_order for stop in stops), default=end.stop_order)},
                 "itemList",
             )
         except ProviderError:
@@ -775,8 +819,6 @@ def _read_arrival(provider, route_id, city_code, stops, start, end):
         all_vehicles = []
         for position in positions:
             position_order = _number(position.get("sectOrd"))
-            if position_order is not None and position_order > end.stop_order:
-                continue
             latitude, longitude = _coordinates(position, ("posY", "tmY"), ("posX", "tmX"))
             all_vehicles.extend(_vehicle(
                 _text(position.get("plainNo")) or _text(position.get("vehId")),
@@ -804,7 +846,7 @@ def _read_arrival(provider, route_id, city_code, stops, start, end):
                     or item.get("_fetched_at"),
                     "available" if has_coordinates else "fallback",
                     "map_matched_coordinates" if has_coordinates else "location_coordinates_missing",
-                    "노선의 접근 차량 위치를 표시합니다." if has_coordinates
+                    "노선 전체 차량의 GPS 위치를 표시합니다." if has_coordinates
                     else "차량은 확인했지만 좌표가 없어 정류장 기준으로 표시합니다.")
         status = "fallback" if fallback else "unavailable"
         return (minutes, message, fallback, item.get("_fetched_at"), status,
@@ -830,12 +872,12 @@ def _read_arrival(provider, route_id, city_code, stops, start, end):
     same_direction = [
         item for item in positions
         if _number(item.get("nodeord")) is not None
-        and _number(item.get("nodeord")) <= end.stop_order
+        and _number(item.get("nodeord")) <= max((stop.stop_order for stop in stops), default=end.stop_order)
     ]
     if not same_direction:
         return (math.ceil(int(first["arrtime"]) / 60), None, [], first.get("_fetched_at"),
-                "unavailable", "no_approaching_vehicle_in_location_feed",
-                "탑승 정류장으로 접근 중인 차량을 위치정보에서 찾지 못했습니다.")
+                "unavailable", "no_vehicle_in_route_location_feed",
+                "노선 위치정보에서 차량을 찾지 못했습니다.")
     vehicles = []
     for position in same_direction:
         latitude, longitude = _coordinates(position, ("gpslati",), ("gpslong",))
@@ -853,7 +895,7 @@ def _read_arrival(provider, route_id, city_code, stops, start, end):
     )
     if vehicles and has_coordinates:
         status, reason = "available", "gps_coordinates"
-        position_message = "접근 중인 전체 차량의 GPS 위치입니다."
+        position_message = "노선 전체 차량의 GPS 위치입니다."
     elif vehicles:
         status, reason = "fallback", "location_coordinates_missing"
         position_message = "GPS 좌표가 없어 현재 정류장 기준으로 표시합니다."
@@ -861,7 +903,7 @@ def _read_arrival(provider, route_id, city_code, stops, start, end):
         status, reason = "unavailable", "location_vehicle_fields_missing"
         position_message = "위치정보 응답에서 차량을 식별하지 못했습니다."
     return (math.ceil(int(first["arrtime"]) / 60), None, vehicles,
-            position.get("_fetched_at") or first.get("_fetched_at"),
+            same_direction[0].get("_fetched_at") or first.get("_fetched_at"),
             status, reason, position_message)
 
 
@@ -881,6 +923,15 @@ def get_transit_live(request: TransitLiveRequest):
         _key(provider) for provider in _provider_order(request)
     )
     if not configured:
+        logger.warning(
+            "Transit vehicle lookup failed: %s",
+            json.dumps({
+                "event": "transit_vehicle_lookup_failed",
+                "stage": "configuration",
+                "route_name": request.route_name,
+                "reason": "provider_api_key_not_configured",
+            }, ensure_ascii=False, separators=(",", ":")),
+        )
         return _result("not_configured", refresh_after_seconds=STATIC_TTL,
                        message="실시간 정보 연결이 준비되지 않았습니다.",
                        vehicle_position_reason="provider_api_key_not_configured")
@@ -889,10 +940,30 @@ def get_transit_live(request: TransitLiveRequest):
         resolved = _cache.get(("resolve", descriptor), lambda: _resolve(request),
                               ttl=STATIC_TTL, empty_ttl=EMPTY_TTL, error_ttl=FAILURE_TTL)
     except ProviderError:
+        logger.exception(
+            "Transit vehicle lookup failed: %s",
+            json.dumps({
+                "event": "transit_vehicle_lookup_failed",
+                "stage": "route_resolution",
+                "route_name": request.route_name,
+                "reason": "route_resolution_failed",
+            }, ensure_ascii=False, separators=(",", ":")),
+        )
         return _result("provider_error", refresh_after_seconds=FAILURE_TTL,
                        message="실시간 정보를 잠시 불러올 수 없습니다.",
                        vehicle_position_reason="route_resolution_failed")
     if not resolved:
+        logger.warning(
+            "Transit vehicle lookup failed: %s",
+            json.dumps({
+                "event": "transit_vehicle_lookup_failed",
+                "stage": "route_resolution",
+                "route_name": request.route_name,
+                "departure_stop": request.departure_stop_name,
+                "arrival_stop": request.arrival_stop_name,
+                "reason": "route_not_matched",
+            }, ensure_ascii=False, separators=(",", ":")),
+        )
         return _result("unmatched", refresh_after_seconds=STATIC_TTL,
                        message="이 구간의 정류장과 운행 방향을 확인하지 못했습니다.",
                        vehicle_position_reason="route_not_matched")
@@ -920,6 +991,17 @@ def get_transit_live(request: TransitLiveRequest):
                 provider, route_id, city_code, stops, start, end
             )
         except ProviderError:
+            logger.exception(
+                "Transit vehicle lookup failed: %s",
+                json.dumps({
+                    "event": "transit_vehicle_lookup_failed",
+                    "stage": "arrival_or_position_api",
+                    "provider": provider,
+                    "route_id": route_id,
+                    "route_name": request.route_name,
+                    "reason": "provider_api_failed",
+                }, ensure_ascii=False, separators=(",", ":")),
+            )
             return _result("provider_error", **common, refresh_after_seconds=FAILURE_TTL,
                            message="정류장 정보는 확인했지만 실시간 조회에 실패했습니다.",
                            vehicle_position_reason="arrival_api_failed",
@@ -933,7 +1015,10 @@ def get_transit_live(request: TransitLiveRequest):
             position_status = "fallback"
             position_reason = "stop_coordinate_fallback"
             position_message = "GPS 좌표가 없어 현재 정류장 위치에 차량을 표시합니다."
-        _log_position_result(provider, route_id, position_status, position_reason, vehicles)
+        _log_position_result(
+            provider, route_id, request.route_name,
+            position_status, position_reason, vehicles,
+        )
         return _result("ok" if minutes is not None or vehicles else "no_data", **common,
                        cached_at=fetched_at or datetime.now(timezone.utc),
                        arrival_minutes=minutes, arrival_message=message, vehicles=vehicles,
@@ -946,5 +1031,29 @@ def get_transit_live(request: TransitLiveRequest):
 
     # HTTP 데이터뿐 아니라 실패·빈 응답도 지정된 재시도 대기시간만큼 캐시한다.
     cache_key = ("live", provider, city_code, route_id, start.stop_order, end.stop_order)
-    result = _cache.get(cache_key, load, ttl=lambda result: result.refresh_after_seconds)
-    return result
+    try:
+        return _cache.get(cache_key, load, ttl=lambda result: result.refresh_after_seconds)
+    except Exception as exc:
+        logger.exception(
+            "Transit vehicle lookup failed: %s",
+            json.dumps({
+                "event": "transit_vehicle_lookup_failed",
+                "stage": "position_processing",
+                "provider": provider,
+                "route_id": route_id,
+                "route_name": request.route_name,
+                "exception_type": type(exc).__name__,
+            }, ensure_ascii=False, separators=(",", ":")),
+        )
+        return _result(
+            "provider_error",
+            provider=provider,
+            route_stops=stops,
+            boarding_stop_order=start.stop_order,
+            alighting_stop_order=end.stop_order,
+            refresh_after_seconds=FAILURE_TTL,
+            message="차량 위치 처리 중 오류가 발생했습니다.",
+            vehicle_position_status="unavailable",
+            vehicle_position_reason="position_processing_failed",
+            vehicle_position_message="오류 로그에서 실패 단계를 확인해주세요.",
+        )

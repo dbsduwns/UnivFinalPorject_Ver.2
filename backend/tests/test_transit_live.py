@@ -79,7 +79,7 @@ def gg_response(name, items, code=0):
     return Response({"response": {"msgHeader": {"resultCode": code}, "msgBody": {name: items}}})
 
 
-def gg_api(monkeypatch, arrival=None):
+def gg_api(monkeypatch, arrival=None, locations=None):
     monkeypatch.setenv("GYEONGGI_BUS_API_KEY", "test")
     calls = []
 
@@ -93,32 +93,44 @@ def gg_api(monkeypatch, arrival=None):
                 {"stationId": 11, "stationSeq": 11, "stationName": "기흥역", "y": 37.2, "x": 127.2},
                 {"stationId": 12, "stationSeq": 12, "stationName": "강남대역", "y": 37.3, "x": 127.3},
             ])
-        assert "getBusArrivalItemv2" in url  # No buslocationservice needed.
-        assert kwargs["params"]["staOrder"] == 11
-        return gg_response("busArrivalItem", arrival if arrival is not None else {
-            "plateNo1": "경기1234", "predictTime1": 2, "predictTimeSec1": 61,
-            "locationNo1": 1, "flag": "RUN",
-        })
+        if "getBusArrivalItemv2" in url:
+            assert kwargs["params"]["staOrder"] == 11
+            return gg_response("busArrivalItem", arrival if arrival is not None else {
+                "plateNo1": "경기1234", "predictTime1": 2, "predictTimeSec1": 61,
+                "locationNo1": 1, "flag": "RUN",
+            })
+        assert "getBusLocationListv2" in url
+        return gg_response("busLocationList", locations if locations is not None else [
+            {"plateNo": "경기1234", "stationId": 10, "stationSeq": 10},
+            {"plateNo": "경기5678", "stationId": 12, "stationSeq": 12},
+        ])
 
     monkeypatch.setattr(live.requests, "get", get)
     return calls
 
 
-def test_gyeonggi_lazy_lookup_shares_cache_without_location_api(monkeypatch):
+def test_gyeonggi_lookup_returns_all_route_vehicles_and_logs_positions(monkeypatch, caplog):
     calls = gg_api(monkeypatch)
-    first = live.get_transit_live(request())
+    with caplog.at_level(logging.INFO, logger=live.__name__):
+        first = live.get_transit_live(request())
     second = live.get_transit_live(request())
     assert first.status == "ok"
     assert first.arrival_minutes == 2
     assert first.boarding_stop_order == 11
     assert first.alighting_stop_order == 12
-    assert first.vehicles[0].current_stop_order == 10
-    assert first.vehicles[0].latitude == 37.1
-    assert first.vehicles[0].position_source == "stop"
+    assert [vehicle.vehicle_number for vehicle in first.vehicles] == ["경기1234", "경기5678"]
+    assert [vehicle.current_stop_order for vehicle in first.vehicles] == [10, 12]
+    assert [vehicle.latitude for vehicle in first.vehicles] == [37.1, 37.3]
+    assert all(vehicle.position_source == "stop" for vehicle in first.vehicles)
     assert first.vehicle_position_status == "fallback"
     assert first.vehicle_position_reason == "provider_stop_level_only"
     assert first.cached_at == second.cached_at
-    assert len(calls) == 3
+    assert len(calls) == 4
+    position_log = next(record.getMessage() for record in caplog.records
+                        if '"event":"transit_vehicle_position"' in record.getMessage())
+    assert '"route_name":"5000"' in position_log
+    assert '"vehicle_number":"경기5678"' in position_log
+    assert '"latitude":37.3' in position_log
 
 
 def test_stop_coordinate_fallback_enriches_vehicle_without_gps():
@@ -151,14 +163,14 @@ def test_live_cache_expires_but_static_mapping_survives(monkeypatch):
     live.get_transit_live(request())
     clock[0] += 31
     live.get_transit_live(request())
-    assert len(calls) == 4
-    assert "getBusArrivalItemv2" in calls[-1][0]
+    assert len(calls) == 6
+    assert "getBusLocationListv2" in calls[-1][0]
 
 
 def test_no_arrivals_back_off_and_preserve_stops(monkeypatch):
     clock = [100.0]
     monkeypatch.setattr(transit_cache, "monotonic", lambda: clock[0])
-    calls = gg_api(monkeypatch, arrival={})
+    calls = gg_api(monkeypatch, arrival={}, locations=[])
     result = live.get_transit_live(request())
     assert result.status == "no_data"
     assert result.arrival_minutes is None
@@ -166,7 +178,7 @@ def test_no_arrivals_back_off_and_preserve_stops(monkeypatch):
     assert result.refresh_after_seconds == 120
     clock[0] += 31
     live.get_transit_live(request())
-    assert len(calls) == 3
+    assert len(calls) == 4
 
 
 def test_seoul_message_and_vehicle_share_one_arrival_call(monkeypatch):
