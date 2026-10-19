@@ -36,6 +36,8 @@ DISPLAY_AFTER_ALIGHTING_STOP_COUNT = 3
 SEOUL_BUS_API_BASE_URL = "http://ws.bus.go.kr/api/rest"
 # 서울 열린데이터광장의 해당 지하철 API는 공식적으로 HTTP 8088 포트만 제공한다.
 SEOUL_SUBWAY_API_BASE_URL = "http://openapi.seoul.go.kr:8088"
+# 공공 API의 8088 포트 연결 지연을 고려해 지하철 노선 조회에만 여유를 둔다.
+SEOUL_SUBWAY_API_TIMEOUT = (8, 8)
 _cache = RequestCache(1024)
 _policy_lock = Lock()
 _cooldown = {}
@@ -131,7 +133,7 @@ def _subway_stations(line_name):
             f"SearchSTNBySubwayLineInfo/1/1000///{quote(line, safe='')}"
         )
         try:
-            response = requests.get(url, timeout=(2, 5))
+            response = requests.get(url, timeout=SEOUL_SUBWAY_API_TIMEOUT)
             response.raise_for_status()
             data = response.json()
         except (requests.RequestException, ValueError) as exc:

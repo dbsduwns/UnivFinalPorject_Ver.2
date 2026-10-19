@@ -68,6 +68,7 @@ def test_subway_static_route_returns_ordered_stops(monkeypatch):
     def get(url, **kwargs):
         assert url.startswith("http://openapi.seoul.go.kr:8088/")
         assert "SearchSTNBySubwayLineInfo" in url
+        assert kwargs["timeout"] == (8, 8)
         return Response({
             "SearchSTNBySubwayLineInfo": {
                 "RESULT": {"CODE": "INFO-000"},
