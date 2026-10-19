@@ -47,6 +47,21 @@ def test_relaxed_route_name_match_accepts_direction_suffix_but_not_branch_number
     assert not live._relaxed_route_name_match("110B-1", "110B")
 
 
+def test_display_stops_keeps_the_full_travel_segment_with_context_stops():
+    stops = [RouteStopResponse(
+        stop_order=index,
+        stop_id=f"S{index}",
+        stop_name=f"정류장 {index}",
+    ) for index in range(1, 31)]
+
+    displayed = live._display_stops(stops, stops[9], stops[24])
+
+    assert [stop.stop_order for stop in displayed] == [
+        5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+        16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28,
+    ]
+
+
 def test_subway_static_route_returns_ordered_stops(monkeypatch):
     monkeypatch.setenv("SEOUL_SUBWAY_API_KEY", "test")
 

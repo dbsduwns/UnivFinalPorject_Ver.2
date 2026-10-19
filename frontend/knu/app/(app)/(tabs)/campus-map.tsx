@@ -332,14 +332,10 @@ function TransitStopAccordion({
     onLiveDataChange(stepIndex, realtimeQueryEnabled ? data ?? null : null);
     return () => onLiveDataChange(stepIndex, null);
   }, [data, onLiveDataChange, realtimeQueryEnabled, stepIndex]);
-  const segmentStops = useMemo(
-    () => (data?.route_stops ?? []).filter((stop) =>
-      data?.boarding_stop_order != null && data?.alighting_stop_order != null &&
-      stop.stop_order >= data.boarding_stop_order && stop.stop_order <= data.alighting_stop_order,
-    ),
-    [data],
-  );
-  const boardingOrder = segmentStops[0]?.stop_order;
+  // 응답에는 탑승 전 5개부터 하차 후 3개까지의 연속 정류장 구간이 포함된다.
+  const visibleStops = data?.route_stops ?? [];
+  const boardingOrder = data?.boarding_stop_order;
+  const alightingOrder = data?.alighting_stop_order;
   const liveBuses = useMemo(
     () => (isLiveError ? [] : data?.vehicles ?? [])
       .slice()
@@ -348,8 +344,6 @@ function TransitStopAccordion({
         (getVehicleRouteStopOrder(second, data?.route_stops ?? []) ?? Number.MAX_SAFE_INTEGER)),
     [data?.route_stops, data?.vehicles, isLiveError],
   );
-  const visibleStops = liveBuses.length > 0 ? data?.route_stops ?? segmentStops : segmentStops;
-
   const arrivalMinutes = isLiveError ? null : data?.arrival_minutes ?? null;
   const scheduledDeparture = step.scheduled_departure_time
     ? new Date(step.scheduled_departure_time).toLocaleTimeString("ko-KR", {
@@ -387,8 +381,10 @@ function TransitStopAccordion({
         onPress={onToggle}
       >
         <Text style={styles.stopExpandText}>
-          {segmentStops.length > 0
-            ? `${Math.max(0, segmentStops.length - 1)}개 정류장`
+          {visibleStops.length > 0
+            ? step.stop_count
+              ? `${step.stop_count}개 정류장 · 구간 보기`
+              : "탑승·하차 구간 정류장"
             : expanded && isFetching
               ? "정류장 확인 중"
               : step.stop_count
@@ -437,53 +433,54 @@ function TransitStopAccordion({
           >
             {visibleStops.map((stop) => {
               const isBoarding = stop.stop_order === boardingOrder;
-              const isArrival =
-                stop.stop_order === segmentStops[segmentStops.length - 1]?.stop_order;
+              const isArrival = stop.stop_order === alightingOrder;
               const vehiclesAtStop = liveBuses.filter((vehicle) =>
                 getVehicleRouteStopOrder(vehicle, data?.route_stops ?? []) === stop.stop_order,
               );
               const isBeforeBoarding =
                 boardingOrder !== undefined && stop.stop_order < boardingOrder;
               return (
-                <View key={`${stop.stop_id}-${stop.stop_order}`} style={styles.stopRow}>
-                  <View style={styles.stopRail}>
-                    <View style={[
-                      styles.stopDot,
-                      { borderColor: color },
-                      (isBoarding || isArrival) && { backgroundColor: color },
-                    ]} />
-                    {!isArrival && <View style={[styles.stopLine, { backgroundColor: color }]} />}
-                  </View>
-                  <View style={styles.stopNameWrap}>
-                    <Text style={[
-                      styles.stopName,
-                      (isBoarding || isArrival) && styles.stopNameEmphasis,
-                      isBeforeBoarding && styles.stopNameApproaching,
-                    ]}>
-                      {stop.stop_name}
-                    </Text>
-                    {isBoarding && <Text style={styles.stopCaption}>탑승</Text>}
-                    {isArrival && <Text style={styles.stopCaption}>하차</Text>}
-                  </View>
-                  {vehiclesAtStop.length > 0 && (
-                    <View style={styles.vehiclePositionBadges}>
-                      {vehiclesAtStop.map((vehicle) => (
-                        <View
-                          key={`${stop.stop_id}-${vehicle.vehicle_number}`}
-                          style={[styles.vehiclePositionBadge, { borderColor: color }]}
-                        >
-                          <Bus size={12} color={color} />
-                          <Text style={[styles.vehiclePositionText, { color }]}>
-                            {vehicle.vehicle_number} · {vehicle.position_source === "gps"
-                              ? "GPS"
-                              : vehicle.position_source === "map_matched"
-                                ? "도로"
-                                : "정류장"}
-                          </Text>
-                        </View>
-                      ))}
+                <View key={`${stop.stop_id}-${stop.stop_order}`}>
+                  <View style={styles.stopRow}>
+                    <View style={styles.stopRail}>
+                      <View style={[
+                        styles.stopDot,
+                        { borderColor: color },
+                        (isBoarding || isArrival) && { backgroundColor: color },
+                      ]} />
+                      {!isArrival && <View style={[styles.stopLine, { backgroundColor: color }]} />}
                     </View>
-                  )}
+                    <View style={styles.stopNameWrap}>
+                      <Text style={[
+                        styles.stopName,
+                        (isBoarding || isArrival) && styles.stopNameEmphasis,
+                        isBeforeBoarding && styles.stopNameApproaching,
+                      ]}>
+                        {stop.stop_name}
+                      </Text>
+                      {isBoarding && <Text style={styles.stopCaption}>탑승</Text>}
+                      {isArrival && <Text style={styles.stopCaption}>하차</Text>}
+                    </View>
+                    {vehiclesAtStop.length > 0 && (
+                      <View style={styles.vehiclePositionBadges}>
+                        {vehiclesAtStop.map((vehicle) => (
+                          <View
+                            key={`${stop.stop_id}-${vehicle.vehicle_number}`}
+                            style={[styles.vehiclePositionBadge, { borderColor: color }]}
+                          >
+                            <Bus size={12} color={color} />
+                            <Text style={[styles.vehiclePositionText, { color }]}>
+                              {vehicle.vehicle_number} · {vehicle.position_source === "gps"
+                                ? "GPS"
+                                : vehicle.position_source === "map_matched"
+                                  ? "도로"
+                                  : "정류장"}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
                 </View>
               );
             })}

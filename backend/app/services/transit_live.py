@@ -30,6 +30,8 @@ STATIC_TTL = 6 * 3600
 LIVE_TTL = 30
 EMPTY_TTL = 120
 FAILURE_TTL = 60
+DISPLAY_BEFORE_BOARDING_STOP_COUNT = 5
+DISPLAY_AFTER_ALIGHTING_STOP_COUNT = 3
 # 서울 버스 api URL
 SEOUL_BUS_API_BASE_URL = "http://ws.bus.go.kr/api/rest"
 SEOUL_SUBWAY_API_BASE_URL = "https://openapi.seoul.go.kr:8088"
@@ -912,6 +914,20 @@ def _result(status, **kwargs):
     return TransitLiveResponse(status=status, **kwargs)
 
 
+def _display_stops(stops, start, end):
+    """탑승 전 5개부터 하차 후 3개까지의 연속된 정류장 구간을 반환한다."""
+    ordered_stops = sorted(stops, key=lambda stop: stop.stop_order)
+    start_index = next((index for index, stop in enumerate(ordered_stops)
+                        if stop.stop_order == start.stop_order and stop.stop_id == start.stop_id), None)
+    end_index = next((index for index, stop in enumerate(ordered_stops)
+                      if stop.stop_order == end.stop_order and stop.stop_id == end.stop_id), None)
+    if start_index is None or end_index is None:
+        return ordered_stops
+    first_index = max(0, min(start_index, end_index) - DISPLAY_BEFORE_BOARDING_STOP_COUNT)
+    last_index = min(len(ordered_stops), max(start_index, end_index) + DISPLAY_AFTER_ALIGHTING_STOP_COUNT + 1)
+    return ordered_stops[first_index:last_index]
+
+
 def get_transit_live(request: TransitLiveRequest):
     vehicle_type = request.vehicle_type.upper()
     if "BUS" not in vehicle_type and "SUBWAY" not in vehicle_type:
@@ -968,11 +984,12 @@ def get_transit_live(request: TransitLiveRequest):
                        message="이 구간의 정류장과 운행 방향을 확인하지 못했습니다.",
                        vehicle_position_reason="route_not_matched")
     provider, route_id, city_code, stops, start, end = resolved
+    displayed_stops = _display_stops(stops, start, end)
     if provider == "seoul_subway":
         return _result(
             "unsupported",
             provider=provider,
-            route_stops=stops,
+            route_stops=displayed_stops,
             boarding_stop_order=start.stop_order,
             alighting_stop_order=end.stop_order,
             vehicle_position_status="not_applicable",
@@ -983,7 +1000,7 @@ def get_transit_live(request: TransitLiveRequest):
         )
 
     def load():
-        common = dict(provider=provider, route_stops=stops,
+        common = dict(provider=provider, route_stops=displayed_stops,
                       boarding_stop_order=start.stop_order, alighting_stop_order=end.stop_order)
         try:
             (minutes, message, vehicles, fetched_at, position_status,
@@ -1048,7 +1065,7 @@ def get_transit_live(request: TransitLiveRequest):
         return _result(
             "provider_error",
             provider=provider,
-            route_stops=stops,
+            route_stops=displayed_stops,
             boarding_stop_order=start.stop_order,
             alighting_stop_order=end.stop_order,
             refresh_after_seconds=FAILURE_TTL,
