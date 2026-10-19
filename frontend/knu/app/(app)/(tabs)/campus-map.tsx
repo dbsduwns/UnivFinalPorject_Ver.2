@@ -345,6 +345,7 @@ function TransitStopAccordion({
     [data?.route_stops, data?.vehicles, isLiveError],
   );
   const arrivalMinutes = isLiveError ? null : data?.arrival_minutes ?? null;
+  const isSubway = step.vehicle_type?.includes("SUBWAY") ?? false;
   const scheduledDeparture = step.scheduled_departure_time
     ? new Date(step.scheduled_departure_time).toLocaleTimeString("ko-KR", {
         hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Seoul",
@@ -468,13 +469,19 @@ function TransitStopAccordion({
                             key={`${stop.stop_id}-${vehicle.vehicle_number}`}
                             style={[styles.vehiclePositionBadge, { borderColor: color }]}
                           >
-                            <Bus size={12} color={color} />
+                            {isSubway ? <TrainFront size={12} color={color} /> : <Bus size={12} color={color} />}
                             <Text style={[styles.vehiclePositionText, { color }]}>
-                              {vehicle.vehicle_number} · {vehicle.position_source === "gps"
-                                ? "GPS"
-                                : vehicle.position_source === "map_matched"
-                                  ? "도로"
-                                  : "정류장"}
+                              {isSubway
+                                ? [
+                                  vehicle.vehicle_number,
+                                  vehicle.destination_name ? `${vehicle.destination_name} 방면` : null,
+                                  vehicle.direction,
+                                ].filter(Boolean).join(" · ")
+                                : `${vehicle.vehicle_number} · ${vehicle.position_source === "gps"
+                                  ? "GPS"
+                                  : vehicle.position_source === "map_matched"
+                                    ? "도로"
+                                    : "정류장"}`}
                             </Text>
                           </View>
                         ))}

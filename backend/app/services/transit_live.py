@@ -333,6 +333,8 @@ def _subway_vehicles(line_name, stops):
         vehicles.append(LiveBusPositionResponse(
             vehicle_number=train_number,
             route_name=_subway_realtime_line_name(line_name),
+            direction=_text(row.get("updnLine")) or None,
+            destination_name=_text(row.get("statnTnm")) or None,
             position_source="stop",
             current_stop_order=stop.stop_order,
             current_stop_id=stop.stop_id,
@@ -352,6 +354,8 @@ def _subway_vehicles(line_name, stops):
                 "current_stop_id": vehicle.current_stop_id,
                 "current_stop_name": vehicle.current_stop_name,
                 "current_stop_order": vehicle.current_stop_order,
+                "direction": vehicle.direction,
+                "destination_name": vehicle.destination_name,
             }
             for vehicle in vehicles
         ],
@@ -911,6 +915,8 @@ def _log_position_result(provider, route_id, route_name, status, reason, vehicle
                 "latitude": vehicle.latitude,
                 "longitude": vehicle.longitude,
                 "position_source": vehicle.position_source,
+                "direction": vehicle.direction,
+                "destination_name": vehicle.destination_name,
             }
             for vehicle in vehicles
         ],

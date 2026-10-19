@@ -146,7 +146,12 @@ def test_subway_realtime_position_uses_dedicated_environment_key(monkeypatch):
         return Response({
             "realtimePosition": {
                 "RESULT": {"CODE": "INFO-000"},
-                "row": [{"trainNo": "6101", "statnNm": "상수"}],
+                "row": [{
+                    "trainNo": "6101",
+                    "statnNm": "상수",
+                    "statnTnm": "왕십리",
+                    "updnLine": "상행",
+                }],
             },
         })
 
@@ -161,7 +166,8 @@ def test_subway_realtime_position_uses_dedicated_environment_key(monkeypatch):
     assert result.status == "ok"
     assert result.refresh_after_seconds == live.SUBWAY_LIVE_TTL
     assert result.vehicle_position_reason == "subway_station_matched"
-    assert [(vehicle.vehicle_number, vehicle.current_stop_name) for vehicle in result.vehicles] == [("6101", "상수")]
+    assert [(vehicle.vehicle_number, vehicle.current_stop_name, vehicle.destination_name, vehicle.direction)
+            for vehicle in result.vehicles] == [("6101", "상수", "왕십리", "상행")]
     assert any("realtimePosition" in url for url in calls)
 
 

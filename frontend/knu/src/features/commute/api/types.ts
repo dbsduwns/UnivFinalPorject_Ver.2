@@ -161,6 +161,8 @@ export type RouteStop = {
 export type LiveBusPosition = {
   vehicle_number: string;
   route_name: string | null;
+  direction: string | null;
+  destination_name: string | null;
   latitude: number | null;
   longitude: number | null;
   position_source: "gps" | "map_matched" | "stop";

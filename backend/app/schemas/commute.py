@@ -137,6 +137,8 @@ class RouteStopResponse(BaseModel):
 class LiveBusPositionResponse(BaseModel):
     vehicle_number: str
     route_name: str | None = None
+    direction: str | None = None
+    destination_name: str | None = None
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     position_source: Literal["gps", "map_matched", "stop"] = "stop"
