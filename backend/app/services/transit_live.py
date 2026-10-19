@@ -124,7 +124,9 @@ def _xml_value(node):
 def _subway_line_name(value):
     """Google 노선명을 서울교통공사 노선 검색용 이름으로 정규화한다."""
     normalized = _text(value).replace("호선", "").replace("Line", "").replace("line", "")
-    return re.sub(r"\s+", "", normalized)
+    # Google은 수인.분당선처럼 구분점을 포함해 반환할 수 있지만,
+    # 서울 API의 LINE_NUM은 수인분당선처럼 구분점 없이 제공한다.
+    return re.sub(r"[\s.·ㆍㆍ-]+", "", normalized)
 
 
 def _subway_line_key(value):

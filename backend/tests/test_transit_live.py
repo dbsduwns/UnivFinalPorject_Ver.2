@@ -48,6 +48,12 @@ def test_relaxed_route_name_match_accepts_direction_suffix_but_not_branch_number
     assert not live._relaxed_route_name_match("110B-1", "110B")
 
 
+def test_subway_line_name_normalizes_suin_bundang_separators():
+    assert live._subway_line_name("수인.분당선") == "수인분당선"
+    assert live._subway_line_name("수인·분당선") == "수인분당선"
+    assert live._subway_line_name("수인 분당선") == "수인분당선"
+
+
 def test_display_stops_keeps_the_full_travel_segment_with_context_stops():
     stops = [RouteStopResponse(
         stop_order=index,
