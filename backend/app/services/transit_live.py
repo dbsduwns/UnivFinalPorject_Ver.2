@@ -726,6 +726,15 @@ def _log_position_result(provider, route_id, route_name, status, reason, vehicle
     )
 
 
+def _log_live_stage(event, stage, **details):
+    """요청 수신부터 응답 생성까지의 진행 상황을 구조화된 로그로 기록한다."""
+    payload = {"event": event, "stage": stage, **details}
+    logger.info(
+        "Transit live progress: %s",
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+    )
+
+
 def _read_arrival(provider, route_id, city_code, stops, start, end):
     """다음 도착정보와 제공기관이 제공하는 가장 정확한 위치 정밀도를 읽는다."""
     if provider == "gyeonggi":
@@ -933,6 +942,18 @@ def _display_stops(stops, start, end):
 
 def get_transit_live(request: TransitLiveRequest):
     vehicle_type = request.vehicle_type.upper()
+    _log_live_stage(
+        "transit_live_request_received",
+        "request_received",
+        route_name=request.route_name,
+        vehicle_type=vehicle_type,
+        departure_stop=request.departure_stop_name,
+        arrival_stop=request.arrival_stop_name,
+        agency_name=request.agency_name or None,
+        headsign=request.headsign or None,
+        has_departure_location=request.departure_stop_location is not None,
+        has_arrival_location=request.arrival_stop_location is not None,
+    )
     if "BUS" not in vehicle_type and "SUBWAY" not in vehicle_type:
         return _result("unsupported", refresh_after_seconds=STATIC_TTL,
                        message="이 구간은 예정 시간으로 안내합니다.",
@@ -988,8 +1009,20 @@ def get_transit_live(request: TransitLiveRequest):
                        vehicle_position_reason="route_not_matched")
     provider, route_id, city_code, stops, start, end = resolved
     displayed_stops = _display_stops(stops, start, end)
+    _log_live_stage(
+        "transit_route_resolved",
+        "route_resolution_completed",
+        provider=provider,
+        route_id=route_id,
+        city_code=city_code or None,
+        route_name=request.route_name,
+        total_stop_count=len(stops),
+        displayed_stop_count=len(displayed_stops),
+        boarding_stop={"id": start.stop_id, "name": start.stop_name, "order": start.stop_order},
+        alighting_stop={"id": end.stop_id, "name": end.stop_name, "order": end.stop_order},
+    )
     if provider == "seoul_subway":
-        return _result(
+        result = _result(
             "unsupported",
             provider=provider,
             route_stops=displayed_stops,
@@ -1001,10 +1034,29 @@ def get_transit_live(request: TransitLiveRequest):
             refresh_after_seconds=STATIC_TTL,
             message="지하철 실시간 위치는 다음 단계에서 연결합니다.",
         )
+        _log_live_stage(
+            "transit_live_response_sent",
+            "response_ready",
+            provider=provider,
+            route_id=route_id,
+            status=result.status,
+            route_stop_count=len(result.route_stops),
+            vehicle_count=0,
+            vehicle_position_reason=result.vehicle_position_reason,
+        )
+        return result
 
     def load():
         common = dict(provider=provider, route_stops=displayed_stops,
                       boarding_stop_order=start.stop_order, alighting_stop_order=end.stop_order)
+        _log_live_stage(
+            "transit_provider_query_started",
+            "arrival_and_position_lookup",
+            provider=provider,
+            route_id=route_id,
+            city_code=city_code or None,
+            route_name=request.route_name,
+        )
         try:
             (minutes, message, vehicles, fetched_at, position_status,
              position_reason, position_message) = _read_arrival(
@@ -1026,6 +1078,17 @@ def get_transit_live(request: TransitLiveRequest):
                            message="정류장 정보는 확인했지만 실시간 조회에 실패했습니다.",
                            vehicle_position_reason="arrival_api_failed",
                            vehicle_position_message="도착정보 API 권한 또는 연결 상태를 확인해주세요.")
+        _log_live_stage(
+            "transit_provider_query_completed",
+            "arrival_and_position_lookup",
+            provider=provider,
+            route_id=route_id,
+            route_name=request.route_name,
+            arrival_minutes=minutes,
+            vehicle_count=len(vehicles),
+            vehicle_position_status=position_status,
+            vehicle_position_reason=position_reason,
+        )
         had_coordinates = any(
             vehicle.latitude is not None and vehicle.longitude is not None
             for vehicle in vehicles
@@ -1052,7 +1115,21 @@ def get_transit_live(request: TransitLiveRequest):
     # HTTP 데이터뿐 아니라 실패·빈 응답도 지정된 재시도 대기시간만큼 캐시한다.
     cache_key = ("live", provider, city_code, route_id, start.stop_order, end.stop_order)
     try:
-        return _cache.get(cache_key, load, ttl=lambda result: result.refresh_after_seconds)
+        result = _cache.get(cache_key, load, ttl=lambda result: result.refresh_after_seconds)
+        _log_live_stage(
+            "transit_live_response_sent",
+            "response_ready",
+            provider=provider,
+            route_id=route_id,
+            status=result.status,
+            route_stop_count=len(result.route_stops),
+            vehicle_count=len(result.vehicles),
+            arrival_minutes=result.arrival_minutes,
+            vehicle_position_status=result.vehicle_position_status,
+            vehicle_position_reason=result.vehicle_position_reason,
+            refresh_after_seconds=result.refresh_after_seconds,
+        )
+        return result
     except Exception as exc:
         logger.exception(
             "Transit vehicle lookup failed: %s",

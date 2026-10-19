@@ -148,6 +148,11 @@ def test_gyeonggi_lookup_returns_all_route_vehicles_and_logs_positions(monkeypat
     assert '"route_name":"5000"' in position_log
     assert '"vehicle_number":"경기5678"' in position_log
     assert '"latitude":37.3' in position_log
+    progress_logs = "\n".join(record.getMessage() for record in caplog.records)
+    assert '"event":"transit_live_request_received"' in progress_logs
+    assert '"event":"transit_route_resolved"' in progress_logs
+    assert '"event":"transit_provider_query_completed"' in progress_logs
+    assert '"event":"transit_live_response_sent"' in progress_logs
 
 
 def test_stop_coordinate_fallback_enriches_vehicle_without_gps():
