@@ -24,7 +24,8 @@ class Response:
 
 @pytest.fixture(autouse=True)
 def isolate(monkeypatch):
-    for key in ("PUBLIC_API_KEY", "SEOUL_BUS_API_KEY", "SEOUL_SUBWAY_API_KEY", "GYEONGGI_BUS_API_KEY", "TAGO_BUS_API_KEY"):
+    for key in ("PUBLIC_API_KEY", "SEOUL_BUS_API_KEY", "SEOUL_SUBWAY_API_KEY",
+                "SEOUL_SUBWAY_REALTIME_API_KEY", "GYEONGGI_BUS_API_KEY", "TAGO_BUS_API_KEY"):
         monkeypatch.delenv(key, raising=False)
     for provider in ("SEOUL", "GYEONGGI", "TAGO"):
         monkeypatch.delenv(f"{provider}_BUS_DAILY_LIMIT", raising=False)
@@ -73,9 +74,9 @@ def test_subway_static_route_returns_ordered_stops(monkeypatch):
             "SearchSTNBySubwayLineInfo": {
                 "RESULT": {"CODE": "INFO-000"},
                 "row": [
-                    {"STATION_CD": "100", "STATION_NM": "강남"},
-                    {"STATION_CD": "101", "STATION_NM": "역삼"},
-                    {"STATION_CD": "102", "STATION_NM": "선릉"},
+                    {"STATION_CD": "100", "STATION_NM": "강남", "LINE_NUM": "2호선"},
+                    {"STATION_CD": "101", "STATION_NM": "역삼", "LINE_NUM": "2호선"},
+                    {"STATION_CD": "102", "STATION_NM": "선릉", "LINE_NUM": "2호선"},
                 ],
             },
         })
@@ -89,7 +90,73 @@ def test_subway_static_route_returns_ordered_stops(monkeypatch):
     ))
     assert result.status == "unsupported"
     assert [stop.stop_name for stop in result.route_stops] == ["강남", "역삼", "선릉"]
-    assert result.vehicle_position_reason == "subway_realtime_not_connected"
+    assert result.vehicle_position_reason == "subway_realtime_api_key_not_configured"
+
+
+def test_subway_static_route_filters_api_rows_to_requested_line(monkeypatch):
+    monkeypatch.setenv("SEOUL_SUBWAY_API_KEY", "test")
+    monkeypatch.setattr(live.requests, "get", lambda *args, **kwargs: Response({
+        "SearchSTNBySubwayLineInfo": {
+            "RESULT": {"CODE": "INFO-000"},
+            "row": [
+                {"STATION_CD": "500", "STATION_NM": "여의도", "LINE_NUM": "5호선"},
+                {"STATION_CD": "600", "STATION_NM": "광흥창", "LINE_NUM": "06호선"},
+                {"STATION_CD": "601", "STATION_NM": "상수", "LINE_NUM": "6호선"},
+                {"STATION_CD": "602", "STATION_NM": "이태원", "LINE_NUM": "6호선"},
+            ],
+        },
+    }))
+
+    result = live.get_transit_live(request(
+        route_name="6호선",
+        vehicle_type="SUBWAY",
+        departure_stop_name="광흥창",
+        arrival_stop_name="이태원",
+    ))
+
+    assert [stop.stop_name for stop in result.route_stops] == ["광흥창", "상수", "이태원"]
+    assert [stop.stop_order for stop in result.route_stops] == [1, 2, 3]
+
+
+def test_subway_realtime_position_uses_dedicated_environment_key(monkeypatch):
+    monkeypatch.setenv("SEOUL_SUBWAY_API_KEY", "static-key")
+    monkeypatch.setenv("SEOUL_SUBWAY_REALTIME_API_KEY", "realtime-key")
+    calls = []
+
+    def get(url, **kwargs):
+        calls.append(url)
+        if "SearchSTNBySubwayLineInfo" in url:
+            return Response({
+                "SearchSTNBySubwayLineInfo": {
+                    "RESULT": {"CODE": "INFO-000"},
+                    "row": [
+                        {"STATION_CD": "600", "STATION_NM": "광흥창", "LINE_NUM": "6호선"},
+                        {"STATION_CD": "601", "STATION_NM": "상수", "LINE_NUM": "6호선"},
+                        {"STATION_CD": "602", "STATION_NM": "이태원", "LINE_NUM": "6호선"},
+                    ],
+                },
+            })
+        assert "/realtime-key/json/realtimePosition/0/1000/6%ED%98%B8%EC%84%A0" in url
+        return Response({
+            "realtimePosition": {
+                "RESULT": {"CODE": "INFO-000"},
+                "row": [{"trainNo": "6101", "statnNm": "상수"}],
+            },
+        })
+
+    monkeypatch.setattr(live.requests, "get", get)
+    result = live.get_transit_live(request(
+        route_name="6호선",
+        vehicle_type="SUBWAY",
+        departure_stop_name="광흥창",
+        arrival_stop_name="이태원",
+    ))
+
+    assert result.status == "ok"
+    assert result.refresh_after_seconds == live.SUBWAY_LIVE_TTL
+    assert result.vehicle_position_reason == "subway_station_matched"
+    assert [(vehicle.vehicle_number, vehicle.current_stop_name) for vehicle in result.vehicles] == [("6101", "상수")]
+    assert any("realtimePosition" in url for url in calls)
 
 
 def gg_response(name, items, code=0):

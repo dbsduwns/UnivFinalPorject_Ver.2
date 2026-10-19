@@ -38,6 +38,9 @@ SEOUL_BUS_API_BASE_URL = "http://ws.bus.go.kr/api/rest"
 SEOUL_SUBWAY_API_BASE_URL = "http://openapi.seoul.go.kr:8088"
 # 공공 API의 8088 포트 연결 지연을 고려해 지하철 노선 조회에만 여유를 둔다.
 SEOUL_SUBWAY_API_TIMEOUT = (8, 8)
+# 서울시 실시간 열차 위치 API는 정적 역 목록 API와 별도 인증키·호스트를 사용한다.
+SEOUL_SUBWAY_REALTIME_API_BASE_URL = "http://swopenAPI.seoul.go.kr/api/subway"
+SUBWAY_LIVE_TTL = 90
 _cache = RequestCache(1024)
 _policy_lock = Lock()
 _cooldown = {}
@@ -62,6 +65,11 @@ def _key(provider):
 def _subway_key():
     """서울교통공사 지하철 정적 API 전용 인증키를 반환한다."""
     return os.getenv("SEOUL_SUBWAY_API_KEY")
+
+
+def _subway_realtime_key():
+    """서울시 실시간 지하철 열차 위치 API 전용 인증키를 반환한다."""
+    return os.getenv("SEOUL_SUBWAY_REALTIME_API_KEY")
 
 
 def _list(value):
@@ -119,6 +127,14 @@ def _subway_line_name(value):
     return re.sub(r"\s+", "", normalized)
 
 
+def _subway_line_key(value):
+    """노선 번호의 표기 차이(예: 06호선, 6호선)를 같은 값으로 비교한다."""
+    normalized = _subway_line_name(value)
+    if normalized.isdecimal():
+        return str(int(normalized))
+    return normalized.casefold()
+
+
 def _subway_stations(line_name):
     """서울교통공사 노선별 역 목록을 캐시해 반환한다."""
     key = _subway_key()
@@ -146,8 +162,26 @@ def _subway_stations(line_name):
         rows = envelope.get("row") or []
         if isinstance(rows, dict):
             rows = [rows]
+        requested_line = _subway_line_key(line)
+        line_rows = [
+            row for row in rows
+            if _subway_line_key(row.get("LINE_NUM")) == requested_line
+        ]
+        logger.info(
+            "지하철 정적 노선 필터 완료: requested_line=%s received_stop_count=%s matched_line_stop_count=%s",
+            line_name,
+            len(rows),
+            len(line_rows),
+        )
+        if not line_rows:
+            logger.warning(
+                "지하철 정적 노선 필터 결과 없음: requested_line=%s available_line_numbers=%s",
+                line_name,
+                sorted({_text(row.get("LINE_NUM")) for row in rows if _text(row.get("LINE_NUM"))}),
+            )
+            raise ProviderError("요청한 지하철 노선의 역 정보를 찾지 못했습니다.", reason="subway_line_filter_empty")
         stops = []
-        for order, row in enumerate(rows, start=1):
+        for order, row in enumerate(line_rows, start=1):
             station_id = _text(row.get("STATION_CD") or row.get("FR_CODE"))
             station_name = _text(row.get("STATION_NM"))
             if station_id and station_name:
@@ -161,6 +195,168 @@ def _subway_stations(line_name):
         return stops
 
     return _cache.get(cache_key, load, ttl=STATIC_TTL, empty_ttl=EMPTY_TTL, error_ttl=FAILURE_TTL)
+
+
+def _subway_realtime_line_name(line_name):
+    """실시간 열차 위치 API가 요구하는 노선명 표기로 변환한다."""
+    line = _subway_line_name(line_name)
+    return f"{line}호선" if line.isdecimal() else line
+
+
+def _subway_realtime_rows(line_name):
+    """한 노선의 실시간 열차 위치 원본 행을 90초 동안 공유한다."""
+    key = _subway_realtime_key()
+    if not key:
+        _log_subway_realtime_stage(
+            "subway_realtime_configuration_missing",
+            "configuration",
+            level="warning",
+            route_name=line_name,
+            reason="subway_realtime_api_key_not_configured",
+        )
+        return None
+    api_line_name = _subway_realtime_line_name(line_name)
+
+    def load():
+        url = (
+            f"{SEOUL_SUBWAY_REALTIME_API_BASE_URL}/{quote(unquote(key), safe='')}/json/"
+            f"realtimePosition/0/1000/{quote(api_line_name, safe='')}"
+        )
+        _log_subway_realtime_stage(
+            "subway_realtime_provider_request_started",
+            "provider_request",
+            route_name=line_name,
+            api_line_name=api_line_name,
+            response_format="json",
+            page_start=0,
+            page_end=1000,
+            timeout_seconds=list(SEOUL_SUBWAY_API_TIMEOUT),
+        )
+        try:
+            response = requests.get(url, timeout=SEOUL_SUBWAY_API_TIMEOUT)
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            _log_subway_realtime_stage(
+                "subway_realtime_provider_request_failed",
+                "provider_request",
+                level="warning",
+                route_name=line_name,
+                api_line_name=api_line_name,
+                reason="http_request_failed",
+                exception_type=type(exc).__name__,
+                http_status=getattr(getattr(exc, "response", None), "status_code", None),
+            )
+            raise ProviderError("지하철 실시간 열차 위치를 불러오지 못했습니다.",
+                                reason="subway_realtime_api_failed") from exc
+        try:
+            data = response.json()
+        except ValueError as exc:
+            _log_subway_realtime_stage(
+                "subway_realtime_response_parse_failed",
+                "response_parse",
+                level="warning",
+                route_name=line_name,
+                api_line_name=api_line_name,
+                reason="invalid_json_response",
+                exception_type=type(exc).__name__,
+                http_status=getattr(response, "status_code", None),
+            )
+            raise ProviderError("지하철 실시간 열차 위치 응답을 해석하지 못했습니다.",
+                                reason="subway_realtime_response_parse_failed") from exc
+        envelope = data.get("realtimePosition") or {}
+        result = envelope.get("RESULT") or {}
+        if result and _text(result.get("CODE")) not in {"INFO-000", "INFO-200"}:
+            _log_subway_realtime_stage(
+                "subway_realtime_provider_result_failed",
+                "provider_result",
+                level="warning",
+                route_name=line_name,
+                api_line_name=api_line_name,
+                reason="provider_result_error",
+                result_code=_text(result.get("CODE")) or None,
+                result_message=_text(result.get("MESSAGE")) or None,
+            )
+            raise ProviderError("지하철 실시간 열차 위치 API 응답 오류입니다.",
+                                reason="subway_realtime_result_error")
+        rows = envelope.get("row") or []
+        rows = [rows] if isinstance(rows, dict) else _list(rows)
+        _log_subway_realtime_stage(
+            "subway_realtime_provider_response_received",
+            "provider_response",
+            route_name=line_name,
+            api_line_name=api_line_name,
+            http_status=getattr(response, "status_code", None),
+            result_code=_text(result.get("CODE")) or "INFO-000",
+            response_row_count=len(rows),
+            response_rows=_subway_response_rows_for_log(rows),
+        )
+        return rows
+
+    return _cache.get(
+        ("subway_realtime_positions", api_line_name),
+        load,
+        ttl=SUBWAY_LIVE_TTL,
+        empty_ttl=EMPTY_TTL,
+        error_ttl=FAILURE_TTL,
+    )
+
+
+def _subway_vehicles(line_name, stops):
+    """실시간 열차 위치 행을 현재 방향의 역 목록 위 차량 정보로 변환한다."""
+    _log_subway_realtime_stage(
+        "subway_realtime_lookup_started",
+        "lookup",
+        route_name=line_name,
+        static_stop_count=len(stops),
+    )
+    rows = _subway_realtime_rows(line_name)
+    if rows is None:
+        return [], "unavailable", "subway_realtime_api_key_not_configured", (
+            "지하철 실시간 위치 인증키가 설정되지 않아 정적 역 목록을 표시합니다."
+        )
+
+    stops_by_name = {_name(stop.stop_name): stop for stop in stops}
+    vehicles = []
+    unmatched_station_count = 0
+    missing_train_number_count = 0
+    for row in rows:
+        stop = stops_by_name.get(_name(row.get("statnNm")))
+        train_number = _text(row.get("trainNo"))
+        if not stop:
+            unmatched_station_count += 1
+            continue
+        if not train_number:
+            missing_train_number_count += 1
+            continue
+        vehicles.append(LiveBusPositionResponse(
+            vehicle_number=train_number,
+            route_name=_subway_realtime_line_name(line_name),
+            position_source="stop",
+            current_stop_order=stop.stop_order,
+            current_stop_id=stop.stop_id,
+            current_stop_name=stop.stop_name,
+        ))
+    _log_subway_realtime_stage(
+        "subway_realtime_station_mapping_completed",
+        "station_mapping",
+        route_name=line_name,
+        received_vehicle_count=len(rows),
+        matched_vehicle_count=len(vehicles),
+        unmatched_station_count=unmatched_station_count,
+        missing_train_number_count=missing_train_number_count,
+        mapped_vehicles=[
+            {
+                "train_number": vehicle.vehicle_number,
+                "current_stop_id": vehicle.current_stop_id,
+                "current_stop_name": vehicle.current_stop_name,
+                "current_stop_order": vehicle.current_stop_order,
+            }
+            for vehicle in vehicles
+        ],
+    )
+    if vehicles:
+        return vehicles, "available", "subway_station_matched", "현재 역 기준으로 열차 위치를 표시합니다."
+    return [], "unavailable", "subway_vehicle_not_matched", "이 구간에서 매칭된 실시간 열차 위치가 없습니다."
 
 
 def _request(provider, service, operation, params, item_key, static=False):
@@ -735,6 +931,33 @@ def _log_live_stage(event, stage, **details):
     )
 
 
+def _subway_response_rows_for_log(rows):
+    """열차 위치 API 응답 중 진단에 필요한 공개 운행 필드만 로그용으로 남긴다."""
+    return [
+        {
+            "subway_name": _text(row.get("subwayNm")) or None,
+            "station_id": _text(row.get("statnId")) or None,
+            "station_name": _text(row.get("statnNm")) or None,
+            "train_number": _text(row.get("trainNo")) or None,
+            "direction": _text(row.get("updnLine")) or None,
+            "destination": _text(row.get("statnTnm")) or None,
+            "train_status": _text(row.get("trainSttus")) or None,
+            "received_at": _text(row.get("recptnDt")) or None,
+        }
+        for row in rows
+    ]
+
+
+def _log_subway_realtime_stage(event, stage, *, level="info", **details):
+    """실시간 지하철 조회의 단계별 성공·실패 정보를 한 줄 JSON으로 기록한다."""
+    payload = {"event": event, "stage": stage, **details}
+    log = logger.warning if level == "warning" else logger.info
+    log(
+        "Subway realtime progress: %s",
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+    )
+
+
 def _read_arrival(provider, route_id, city_code, stops, start, end):
     """다음 도착정보와 제공기관이 제공하는 가장 정확한 위치 정밀도를 읽는다."""
     if provider == "gyeonggi":
@@ -1022,18 +1245,30 @@ def get_transit_live(request: TransitLiveRequest):
         alighting_stop={"id": end.stop_id, "name": end.stop_name, "order": end.stop_order},
     )
     if provider == "seoul_subway":
+        try:
+            vehicles, position_status, position_reason, position_message = _subway_vehicles(route_id, stops)
+        except ProviderError as exc:
+            logger.warning("지하철 실시간 열차 위치 조회 실패: route_name=%s reason=%s", request.route_name, exc.reason)
+            vehicles, position_status, position_reason, position_message = (
+                [], "unavailable", exc.reason, "지하철 실시간 위치를 불러오지 못해 정적 역 목록을 표시합니다."
+            )
+        is_realtime_key_missing = position_reason == "subway_realtime_api_key_not_configured"
         result = _result(
-            "unsupported",
+            "unsupported" if is_realtime_key_missing else ("ok" if vehicles else "no_data"),
             provider=provider,
             route_stops=displayed_stops,
             boarding_stop_order=start.stop_order,
             alighting_stop_order=end.stop_order,
-            vehicle_position_status="not_applicable",
-            vehicle_position_reason="subway_realtime_not_connected",
-            vehicle_position_message="지하철 실시간 API 연결 전 정적 역 목록을 표시합니다.",
-            refresh_after_seconds=STATIC_TTL,
-            message="지하철 실시간 위치는 다음 단계에서 연결합니다.",
+            vehicles=vehicles,
+            vehicle_number=vehicles[0].vehicle_number if len(vehicles) == 1 else None,
+            vehicle_position_status=position_status,
+            vehicle_position_reason=position_reason,
+            vehicle_position_message=position_message,
+            refresh_after_seconds=STATIC_TTL if is_realtime_key_missing else SUBWAY_LIVE_TTL,
+            message=None if vehicles else "현재 이 구간에서 표시할 실시간 열차 위치가 없습니다.",
         )
+        _log_position_result(provider, route_id, request.route_name,
+                             position_status, position_reason, vehicles)
         _log_live_stage(
             "transit_live_response_sent",
             "response_ready",
