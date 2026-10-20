@@ -531,7 +531,7 @@ function getRouteCamera(routePath: RouteCoordinate[]) {
   return {
     coordinates: {
       latitude: (minLatitude + maxLatitude) / 2,
-      longitude: (minLongitude + maxLongitude) / 2,
+      longitude: (minLongitude + maxLongitude) /2,
     },
     zoom: Math.max(
       4,

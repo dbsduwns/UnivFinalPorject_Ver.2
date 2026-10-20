@@ -21,6 +21,7 @@ from app.models.shuttle_map import (
 )
 from app.models import messenger, room_messengers, room_participants
 from app.models import ai_chat_room, ai_message
+from app.models import subway_line_station
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

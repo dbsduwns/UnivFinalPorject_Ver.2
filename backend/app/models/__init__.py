@@ -24,6 +24,7 @@ from .room_participants import RoomParticipant
 from .messenger import Messenger
 from .community import Post, Comment, PostLike, CommentLike, CommentReport, UserBlock
 from .commute import CommuteProfile
+from .subway_line_station import SubwayLineStation
 from .shuttle_map.shuttle_map_routes import ShuttleMapRoute
 from .shuttle_map.shuttle_map_schedules import ShuttleMapSchedule
 from .shuttle_map.shuttle_map_schedule_stops import ShuttleMapScheduleStop

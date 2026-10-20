@@ -19,7 +19,10 @@ from zoneinfo import ZoneInfo
 from xml.etree import ElementTree
 
 import requests
+from sqlalchemy.exc import SQLAlchemyError
 
+from app.database import SessionLocal
+from app.models.subway_line_station import SubwayLineStation
 from app.schemas.commute import (
     LiveBusPositionResponse, RouteStopResponse, TransitLiveRequest, TransitLiveResponse,
 )
@@ -27,6 +30,7 @@ from app.services.transit_cache import RequestCache
 
 logger = logging.getLogger(__name__)
 STATIC_TTL = 6 * 3600
+SUBWAY_CATALOG_MINIMUM_ROWS = 100
 LIVE_TTL = 30
 EMPTY_TTL = 120
 FAILURE_TTL = 60
@@ -148,63 +152,140 @@ def _subway_line_key(value):
     return normalized.casefold()
 
 
-def _subway_stations(line_name):
-    """서울교통공사 노선별 역 목록을 캐시해 반환한다."""
+def _route_stops_from_subway_rows(rows, line_name):
+    """전체 카탈로그 응답에서 요청 노선의 순서 있는 역 목록을 만든다."""
+    requested_line = _subway_line_key(line_name)
+    line_rows = [
+        row for row in rows
+        if _subway_line_key(row.get("LINE_NUM")) == requested_line
+    ]
+    stops = []
+    for order, row in enumerate(line_rows, start=1):
+        station_id = _text(row.get("STATION_CD") or row.get("FR_CODE"))
+        station_name = _text(row.get("STATION_NM"))
+        if station_id and station_name:
+            stops.append(RouteStopResponse(
+                stop_order=order,
+                stop_id=station_id,
+                stop_name=station_name,
+            ))
+    return stops
+
+
+def _subway_stations_from_db(line_name):
+    """DB에 적재된 정적 노선 역 목록을 우선 반환한다."""
+    session = SessionLocal()
+    try:
+        rows = session.query(SubwayLineStation).filter(
+            SubwayLineStation.line_name == _subway_line_key(line_name)
+        ).order_by(SubwayLineStation.stop_order).all()
+        if rows:
+            logger.info("지하철 정적 노선 DB 적중: line=%s stop_count=%s", line_name, len(rows))
+        return [RouteStopResponse(
+            stop_order=row.stop_order,
+            stop_id=row.station_code,
+            stop_name=row.station_name,
+        ) for row in rows]
+    except SQLAlchemyError as exc:
+        session.rollback()
+        logger.warning("지하철 정적 노선 DB 조회 실패: line=%s reason=%s", line_name, type(exc).__name__)
+        return []
+    finally:
+        session.close()
+
+
+def _save_subway_catalog_to_db(rows):
+    """전체 노선 카탈로그를 원자적으로 교체해 다음 조회부터 DB만 사용하게 한다."""
+    records = []
+    positions = {}
+    saved_at = datetime.now(timezone.utc)
+    for row in rows:
+        line = _subway_line_key(row.get("LINE_NUM"))
+        station_code = _text(row.get("STATION_CD") or row.get("FR_CODE"))
+        station_name = _text(row.get("STATION_NM"))
+        if not line or not station_code or not station_name:
+            continue
+        stop_order = positions.get(line, 0) + 1
+        positions[line] = stop_order
+        records.append({
+            "line_name": line,
+            "station_code": station_code,
+            "station_name": station_name,
+            "stop_order": stop_order,
+            "updated_at": saved_at,
+        })
+    if len(records) < SUBWAY_CATALOG_MINIMUM_ROWS or len(positions) < 3:
+        logger.warning("지하철 전체 카탈로그 DB 저장 생략: row_count=%s line_count=%s", len(records), len(positions))
+        return False
+    session = SessionLocal()
+    try:
+        session.query(SubwayLineStation).delete()
+        session.bulk_insert_mappings(SubwayLineStation, records)
+        session.commit()
+        logger.info("지하철 전체 카탈로그 DB 저장 완료: row_count=%s line_count=%s", len(records), len(positions))
+        return True
+    except SQLAlchemyError as exc:
+        session.rollback()
+        logger.warning("지하철 전체 카탈로그 DB 저장 실패: reason=%s", type(exc).__name__)
+        return False
+    finally:
+        session.close()
+
+
+def _fetch_subway_catalog_rows():
+    """서울 API에서 제공하는 전체 역 카탈로그를 한 번에 읽는다."""
     key = _subway_key()
     if not key:
         raise ProviderError("서울 지하철 API 키가 설정되지 않았습니다.", reason="api_key_not_configured")
-    cache_key = ("subway_stations", _subway_line_name(line_name))
+    # 선택 필터를 비워 전체 노선·역을 받는다. 1~999는 API의 최대 페이지 차이 제한 안이다.
+    url = (
+        f"{SEOUL_SUBWAY_API_BASE_URL}/{quote(unquote(key), safe='')}/json/"
+        "SearchSTNBySubwayLineInfo/1/999///"
+    )
+    try:
+        response = requests.get(url, timeout=SEOUL_SUBWAY_API_TIMEOUT)
+        response.raise_for_status()
+        data = response.json()
+    except (requests.RequestException, ValueError) as exc:
+        logger.warning("지하철 전체 카탈로그 API 요청 실패: reason=%s", type(exc).__name__)
+        # requests 예외에는 인증키가 포함된 URL이 있을 수 있어 상위 traceback에 연결하지 않는다.
+        raise ProviderError("지하철 노선 정보를 불러오지 못했습니다.", reason="subway_static_api_failed") from None
+    envelope = data.get("SearchSTNBySubwayLineInfo") or {}
+    result = envelope.get("RESULT") or {}
+    if result and _text(result.get("CODE")) not in {"INFO-000", "INFO-200"}:
+        raise ProviderError("지하철 노선 API 응답 오류입니다.", reason="subway_static_result_error",
+                            result_code=_text(result.get("CODE")))
+    rows = envelope.get("row") or []
+    rows = [rows] if isinstance(rows, dict) else _list(rows)
+    logger.info("지하철 전체 카탈로그 API 응답: row_count=%s line_count=%s",
+                len(rows), len({_subway_line_key(row.get("LINE_NUM")) for row in rows if _text(row.get("LINE_NUM"))}))
+    return rows
+
+
+def _subway_stations(line_name):
+    """DB 우선, 미적재 시 전체 카탈로그 API fallback으로 노선별 역 목록을 반환한다."""
+    cached_stops = _subway_stations_from_db(line_name)
+    if cached_stops:
+        return cached_stops
+    cache_key = ("subway_stations", _subway_line_key(line_name))
 
     def load():
-        line = _subway_line_name(line_name)
-        url = (
-            f"{SEOUL_SUBWAY_API_BASE_URL}/{quote(unquote(key), safe='')}/json/"
-            f"SearchSTNBySubwayLineInfo/1/1000///{quote(line, safe='')}"
-        )
-        try:
-            response = requests.get(url, timeout=SEOUL_SUBWAY_API_TIMEOUT)
-            response.raise_for_status()
-            data = response.json()
-        except (requests.RequestException, ValueError) as exc:
-            logger.warning("지하철 정적 노선 API 요청 실패: reason=%s", type(exc).__name__)
-            raise ProviderError("지하철 노선 정보를 불러오지 못했습니다.", reason="subway_static_api_failed") from exc
-        envelope = data.get("SearchSTNBySubwayLineInfo") or {}
-        result = envelope.get("RESULT") or {}
-        if result and _text(result.get("CODE")) not in {"INFO-000", "INFO-200"}:
-            raise ProviderError("지하철 노선 API 응답 오류입니다.", reason="subway_static_result_error")
-        rows = envelope.get("row") or []
-        if isinstance(rows, dict):
-            rows = [rows]
-        requested_line = _subway_line_key(line)
-        line_rows = [
-            row for row in rows
-            if _subway_line_key(row.get("LINE_NUM")) == requested_line
-        ]
+        rows = _fetch_subway_catalog_rows()
+        _save_subway_catalog_to_db(rows)
+        stops = _route_stops_from_subway_rows(rows, line_name)
         logger.info(
             "지하철 정적 노선 필터 완료: requested_line=%s received_stop_count=%s matched_line_stop_count=%s",
             line_name,
             len(rows),
-            len(line_rows),
+            len(stops),
         )
-        if not line_rows:
+        if not stops:
             logger.warning(
                 "지하철 정적 노선 필터 결과 없음: requested_line=%s available_line_numbers=%s",
                 line_name,
                 sorted({_text(row.get("LINE_NUM")) for row in rows if _text(row.get("LINE_NUM"))}),
             )
             raise ProviderError("요청한 지하철 노선의 역 정보를 찾지 못했습니다.", reason="subway_line_filter_empty")
-        stops = []
-        for order, row in enumerate(line_rows, start=1):
-            station_id = _text(row.get("STATION_CD") or row.get("FR_CODE"))
-            station_name = _text(row.get("STATION_NM"))
-            if station_id and station_name:
-                stops.append(RouteStopResponse(
-                    stop_order=order,
-                    stop_id=station_id,
-                    stop_name=station_name,
-                ))
-        if not stops:
-            raise ProviderError("지하철 노선에 역 정보가 없습니다.", reason="subway_stations_empty")
         return stops
 
     return _cache.get(cache_key, load, ttl=STATIC_TTL, empty_ttl=EMPTY_TTL, error_ttl=FAILURE_TTL)
@@ -1352,7 +1433,7 @@ def get_transit_live(request: TransitLiveRequest):
     try:
         resolved = _cache.get(("resolve", descriptor), lambda: _resolve(request),
                               ttl=STATIC_TTL, empty_ttl=EMPTY_TTL, error_ttl=FAILURE_TTL)
-    except ProviderError:
+    except ProviderError as exc:
         logger.exception(
             "Transit vehicle lookup failed: %s",
             json.dumps({
@@ -1360,6 +1441,8 @@ def get_transit_live(request: TransitLiveRequest):
                 "stage": "route_resolution",
                 "route_name": request.route_name,
                 "reason": "route_resolution_failed",
+                "provider_reason": exc.reason,
+                "provider_result_code": exc.result_code,
             }, ensure_ascii=False, separators=(",", ":")),
         )
         return _result("provider_error", refresh_after_seconds=FAILURE_TTL,

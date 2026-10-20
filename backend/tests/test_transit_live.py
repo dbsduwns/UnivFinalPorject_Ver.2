@@ -32,6 +32,9 @@ def isolate(monkeypatch):
     live._cache.clear()
     live._usage.clear()
     live._cooldown.clear()
+    # 단위 테스트는 실제 DB에 의존하지 않고, 정적 API fallback 경로를 검증한다.
+    monkeypatch.setattr(live, "_subway_stations_from_db", lambda _line_name: [])
+    monkeypatch.setattr(live, "_save_subway_catalog_to_db", lambda _rows: False)
     monkeypatch.setattr(live.requests, "get", Mock(side_effect=AssertionError("Unexpected API call")))
 
 
@@ -122,6 +125,48 @@ def test_subway_static_route_filters_api_rows_to_requested_line(monkeypatch):
 
     assert [stop.stop_name for stop in result.route_stops] == ["광흥창", "상수", "이태원"]
     assert [stop.stop_order for stop in result.route_stops] == [1, 2, 3]
+
+
+def test_subway_stations_prefers_saved_database_catalog(monkeypatch):
+    stored_stops = [
+        RouteStopResponse(stop_order=1, stop_id="600", stop_name="광흥창"),
+        RouteStopResponse(stop_order=2, stop_id="601", stop_name="상수"),
+    ]
+    monkeypatch.setattr(live, "_subway_stations_from_db", lambda _line_name: stored_stops)
+
+    result = live._subway_stations("6호선")
+
+    assert result == stored_stops
+
+
+def test_subway_catalog_fetches_all_lines_and_persists_catalog(monkeypatch):
+    monkeypatch.setenv("SEOUL_SUBWAY_API_KEY", "test")
+    saved_rows = []
+
+    def save(rows):
+        saved_rows.extend(rows)
+        return True
+
+    def get(url, **kwargs):
+        assert "SearchSTNBySubwayLineInfo/1/999///" in url
+        return Response({
+            "SearchSTNBySubwayLineInfo": {
+                "RESULT": {"CODE": "INFO-000"},
+                "row": [
+                    {"STATION_CD": "200", "STATION_NM": "강남", "LINE_NUM": "2호선"},
+                    {"STATION_CD": "600", "STATION_NM": "광흥창", "LINE_NUM": "6호선"},
+                    {"STATION_CD": "601", "STATION_NM": "상수", "LINE_NUM": "6호선"},
+                ],
+            },
+        })
+
+    monkeypatch.setattr(live, "_save_subway_catalog_to_db", save)
+    monkeypatch.setattr(live.requests, "get", get)
+
+    result = live._subway_stations("6호선")
+
+    assert [stop.stop_name for stop in result] == ["광흥창", "상수"]
+    assert len(saved_rows) == 3
 
 
 def test_subway_realtime_position_uses_dedicated_environment_key(monkeypatch):
