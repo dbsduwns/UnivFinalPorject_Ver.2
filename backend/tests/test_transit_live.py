@@ -142,7 +142,7 @@ def test_subway_realtime_position_uses_dedicated_environment_key(monkeypatch):
                     ],
                 },
             })
-        assert "/realtime-key/json/realtimePosition/0/1000/6%ED%98%B8%EC%84%A0" in url
+        assert "/realtime-key/json/realtimePosition/0/999/6%ED%98%B8%EC%84%A0" in url
         return Response({
             "realtimePosition": {
                 "RESULT": {"CODE": "INFO-000"},
@@ -169,6 +169,54 @@ def test_subway_realtime_position_uses_dedicated_environment_key(monkeypatch):
     assert [(vehicle.vehicle_number, vehicle.current_stop_name, vehicle.destination_name, vehicle.direction)
             for vehicle in result.vehicles] == [("6101", "상수", "왕십리", "상행")]
     assert any("realtimePosition" in url for url in calls)
+
+
+def test_subway_arrival_fallback_is_used_when_position_response_is_empty(monkeypatch):
+    monkeypatch.setenv("SEOUL_SUBWAY_API_KEY", "static-key")
+    monkeypatch.setenv("SEOUL_SUBWAY_REALTIME_API_KEY", "realtime-key")
+    calls = []
+
+    def get(url, **kwargs):
+        calls.append(url)
+        if "SearchSTNBySubwayLineInfo" in url:
+            return Response({
+                "SearchSTNBySubwayLineInfo": {
+                    "RESULT": {"CODE": "INFO-000"},
+                    "row": [
+                        {"STATION_CD": "600", "STATION_NM": "광흥창", "LINE_NUM": "6호선"},
+                        {"STATION_CD": "601", "STATION_NM": "상수", "LINE_NUM": "6호선"},
+                        {"STATION_CD": "602", "STATION_NM": "이태원", "LINE_NUM": "6호선"},
+                    ],
+                },
+            })
+        if "realtimePosition" in url:
+            return Response({"realtimePosition": {"RESULT": {"CODE": "INFO-000"}, "row": []}})
+        assert "realtimeStationArrival" in url
+        return Response({
+            "errorMessage": {"code": "INFO-000"},
+            "realtimeArrivalList": [
+                {"subwayId": "1006", "btrainNo": "6102", "barvlDt": "82",
+                 "bstatnNm": "응암", "updnLine": "하행", "arvlMsg2": "광흥창 도착"},
+                {"subwayId": "1005", "btrainNo": "5102", "barvlDt": "20"},
+            ],
+        })
+
+    monkeypatch.setattr(live.requests, "get", get)
+    result = live.get_transit_live(request(
+        route_name="6호선",
+        vehicle_type="SUBWAY",
+        departure_stop_name="광흥창",
+        arrival_stop_name="이태원",
+    ))
+
+    assert result.status == "ok"
+    assert result.arrival_minutes == 2
+    assert result.arrival_message == "광흥창 도착"
+    assert result.vehicle_position_status == "fallback"
+    assert result.vehicle_position_reason == "subway_arrival_fallback"
+    assert [(vehicle.vehicle_number, vehicle.current_stop_name, vehicle.destination_name)
+            for vehicle in result.vehicles] == [("6102", "광흥창", "응암")]
+    assert any("realtimeStationArrival" in url for url in calls)
 
 
 def gg_response(name, items, code=0):

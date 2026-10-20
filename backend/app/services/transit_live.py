@@ -40,7 +40,18 @@ SEOUL_SUBWAY_API_BASE_URL = "http://openapi.seoul.go.kr:8088"
 SEOUL_SUBWAY_API_TIMEOUT = (8, 8)
 # 서울시 실시간 열차 위치 API는 정적 역 목록 API와 별도 인증키·호스트를 사용한다.
 SEOUL_SUBWAY_REALTIME_API_BASE_URL = "http://swopenAPI.seoul.go.kr/api/subway"
+SEOUL_SUBWAY_PAGE_START = 0
+# 서울 API는 종료 인덱스와 시작 인덱스의 차이가 1,000 이상이면 ERROR-336을 반환한다.
+SEOUL_SUBWAY_PAGE_END = 999
 SUBWAY_LIVE_TTL = 90
+SUBWAY_ARRIVAL_FALLBACK_TTL = 90
+SUBWAY_LINE_IDS = {
+    "1": "1001", "2": "1002", "3": "1003", "4": "1004", "5": "1005",
+    "6": "1006", "7": "1007", "8": "1008", "9": "1009", "중앙선": "1061",
+    "경의중앙선": "1063", "공항철도": "1065", "경춘선": "1067", "수인분당선": "1075",
+    "신분당선": "1077", "경강선": "1081", "우이신설선": "1092", "서해선": "1093",
+    "GTXA": "1032",
+}
 _cache = RequestCache(1024)
 _policy_lock = Lock()
 _cooldown = {}
@@ -205,6 +216,11 @@ def _subway_realtime_line_name(line_name):
     return f"{line}호선" if line.isdecimal() else line
 
 
+def _subway_line_id(line_name):
+    """서울 실시간 도착정보의 subwayId와 비교할 노선 ID를 반환한다."""
+    return SUBWAY_LINE_IDS.get(_subway_line_name(line_name).upper())
+
+
 def _subway_realtime_rows(line_name):
     """한 노선의 실시간 열차 위치 원본 행을 90초 동안 공유한다."""
     key = _subway_realtime_key()
@@ -222,7 +238,8 @@ def _subway_realtime_rows(line_name):
     def load():
         url = (
             f"{SEOUL_SUBWAY_REALTIME_API_BASE_URL}/{quote(unquote(key), safe='')}/json/"
-            f"realtimePosition/0/1000/{quote(api_line_name, safe='')}"
+            f"realtimePosition/{SEOUL_SUBWAY_PAGE_START}/{SEOUL_SUBWAY_PAGE_END}/"
+            f"{quote(api_line_name, safe='')}"
         )
         _log_subway_realtime_stage(
             "subway_realtime_provider_request_started",
@@ -230,8 +247,8 @@ def _subway_realtime_rows(line_name):
             route_name=line_name,
             api_line_name=api_line_name,
             response_format="json",
-            page_start=0,
-            page_end=1000,
+            page_start=SEOUL_SUBWAY_PAGE_START,
+            page_end=SEOUL_SUBWAY_PAGE_END,
             timeout_seconds=list(SEOUL_SUBWAY_API_TIMEOUT),
         )
         try:
@@ -303,6 +320,127 @@ def _subway_realtime_rows(line_name):
     )
 
 
+def _subway_arrival_fallback_rows(line_name, stop_name):
+    """열차 위치가 비었을 때 탑승역 도착정보를 보조로 조회한다."""
+    key = _subway_realtime_key()
+    if not key:
+        return []
+    api_line_name = _subway_realtime_line_name(line_name)
+    api_stop_name = _text(stop_name)
+
+    def load():
+        url = (
+            f"{SEOUL_SUBWAY_REALTIME_API_BASE_URL}/{quote(unquote(key), safe='')}/json/"
+            f"realtimeStationArrival/{SEOUL_SUBWAY_PAGE_START}/{SEOUL_SUBWAY_PAGE_END}/"
+            f"{quote(api_stop_name, safe='')}"
+        )
+        _log_subway_realtime_stage(
+            "subway_arrival_fallback_request_started",
+            "arrival_fallback_request",
+            route_name=line_name,
+            api_line_name=api_line_name,
+            boarding_stop=api_stop_name,
+        )
+        try:
+            response = requests.get(url, timeout=SEOUL_SUBWAY_API_TIMEOUT)
+            response.raise_for_status()
+            data = response.json()
+        except (requests.RequestException, ValueError) as exc:
+            _log_subway_realtime_stage(
+                "subway_arrival_fallback_request_failed",
+                "arrival_fallback_request",
+                level="warning",
+                route_name=line_name,
+                boarding_stop=api_stop_name,
+                reason="request_or_parse_failed",
+                exception_type=type(exc).__name__,
+            )
+            raise ProviderError("지하철 도착정보 보조 조회에 실패했습니다.",
+                                reason="subway_arrival_fallback_failed") from exc
+        result = data.get("errorMessage") or {}
+        result_code = _text(result.get("code") or result.get("CODE"))
+        if result_code and result_code not in {"INFO-000", "INFO-200"}:
+            _log_subway_realtime_stage(
+                "subway_arrival_fallback_result_failed",
+                "arrival_fallback_result",
+                level="warning",
+                route_name=line_name,
+                boarding_stop=api_stop_name,
+                result_code=result_code,
+                result_message=_text(result.get("message") or result.get("MESSAGE")) or None,
+            )
+            raise ProviderError("지하철 도착정보 API 응답 오류입니다.",
+                                reason="subway_arrival_fallback_result_error")
+        rows = _list(data.get("realtimeArrivalList"))
+        target_line_id = _subway_line_id(line_name)
+        if target_line_id:
+            rows = [row for row in rows if _text(row.get("subwayId")) == target_line_id]
+        _log_subway_realtime_stage(
+            "subway_arrival_fallback_response_received",
+            "arrival_fallback_response",
+            route_name=line_name,
+            api_line_name=api_line_name,
+            boarding_stop=api_stop_name,
+            http_status=getattr(response, "status_code", None),
+            result_code=result_code or "INFO-000",
+            response_row_count=len(rows),
+            response_rows=[
+                {
+                    "train_number": _text(row.get("btrainNo")) or None,
+                    "direction": _text(row.get("updnLine")) or None,
+                    "destination_name": _text(row.get("bstatnNm")) or None,
+                    "arrival_seconds": _number(row.get("barvlDt")),
+                    "arrival_message": _text(row.get("arvlMsg2") or row.get("arvlMsg3")) or None,
+                }
+                for row in rows
+            ],
+        )
+        return rows
+
+    return _cache.get(
+        ("subway_arrival_fallback", api_line_name, _name(api_stop_name)),
+        load,
+        ttl=SUBWAY_ARRIVAL_FALLBACK_TTL,
+        empty_ttl=EMPTY_TTL,
+        error_ttl=FAILURE_TTL,
+    )
+
+
+def _subway_arrival_fallback(line_name, boarding_stop):
+    """탑승역 도착 예정 열차를 위치 API의 대체 정보로 변환한다."""
+    rows = _subway_arrival_fallback_rows(line_name, boarding_stop.stop_name)
+    candidates = []
+    for row in rows:
+        train_number = _text(row.get("btrainNo"))
+        seconds = _number(row.get("barvlDt"))
+        if not train_number or seconds is None or seconds < 0:
+            continue
+        candidates.append((seconds, row, train_number))
+    candidates.sort(key=lambda candidate: candidate[0])
+    vehicles = [
+        LiveBusPositionResponse(
+            vehicle_number=train_number,
+            route_name=_subway_realtime_line_name(line_name),
+            direction=_text(row.get("updnLine")) or None,
+            destination_name=_text(row.get("bstatnNm")) or None,
+            position_source="stop",
+            current_stop_order=boarding_stop.stop_order,
+            current_stop_id=boarding_stop.stop_id,
+            current_stop_name=boarding_stop.stop_name,
+        )
+        for seconds, row, train_number in candidates[:3]
+    ]
+    if not candidates:
+        return None, None, [], "subway_arrival_fallback_empty", (
+            "실시간 열차 위치와 탑승역 도착정보가 현재 제공되지 않습니다."
+        )
+    seconds, first, _ = candidates[0]
+    message = _text(first.get("arvlMsg2") or first.get("arvlMsg3")) or None
+    return math.ceil(seconds / 60), message, vehicles, "subway_arrival_fallback", (
+        "실시간 열차 위치 대신 탑승역 도착 예정 정보를 표시합니다."
+    )
+
+
 def _subway_vehicles(line_name, stops):
     """실시간 열차 위치 행을 현재 방향의 역 목록 위 차량 정보로 변환한다."""
     _log_subway_realtime_stage(
@@ -362,6 +500,10 @@ def _subway_vehicles(line_name, stops):
     )
     if vehicles:
         return vehicles, "available", "subway_station_matched", "현재 역 기준으로 열차 위치를 표시합니다."
+    if not rows:
+        return [], "unavailable", "subway_realtime_position_empty", (
+            "실시간 열차 위치가 현재 제공되지 않습니다."
+        )
     return [], "unavailable", "subway_vehicle_not_matched", "이 구간에서 매칭된 실시간 열차 위치가 없습니다."
 
 
@@ -1253,6 +1395,8 @@ def get_transit_live(request: TransitLiveRequest):
         alighting_stop={"id": end.stop_id, "name": end.stop_name, "order": end.stop_order},
     )
     if provider == "seoul_subway":
+        arrival_minutes = None
+        arrival_message = None
         try:
             vehicles, position_status, position_reason, position_message = _subway_vehicles(route_id, stops)
         except ProviderError as exc:
@@ -1260,6 +1404,22 @@ def get_transit_live(request: TransitLiveRequest):
             vehicles, position_status, position_reason, position_message = (
                 [], "unavailable", exc.reason, "지하철 실시간 위치를 불러오지 못해 정적 역 목록을 표시합니다."
             )
+        if position_reason == "subway_realtime_position_empty":
+            try:
+                (arrival_minutes, arrival_message, fallback_vehicles,
+                 fallback_reason, fallback_message) = _subway_arrival_fallback(route_id, start)
+                if fallback_vehicles:
+                    vehicles = fallback_vehicles
+                    position_status = "fallback"
+                    position_reason = fallback_reason
+                    position_message = fallback_message
+                else:
+                    position_reason = fallback_reason
+                    position_message = fallback_message
+            except ProviderError as exc:
+                logger.warning("지하철 도착정보 fallback 조회 실패: route_name=%s reason=%s", request.route_name, exc.reason)
+                position_reason = exc.reason
+                position_message = "실시간 열차 위치와 탑승역 도착정보를 불러오지 못했습니다."
         is_realtime_key_missing = position_reason == "subway_realtime_api_key_not_configured"
         result = _result(
             "unsupported" if is_realtime_key_missing else ("ok" if vehicles else "no_data"),
@@ -1269,6 +1429,8 @@ def get_transit_live(request: TransitLiveRequest):
             alighting_stop_order=end.stop_order,
             vehicles=vehicles,
             vehicle_number=vehicles[0].vehicle_number if len(vehicles) == 1 else None,
+            arrival_minutes=arrival_minutes,
+            arrival_message=arrival_message,
             vehicle_position_status=position_status,
             vehicle_position_reason=position_reason,
             vehicle_position_message=position_message,
@@ -1284,7 +1446,8 @@ def get_transit_live(request: TransitLiveRequest):
             route_id=route_id,
             status=result.status,
             route_stop_count=len(result.route_stops),
-            vehicle_count=0,
+            vehicle_count=len(result.vehicles),
+            arrival_minutes=result.arrival_minutes,
             vehicle_position_reason=result.vehicle_position_reason,
         )
         return result
