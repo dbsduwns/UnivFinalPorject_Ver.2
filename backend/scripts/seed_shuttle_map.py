@@ -4,15 +4,33 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, time, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_SEED_PATH = BACKEND_DIR / "data" / "shuttle_map_seed.json"
 sys.path.insert(0, str(BACKEND_DIR))
+
+
+def configure_database_url_from_cli() -> None:
+    """app.database를 가져오기 전에 선택한 DB URL을 적용한다.
+
+    기본값은 환경변수 DATABASE_URL이다. 운영 DB를 명시적으로 지정해야 할 때만
+    --database-url을 사용하며, URL 자체는 어느 로그에도 출력하지 않는다.
+    """
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--database-url")
+    arguments, _ = parser.parse_known_args()
+    if arguments.database_url:
+        os.environ["DATABASE_URL"] = arguments.database_url
+
+
+configure_database_url_from_cli()
 
 from app.database import SessionLocal  # noqa: E402
 from app.models.shuttle_map import (  # noqa: E402
@@ -202,19 +220,35 @@ def seed_shuttle_map(seed_path: Path) -> None:
     total_schedules = 0
 
     try:
+        database_url = os.environ.get("DATABASE_URL", "")
+        parsed_url = urlparse(database_url)
+        database_target = (
+            f"{parsed_url.scheme}://{parsed_url.hostname or 'unknown'}"
+            f"/{parsed_url.path.lstrip('/') or 'unknown'}"
+        )
+        print(f"DB 적재 대상: {database_target}")
+
         for route_data in payload["routes"]:
             stops, schedules = upsert_route(db, route_data)
             total_stops += stops
             total_schedules += schedules
             print(
-                f"✅ {route_data['route_name']}: "
+                f"[OK] {route_data['route_name']}: "
                 f"정류장 {stops}개, 일정 {schedules}개 반영"
             )
 
         db.commit()
+        saved_route_count = db.query(ShuttleMapRoute).count()
+        saved_schedule_count = db.query(ShuttleMapSchedule).count()
+        saved_stop_count = db.query(ShuttleMapStop).count()
         print(
             f"\n셔틀맵 seed 완료: 노선 {len(payload['routes'])}개, "
             f"정류장 {total_stops}개, 일정 {total_schedules}개"
+        )
+        print(
+            "DB 저장 확인: "
+            f"노선 {saved_route_count}개, 일정 {saved_schedule_count}개, "
+            f"정류장 {saved_stop_count}개"
         )
     except Exception:
         db.rollback()
@@ -232,6 +266,10 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=DEFAULT_SEED_PATH,
         help="셔틀맵 seed JSON 경로",
+    )
+    parser.add_argument(
+        "--database-url",
+        help="기본 DATABASE_URL 대신 사용할 PostgreSQL URL. 출력에는 비밀값을 포함하지 않습니다.",
     )
     return parser.parse_args()
 
