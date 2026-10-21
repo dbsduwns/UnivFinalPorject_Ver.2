@@ -171,6 +171,14 @@ export type LiveBusPosition = {
   current_stop_name: string | null;
 };
 
+export type TransitArrival = {
+  vehicle_number: string;
+  arrival_minutes: number;
+  direction: string | null;
+  destination_name: string | null;
+  arrival_message: string | null;
+};
+
 export type LiveBusPositions = {
   city_code: string;
   route_id: string;
@@ -196,4 +204,5 @@ export type TransitLive = {
   alighting_stop_order: number | null;
   route_stops: RouteStop[];
   vehicles: LiveBusPosition[];
+  arrivals: TransitArrival[];
 };

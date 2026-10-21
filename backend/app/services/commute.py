@@ -359,6 +359,7 @@ def get_today_commute(
         else get_commute_display_mode(first_class)
     )
     no_class_message = None
+    shuttle_fallback_message = None
 
     if first_class is None:
         display_mode = "travel_time_only"
@@ -385,11 +386,34 @@ def get_today_commute(
                 message="셔틀 탑승 정류장까지의 대중교통 경로를 조회할 수 없습니다.",
             )
         except ValueError as exc:
-            return CommuteTodayResponse(
-                status="no_route",
-                display_mode=display_mode,
-                first_class=first_class,
-                message=str(exc),
+            # 셔틀이 모두 출발한 경우에는 수업 건물까지의 일반 대중교통 경로를 대신 안내한다.
+            # 노선·정류장 데이터 자체가 잘못된 경우는 기존처럼 오류를 사용자에게 알린다.
+            if str(exc) != "오늘 이용 가능한 셔틀 시간표를 찾을 수 없습니다.":
+                return CommuteTodayResponse(
+                    status="no_route",
+                    display_mode=display_mode,
+                    first_class=first_class,
+                    message=str(exc),
+                )
+
+            if first_class.latitude is None or first_class.longitude is None:
+                return CommuteTodayResponse(
+                    status="no_route",
+                    display_mode=display_mode,
+                    first_class=first_class,
+                    message="첫 수업 건물의 위치 정보를 찾을 수 없습니다.",
+                )
+
+            destination = CommuteDestinationResponse(
+                destination_type="building",
+                destination_name=first_class.building_name or "첫 수업 건물",
+                latitude=first_class.latitude,
+                longitude=first_class.longitude,
+            )
+            # 셔틀 운행이 끝난 뒤에는 이미 지난 수업 시각이 아닌 현재 출발 기준으로 안내한다.
+            display_mode = "travel_time_only"
+            shuttle_fallback_message = (
+                "오늘 이용 가능한 셔틀이 없어 일반 대중교통 경로를 안내합니다."
             )
     else:
         if first_class.latitude is None or first_class.longitude is None:
@@ -472,7 +496,7 @@ def get_today_commute(
     return CommuteTodayResponse(
         status="ready",
         display_mode=display_mode,
-        message=no_class_message,
+        message=shuttle_fallback_message or no_class_message,
         first_class=first_class,
         destination=destination,
         recommended_route=route,

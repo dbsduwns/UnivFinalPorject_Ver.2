@@ -24,7 +24,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.database import SessionLocal
 from app.models.subway_line_station import SubwayLineStation
 from app.schemas.commute import (
-    LiveBusPositionResponse, RouteStopResponse, TransitLiveRequest, TransitLiveResponse,
+    LiveBusPositionResponse, RouteStopResponse, TransitArrivalResponse,
+    TransitLiveRequest, TransitLiveResponse,
 )
 from app.services.transit_cache import RequestCache
 
@@ -150,6 +151,47 @@ def _subway_line_key(value):
     if normalized.isdecimal():
         return str(int(normalized))
     return normalized.casefold()
+
+
+def _subway_terminal_name(value):
+    """행선지 표기의 괄호·역·방면 차이를 제거해 비교 가능한 이름으로 만든다."""
+    normalized = _text(value).lower()
+    normalized = re.sub(r"\([^)]*\)|（[^）]*）", "", normalized)
+    normalized = re.sub(r"(?:역|방면|행)+$", "", normalized)
+    return _name(normalized)
+
+
+def _filter_subway_rows_by_headsign(rows, headsign, destination_field):
+    """Google 행선지와 일치하는 API 행선지의 상·하행만 남긴다.
+
+    `updnLine`은 노선별 상·하행 표기이며, 정적 역 순서만으로는 공통 의미를
+    보장할 수 없다. 따라서 공공 API가 제공하는 행선지를 Google headsign과 먼저
+    대조해 실제 API의 상·하행 값을 결정한다.
+    """
+    expected_terminal = _subway_terminal_name(headsign)
+    if not expected_terminal:
+        return rows, None, "headsign_missing"
+
+    matched_directions = set()
+    for row in rows:
+        direction = _text(row.get("updnLine"))
+        candidate_terminal = _subway_terminal_name(row.get(destination_field))
+        if not direction or not candidate_terminal:
+            continue
+        if (
+            expected_terminal in candidate_terminal
+            or candidate_terminal in expected_terminal
+        ):
+            matched_directions.add(direction)
+    if len(matched_directions) != 1:
+        return rows, None, "headsign_direction_unresolved"
+
+    expected_direction = matched_directions.pop()
+    filtered = [
+        row for row in rows
+        if _text(row.get("updnLine")) == expected_direction
+    ]
+    return filtered, expected_direction, "headsign_destination_matched"
 
 
 def _route_stops_from_subway_rows(rows, line_name):
@@ -487,9 +529,24 @@ def _subway_arrival_fallback_rows(line_name, stop_name):
     )
 
 
-def _subway_arrival_fallback(line_name, boarding_stop):
+def _subway_arrival_fallback(line_name, boarding_stop, headsign=""):
     """탑승역 도착 예정 열차를 위치 API의 대체 정보로 변환한다."""
     rows = _subway_arrival_fallback_rows(line_name, boarding_stop.stop_name)
+    rows, expected_direction, direction_strategy = _filter_subway_rows_by_headsign(
+        rows,
+        headsign,
+        "bstatnNm",
+    )
+    _log_subway_realtime_stage(
+        "subway_arrival_fallback_direction_filtered",
+        "arrival_fallback_direction_filter",
+        route_name=line_name,
+        boarding_stop=boarding_stop.stop_name,
+        google_headsign=headsign or None,
+        expected_direction=expected_direction,
+        direction_strategy=direction_strategy,
+        filtered_row_count=len(rows),
+    )
     candidates = []
     for row in rows:
         train_number = _text(row.get("btrainNo"))
@@ -498,6 +555,16 @@ def _subway_arrival_fallback(line_name, boarding_stop):
             continue
         candidates.append((seconds, row, train_number))
     candidates.sort(key=lambda candidate: candidate[0])
+    arrivals = [
+        TransitArrivalResponse(
+            vehicle_number=train_number,
+            arrival_minutes=math.ceil(seconds / 60),
+            direction=_text(row.get("updnLine")) or None,
+            destination_name=_text(row.get("bstatnNm")) or None,
+            arrival_message=_text(row.get("arvlMsg2") or row.get("arvlMsg3")) or None,
+        )
+        for seconds, row, train_number in candidates[:2]
+    ]
     vehicles = [
         LiveBusPositionResponse(
             vehicle_number=train_number,
@@ -512,17 +579,17 @@ def _subway_arrival_fallback(line_name, boarding_stop):
         for seconds, row, train_number in candidates[:3]
     ]
     if not candidates:
-        return None, None, [], "subway_arrival_fallback_empty", (
+        return None, None, [], [], "subway_arrival_fallback_empty", (
             "실시간 열차 위치와 탑승역 도착정보가 현재 제공되지 않습니다."
         )
     seconds, first, _ = candidates[0]
-    message = _text(first.get("arvlMsg2") or first.get("arvlMsg3")) or None
-    return math.ceil(seconds / 60), message, vehicles, "subway_arrival_fallback", (
+    message = arrivals[0].arrival_message
+    return math.ceil(seconds / 60), message, vehicles, arrivals, "subway_arrival_fallback", (
         "실시간 열차 위치 대신 탑승역 도착 예정 정보를 표시합니다."
     )
 
 
-def _subway_vehicles(line_name, stops):
+def _subway_vehicles(line_name, stops, headsign=""):
     """실시간 열차 위치 행을 현재 방향의 역 목록 위 차량 정보로 변환한다."""
     _log_subway_realtime_stage(
         "subway_realtime_lookup_started",
@@ -530,11 +597,26 @@ def _subway_vehicles(line_name, stops):
         route_name=line_name,
         static_stop_count=len(stops),
     )
-    rows = _subway_realtime_rows(line_name)
-    if rows is None:
+    source_rows = _subway_realtime_rows(line_name)
+    if source_rows is None:
         return [], "unavailable", "subway_realtime_api_key_not_configured", (
             "지하철 실시간 위치 인증키가 설정되지 않아 정적 역 목록을 표시합니다."
         )
+    rows, expected_direction, direction_strategy = _filter_subway_rows_by_headsign(
+        source_rows,
+        headsign,
+        "statnTnm",
+    )
+    _log_subway_realtime_stage(
+        "subway_realtime_direction_filtered",
+        "direction_filter",
+        route_name=line_name,
+        google_headsign=headsign or None,
+        expected_direction=expected_direction,
+        direction_strategy=direction_strategy,
+        received_vehicle_count=len(source_rows),
+        filtered_vehicle_count=len(rows),
+    )
 
     stops_by_name = {_name(stop.stop_name): stop for stop in stops}
     vehicles = []
@@ -563,7 +645,8 @@ def _subway_vehicles(line_name, stops):
         "subway_realtime_station_mapping_completed",
         "station_mapping",
         route_name=line_name,
-        received_vehicle_count=len(rows),
+        received_vehicle_count=len(source_rows),
+        direction_filtered_vehicle_count=len(rows),
         matched_vehicle_count=len(vehicles),
         unmatched_station_count=unmatched_station_count,
         missing_train_number_count=missing_train_number_count,
@@ -581,9 +664,13 @@ def _subway_vehicles(line_name, stops):
     )
     if vehicles:
         return vehicles, "available", "subway_station_matched", "현재 역 기준으로 열차 위치를 표시합니다."
-    if not rows:
+    if not source_rows:
         return [], "unavailable", "subway_realtime_position_empty", (
             "실시간 열차 위치가 현재 제공되지 않습니다."
+        )
+    if not rows and expected_direction:
+        return [], "unavailable", "subway_realtime_direction_filtered_empty", (
+            "이동 방향과 일치하는 실시간 열차 위치가 현재 제공되지 않습니다."
         )
     return [], "unavailable", "subway_vehicle_not_matched", "이 구간에서 매칭된 실시간 열차 위치가 없습니다."
 
@@ -1480,32 +1567,49 @@ def get_transit_live(request: TransitLiveRequest):
     if provider == "seoul_subway":
         arrival_minutes = None
         arrival_message = None
-        try:
-            vehicles, position_status, position_reason, position_message = _subway_vehicles(route_id, stops)
-        except ProviderError as exc:
-            logger.warning("지하철 실시간 열차 위치 조회 실패: route_name=%s reason=%s", request.route_name, exc.reason)
-            vehicles, position_status, position_reason, position_message = (
-                [], "unavailable", exc.reason, "지하철 실시간 위치를 불러오지 못해 정적 역 목록을 표시합니다."
+        arrivals = []
+        vehicles = []
+        if not _subway_realtime_key():
+            position_status = "unavailable"
+            position_reason = "subway_realtime_api_key_not_configured"
+            position_message = "지하철 도착정보 인증키가 설정되지 않아 정적 역 목록을 표시합니다."
+            result = _result(
+                "unsupported",
+                provider=provider,
+                route_stops=displayed_stops,
+                boarding_stop_order=start.stop_order,
+                alighting_stop_order=end.stop_order,
+                vehicles=[],
+                arrivals=[],
+                vehicle_position_status=position_status,
+                vehicle_position_reason=position_reason,
+                vehicle_position_message=position_message,
+                refresh_after_seconds=STATIC_TTL,
+                message="지하철 도착정보 인증키를 설정해주세요.",
             )
-        if position_reason == "subway_realtime_position_empty":
-            try:
-                (arrival_minutes, arrival_message, fallback_vehicles,
-                 fallback_reason, fallback_message) = _subway_arrival_fallback(route_id, start)
-                if fallback_vehicles:
-                    vehicles = fallback_vehicles
-                    position_status = "fallback"
-                    position_reason = fallback_reason
-                    position_message = fallback_message
-                else:
-                    position_reason = fallback_reason
-                    position_message = fallback_message
-            except ProviderError as exc:
-                logger.warning("지하철 도착정보 fallback 조회 실패: route_name=%s reason=%s", request.route_name, exc.reason)
-                position_reason = exc.reason
-                position_message = "실시간 열차 위치와 탑승역 도착정보를 불러오지 못했습니다."
-        is_realtime_key_missing = position_reason == "subway_realtime_api_key_not_configured"
+            return result
+        try:
+            # 지하철은 위치 API가 빈 응답을 반환하는 경우가 있어, UI 목적에 맞는
+            # 탑승역 도착 예정 정보만 조회한다. 위치 아이콘은 표시하지 않는다.
+            (arrival_minutes, arrival_message, _fallback_vehicles, arrivals,
+             fallback_reason, fallback_message) = _subway_arrival_fallback(
+                route_id,
+                start,
+                request.headsign,
+            )
+            position_status = "not_applicable"
+            position_reason = "subway_arrival_only" if arrivals else fallback_reason
+            position_message = (
+                "탑승역 기준 다음 열차 도착 예정 정보를 표시합니다."
+                if arrivals else fallback_message
+            )
+        except ProviderError as exc:
+            logger.warning("지하철 도착정보 조회 실패: route_name=%s reason=%s", request.route_name, exc.reason)
+            position_status, position_reason, position_message = (
+                "unavailable", exc.reason, "지하철 도착 예정 정보를 불러오지 못했습니다."
+            )
         result = _result(
-            "unsupported" if is_realtime_key_missing else ("ok" if vehicles else "no_data"),
+            "ok" if arrivals else "no_data",
             provider=provider,
             route_stops=displayed_stops,
             boarding_stop_order=start.stop_order,
@@ -1514,11 +1618,12 @@ def get_transit_live(request: TransitLiveRequest):
             vehicle_number=vehicles[0].vehicle_number if len(vehicles) == 1 else None,
             arrival_minutes=arrival_minutes,
             arrival_message=arrival_message,
+            arrivals=arrivals,
             vehicle_position_status=position_status,
             vehicle_position_reason=position_reason,
             vehicle_position_message=position_message,
-            refresh_after_seconds=STATIC_TTL if is_realtime_key_missing else SUBWAY_LIVE_TTL,
-            message=None if vehicles else "현재 이 구간에서 표시할 실시간 열차 위치가 없습니다.",
+            refresh_after_seconds=SUBWAY_ARRIVAL_FALLBACK_TTL,
+            message=None if arrivals else "현재 이 역의 도착 예정 열차 정보가 없습니다.",
         )
         _log_position_result(provider, route_id, request.route_name,
                              position_status, position_reason, vehicles)

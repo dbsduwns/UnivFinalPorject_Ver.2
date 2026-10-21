@@ -486,3 +486,61 @@ def test_get_today_commute_returns_campus_travel_time_without_class(monkeypatch)
     assert route_request["end_longitude"] == commute.CAMPUS_DEFAULT_LONGITUDE
     assert route_request["arrival_time"] is None
     assert route_request["departure_time"].tzinfo is not None
+
+
+def test_today_commute_falls_back_to_regular_transit_after_shuttle_ends(monkeypatch):
+    profile = SimpleNamespace(
+        home_latitude=37.2,
+        home_longitude=127.1,
+        use_shuttle=True,
+        departure_buffer_minutes=10,
+    )
+    first_class = commute.FirstClassResponse(
+        course_name="테스트 수업",
+        start_time=time(23, 59),
+        building_name="이공관",
+        latitude=37.3,
+        longitude=127.2,
+    )
+    fallback_route = commute.RouteSummaryResponse(
+        transport_type="bus",
+        route_name="5000",
+        duration_minutes=35,
+    )
+    route_request = {}
+
+    monkeypatch.setattr(commute, "get_commute_profile", lambda db, user: profile)
+    monkeypatch.setattr(commute, "get_first_class", lambda db, user: first_class)
+    monkeypatch.setattr(
+        commute,
+        "get_commute_display_mode",
+        lambda current_first_class: "travel_time_only",
+    )
+    monkeypatch.setattr(
+        commute,
+        "_build_shuttle_commute_response",
+        lambda **kwargs: (_ for _ in ()).throw(
+            ValueError("오늘 이용 가능한 셔틀 시간표를 찾을 수 없습니다.")
+        ),
+    )
+
+    def fake_get_transit_routes(**kwargs):
+        route_request.update(kwargs)
+        return [fallback_route]
+
+    monkeypatch.setattr(commute, "get_transit_routes", fake_get_transit_routes)
+
+    result = commute.get_today_commute(db=object(), user=object())
+
+    assert result.status == "ready"
+    assert result.display_mode == "travel_time_only"
+    assert result.message == "오늘 이용 가능한 셔틀이 없어 일반 대중교통 경로를 안내합니다."
+    assert result.destination is not None
+    assert result.destination.destination_type == "building"
+    assert result.destination.destination_name == "이공관"
+    assert result.recommended_route is not None
+    assert result.recommended_route.route_name == "5000"
+    assert route_request["end_latitude"] == 37.3
+    assert route_request["end_longitude"] == 127.2
+    assert route_request["arrival_time"] is None
+    assert route_request["departure_time"].tzinfo is not None

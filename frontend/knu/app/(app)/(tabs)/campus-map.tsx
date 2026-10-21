@@ -355,6 +355,8 @@ function TransitStopAccordion({
   );
   const arrivalMinutes = isLiveError ? null : data?.arrival_minutes ?? null;
   const isSubway = step.vehicle_type?.includes("SUBWAY") ?? false;
+  // 위치 API가 비어 있는 지하철은 정류장 선 위 아이콘 대신 탑승역 도착 예정만 표시한다.
+  const subwayArrivals = isSubway && !isLiveError ? (data?.arrivals ?? []).slice(0, 2) : [];
   const scheduledDeparture = step.scheduled_departure_time
     ? new Date(step.scheduled_departure_time).toLocaleTimeString("ko-KR", {
         hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Seoul",
@@ -435,6 +437,31 @@ function TransitStopAccordion({
               {data.vehicle_position_message}
             </Text>
           )}
+          {isSubway && subwayArrivals.length > 0 && (
+            <View style={styles.subwayArrivalList}>
+              <Text style={styles.subwayArrivalTitle}>다음 열차</Text>
+              {subwayArrivals.map((arrival) => (
+                <View key={arrival.vehicle_number} style={styles.subwayArrivalRow}>
+                  <View style={[styles.subwayArrivalIcon, { backgroundColor: `${color}18` }]}>
+                    <TrainFront size={15} color={color} />
+                  </View>
+                  <View style={styles.subwayArrivalInfo}>
+                    <Text style={styles.subwayArrivalDestination} numberOfLines={1}>
+                      {[arrival.destination_name ? `${arrival.destination_name} 방면` : null, arrival.direction]
+                        .filter(Boolean)
+                        .join(" · ") || "운행 방향 확인 중"}
+                    </Text>
+                    <Text style={styles.subwayArrivalDetail} numberOfLines={1}>
+                      {arrival.arrival_message || `${arrival.vehicle_number} 열차`}
+                    </Text>
+                  </View>
+                  <Text style={[styles.subwayArrivalTime, { color }]}>
+                    {arrival.arrival_minutes === 0 ? "곧 도착" : `${arrival.arrival_minutes}분 후`}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
           <ScrollView
             style={styles.stopListScroll}
             contentContainerStyle={styles.stopListScrollContent}
@@ -472,7 +499,7 @@ function TransitStopAccordion({
                       {isBoarding && <Text style={styles.stopCaption}>탑승</Text>}
                       {isArrival && <Text style={styles.stopCaption}>하차</Text>}
                     </View>
-                    {vehiclesAtStop.length > 0 && (
+                    {!isSubway && vehiclesAtStop.length > 0 && (
                       <View style={styles.vehiclePositionBadges}>
                         {vehiclesAtStop.map((vehicle) => (
                           <View
@@ -1601,6 +1628,30 @@ const styles = StyleSheet.create({
     color: "#0F5D73",
   },
   vehiclePositionWarning: { backgroundColor: "#FFF1F2", color: "#BE123C" },
+  subwayArrivalList: {
+    marginHorizontal: 6,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    backgroundColor: "#F8FAFC",
+  },
+  subwayArrivalTitle: { fontSize: 11, fontWeight: "800", color: "#475569" },
+  subwayArrivalRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  subwayArrivalIcon: {
+    width: 27,
+    height: 27,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+  },
+  subwayArrivalInfo: { flex: 1, minWidth: 0, gap: 1 },
+  subwayArrivalDestination: { fontSize: 12, fontWeight: "800", color: "#334155" },
+  subwayArrivalDetail: { fontSize: 10, color: "#64748B" },
+  subwayArrivalTime: { fontSize: 12, fontWeight: "900" },
   stopEmptyText: {
     paddingVertical: 14,
     textAlign: "center",
