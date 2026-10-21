@@ -1,3 +1,17 @@
+"""공지사항·식단·셔틀 크롤러를 순서대로 실행합니다.
+
+Cloud Run Job에서 ``python scripts/run_daily_crawlers.py``로 실행해도
+프로젝트 루트의 ``app`` 패키지를 찾을 수 있도록 실행 경로를 보정합니다.
+"""
+
+from pathlib import Path
+import sys
+
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
 from app.crawlers import menu_crawler, notice_crawler_v3, shuttle_crawler
 
 

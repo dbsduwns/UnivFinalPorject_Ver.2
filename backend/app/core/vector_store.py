@@ -36,6 +36,17 @@ class QdrantDocumentStore:
         self.search_limit = search_limit
         self._text_index_ready = False
 
+    def collection_status(self) -> dict[str, int | bool]:
+        """현재 검색 대상 컬렉션의 존재 여부와 저장된 point 수를 확인합니다."""
+        if not self.client.collection_exists(self.collection_name):
+            return {"exists": False, "points_count": 0}
+
+        collection = self.client.get_collection(self.collection_name)
+        return {
+            "exists": True,
+            "points_count": int(collection.points_count or 0),
+        }
+
     @staticmethod
     def _document_id(document: Document) -> str:
         identity = json.dumps(

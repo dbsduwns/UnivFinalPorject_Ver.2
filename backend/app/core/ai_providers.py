@@ -17,7 +17,7 @@ def cloudflare_base_url() -> str:
 
 
 def build_embeddings(provider: str | None = None) -> Any:
-    selected_provider = (provider or os.getenv("EMBEDDING_PROVIDER", "huggingface")).lower()
+    selected_provider = (provider or os.getenv("EMBEDDING_PROVIDER", "cloudflare")).lower()
 
     if selected_provider == "cloudflare":
         from langchain_openai import OpenAIEmbeddings
@@ -51,7 +51,7 @@ def build_embeddings(provider: str | None = None) -> Any:
 
 
 def build_chat_model(provider: str | None = None) -> Any:
-    selected_provider = (provider or os.getenv("LLM_PROVIDER", "google")).lower()
+    selected_provider = (provider or os.getenv("LLM_PROVIDER", "cloudflare")).lower()
 
     if selected_provider == "cloudflare":
         from langchain_openai import ChatOpenAI
