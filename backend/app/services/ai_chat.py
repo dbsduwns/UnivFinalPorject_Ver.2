@@ -7,6 +7,10 @@ from app.models.ai_message import Message
 from app.models.user import User
 from app.schemas.ai_chat import ChatMessageCreate, ChatRoomCreate
 from app.core.ai_bot import campus_ai_bot
+from app.services.timetable_context import (
+    build_main_timetable_context,
+    needs_timetable_context,
+)
 
 
 AI_REQUEST_LIMIT = 4
@@ -80,7 +84,19 @@ async def send_message(db: Session, user: User, room_id: int, data: ChatMessageC
 
     # AI 봇에게 RAG 기반 질문 답변 요청
     print(f"DEBUG: [chat_service] Calling AI bot for room {room_id}...")
-    reply = await campus_ai_bot.ask(data.content)
+    personal_context = None
+    if needs_timetable_context(data.content):
+        personal_context = build_main_timetable_context(db, user)
+        print(
+            f"[AI Bot] 개인 시간표 Context 추가: user_id={user.id}, "
+            f"length={len(personal_context)}",
+            flush=True,
+        )
+
+    reply = await campus_ai_bot.ask(
+        data.content,
+        personal_context=personal_context,
+    )
     print(f"DEBUG: [chat_service] AI bot replied. Saving assistant message...")
 
     assistant_message = Message(chat_room_id=room.id, role="assistant", content=reply)

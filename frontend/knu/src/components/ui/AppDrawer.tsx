@@ -56,7 +56,7 @@ const drawerItems: DrawerItem[] = [
   { label: "셔틀", href: "/(app)/(tabs)/shuttle", icon: BusFront },
   { label: "학식", href: "/(app)/(tabs)/meal", icon: Utensils },
   { label: "통학 설정", href: "/(app)/commute-settings", icon: Settings },
-  { label: "친구 초대", href: "/(app)/friends/invite", icon: Users },
+  { label: "친구", href: "/(app)/friends", icon: Users },
 ];
 
 export const AppDrawerProvider = ({ children }: PropsWithChildren) => {

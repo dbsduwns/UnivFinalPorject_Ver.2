@@ -13,6 +13,7 @@ from app.services.academic_calendar import (
     build_academic_calendar_context,
     is_academic_calendar_query,
 )
+from app.services.timetable_context import is_timetable_only_query
 
 if TYPE_CHECKING:
     from langchain_core.documents import Document
@@ -36,6 +37,11 @@ NOTICE_QUERY_KEYWORDS = (
     "상담",
     "모집",
     "신청",
+)
+
+QUERY_REWRITE_CUES = (
+    "그거", "그건", "그 일정", "그 내용", "그 날짜", "그 시간", "거기는",
+    "거기서", "아까", "방금", "위 내용", "더 자세히", "다시 설명", "그럼", "그리고",
 )
 
 
@@ -228,6 +234,13 @@ class CampusAIBot:
             document.page_content,
         )
 
+    @staticmethod
+    def _needs_query_rewrite(question: str) -> bool:
+        """Avoid an extra model call for self-contained, specific questions."""
+        normalized = " ".join(question.split())
+        compact = normalized.replace(" ", "")
+        return len(compact) <= 5 or any(cue in normalized for cue in QUERY_REWRITE_CUES)
+
     def _rank_documents(self, documents: list[Document], question: str) -> list[Document]:
         academic_query = is_academic_calendar_query(question)
         notice_query = any(keyword in question for keyword in NOTICE_QUERY_KEYWORDS)
@@ -324,10 +337,16 @@ class CampusAIBot:
         self,
         question: str,
         rewritten_question: str | None = None,
+        personal_context: str | None = None,
     ) -> str:
         """Qdrant 검색 결과를 우선 사용하고 정적 학사일정은 fallback으로만 사용합니다."""
         context_sections: list[str] = []
-        documents = await self._retrieve_documents(question, rewritten_question)
+        timetable_only_query = bool(personal_context) and is_timetable_only_query(question)
+        if timetable_only_query:
+            documents = []
+            print("[AI Bot] 시간표 전용 질문: Qdrant 검색 생략", flush=True)
+        else:
+            documents = await self._retrieve_documents(question, rewritten_question)
 
         if documents:
             context_sections.append(self._format_documents(documents))
@@ -346,13 +365,20 @@ class CampusAIBot:
                     )
                     context_sections.append(academic_context)
 
+        if personal_context:
+            context_sections.append(personal_context)
+
         return (
             "\n\n".join(context_sections)
             if context_sections
             else "검색된 정보가 없습니다."
         )
 
-    async def ask(self, question: str) -> str:
+    async def ask(
+        self,
+        question: str,
+        personal_context: str | None = None,
+    ) -> str:
         if not self.is_initialized:
             print("🤖 [AI Bot] 초기화를 시작합니다...", flush=True)
             if not self.initialize():
@@ -361,8 +387,10 @@ class CampusAIBot:
         try:
             print(f"🔍 [AI Bot] 원본 질문: {question}", flush=True)
             try:
-                rewritten_question = await self.rewrite_chain.ainvoke(
-                    {"question": question}
+                rewritten_question = (
+                    await self.rewrite_chain.ainvoke({"question": question})
+                    if self._needs_query_rewrite(question)
+                    else question
                 )
             except Exception as exc:
                 print(
@@ -372,7 +400,11 @@ class CampusAIBot:
                 rewritten_question = question
             print(f"🔄 [AI Bot] 검색 질문: {rewritten_question}", flush=True)
 
-            context = await self.build_context(question, rewritten_question)
+            context = await self.build_context(
+                question,
+                rewritten_question,
+                personal_context=personal_context,
+            )
             print(
                 f"📚 [AI Bot] Context 구성 완료: {len(context)}자",
                 flush=True,

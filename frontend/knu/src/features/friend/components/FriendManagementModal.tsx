@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { router } from "expo-router";
 import {
   Modal,
   View,
@@ -20,6 +21,7 @@ import {
   Check,
   Clock,
   Send,
+  MessageCircle,
 } from "lucide-react-native";
 
 import {
@@ -137,7 +139,7 @@ export const FriendManagementModal = ({ visible, onClose }: Props) => {
       Alert.alert("오류", err?.response?.data?.detail || "친구 삭제 중 오류가 발생했습니다.");
     },
   });
-
+  // 친구 삭제 다시 확인
   const handleDeleteFriend = (friend: FriendUser) => {
     Alert.alert(
       "친구 삭제",
@@ -305,6 +307,13 @@ export const FriendManagementModal = ({ visible, onClose }: Props) => {
                             </View>
 
                             <View className="flex-row items-center space-x-2">
+                              <Pressable
+                                onPress={() => router.push({ pathname: "/(app)/messages", params: { friendId: String(item.id) } })}
+                                className="px-3 py-2 bg-cyan-50 rounded-xl flex-row items-center space-x-1.5 active:bg-cyan-100"
+                              >
+                                <MessageCircle size={14} color="#13708D" />
+                                <Text className="text-xs font-bold text-cyan-800">채팅</Text>
+                              </Pressable>
                               {/* 시간표 보기 버튼 */}
                               <Pressable
                                 onPress={() =>
@@ -533,7 +542,7 @@ export const FriendManagementModal = ({ visible, onClose }: Props) => {
         friendName={timetableFriend?.name}
         onClose={() => setTimetableFriend(null)}
       />
-
+      {/*  */}
       <Modal
         visible={!!selectedFriend}
         transparent

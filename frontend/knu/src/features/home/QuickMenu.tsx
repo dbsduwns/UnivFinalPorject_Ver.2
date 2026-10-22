@@ -2,7 +2,7 @@ import type { DimensionValue } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { Pressable, Text, View, useWindowDimensions } from "react-native";
-import { MessageCircle, Megaphone, Calendar } from "lucide-react-native";
+import { MessageCircle, Megaphone, Calendar, Users } from "lucide-react-native";
 
 import { getFriendRequests } from "@/features/friend/api/friend";
 
@@ -33,7 +33,7 @@ export const QuickMenu = () => {
                     함께하는 캠퍼스
                 </Text>
                 <Pressable
-                    onPress={() => router.push("/(app)/messages")}
+                    onPress={() => router.push("/(app)/friends" as never)}
                     style={{ marginLeft: "auto" }}
                 >
                     <Text style={{ color: pendingRequestCount > 0 ? "#DC2626" : "#6B7280" }}>
@@ -116,6 +116,29 @@ export const QuickMenu = () => {
                         </View>
                         <View className="items-center pt-5">
                             <Text style={{ fontWeight: 'bold' }}>시간표</Text>
+                        </View>
+                    </Pressable>
+                </View>
+                {/* Friends Button */}
+                <View
+                    style={{
+                        width: itemWidth,
+                        minWidth: 64,
+                        alignItems: "center",
+                    }}>
+                    <Pressable
+                        style={{ width: "100%", alignItems: "center" }}
+                        onPress={() => router.push("/(app)/friends" as never)}>
+                        <View
+                            className="items-center p-4"
+                            style={{
+                                backgroundColor: iconBgColor,
+                                borderRadius: 20,
+                            }}>
+                            <Users size={iconSize} color={iconColor}/>
+                        </View>
+                        <View className="items-center pt-5">
+                            <Text style={{ fontWeight: "bold" }}>친구</Text>
                         </View>
                     </Pressable>
                 </View>

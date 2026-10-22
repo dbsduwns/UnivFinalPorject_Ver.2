@@ -8,6 +8,7 @@ from time import monotonic
 from urllib.parse import unquote
 from zoneinfo import ZoneInfo
 
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -44,6 +45,7 @@ from app.services import timetable as timetable_services
 from app.services.transit_cache import RequestCache
 
 _google_routes_cache = RequestCache(max_entries=128)
+HOME_COMMUTE_COOLDOWN_SECONDS = 60
 
 
 class GeocodingError(Exception):
@@ -52,6 +54,64 @@ class GeocodingError(Exception):
 
 class TransitRouteError(Exception):
     pass
+
+
+class CommuteCalculationRateLimitError(Exception):
+    def __init__(self, retry_after_seconds: int):
+        self.retry_after_seconds = max(1, retry_after_seconds)
+        super().__init__(
+            f"등교 시간은 {self.retry_after_seconds}초 후 다시 계산할 수 있습니다."
+        )
+
+
+def claim_home_commute_calculation(
+    db: Session,
+    user: User,
+) -> datetime | None:
+    """DB의 조건부 UPDATE로 사용자별 홈 계산 요청을 60초에 한 번만 허용한다."""
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(seconds=HOME_COMMUTE_COOLDOWN_SECONDS)
+    updated = (
+        db.query(CommuteProfile)
+        .filter(
+            CommuteProfile.user_id == user.id,
+            or_(
+                CommuteProfile.last_home_calculation_at.is_(None),
+                CommuteProfile.last_home_calculation_at <= cutoff,
+            ),
+        )
+        .update(
+            {CommuteProfile.last_home_calculation_at: now},
+            synchronize_session=False,
+        )
+    )
+
+    if updated:
+        db.commit()
+        return now + timedelta(seconds=HOME_COMMUTE_COOLDOWN_SECONDS)
+
+    profile = (
+        db.query(CommuteProfile)
+        .filter(CommuteProfile.user_id == user.id)
+        .first()
+    )
+    if profile is None:
+        return None
+
+    last_requested_at = profile.last_home_calculation_at
+    if last_requested_at is None:
+        return None
+    if last_requested_at.tzinfo is None:
+        last_requested_at = last_requested_at.replace(tzinfo=timezone.utc)
+
+    retry_after = math.ceil(
+        (
+            last_requested_at
+            + timedelta(seconds=HOME_COMMUTE_COOLDOWN_SECONDS)
+            - now
+        ).total_seconds()
+    )
+    raise CommuteCalculationRateLimitError(retry_after)
 
 
 def _raise_tmap_geocoding_error(

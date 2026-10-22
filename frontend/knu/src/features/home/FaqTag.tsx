@@ -1,6 +1,9 @@
 import { ScrollView, Text, View } from "react-native";
 
 export const FaqTag = () => {
+    const date = new Date;
+    const thisMonth: number = date.getMonth();
+
     return (
         // Faq Recommendation
         <ScrollView
@@ -18,7 +21,8 @@ export const FaqTag = () => {
                 <Text
                     className="p-2"
                     style={{ fontSize: 12}}>
-                    오늘 시간표</Text>
+                    {thisMonth} 월 학사일정 알려줘
+                </Text>
             </View>
             <View
                 className="mr-3 bg-white"

@@ -272,9 +272,9 @@ export default function AIChatScreen() {
       <View className="mt-10 w-full">
         <Text className="text-xs font-bold text-gray-400 mb-3 ml-1 uppercase tracking-widest">추천 질문</Text>
         {[
-          "오늘 학식 메뉴 알려줘",
-          "졸업 학점이 얼마나 남았지?",
-          "내일 순환버스 시간표 보여줘"
+          "이번달 학사일정 알려줘",
+          "최근 취업 관련 공지사항 보내줘",
+          "오늘 수업 일정이 어떻게 되지?"
         ].map((item, index) => (
           <TouchableOpacity 
             key={index}
@@ -337,7 +337,7 @@ export default function AIChatScreen() {
             </TouchableOpacity>
             <Text className="font-bold text-base text-gray-800">AI 비서</Text>
           </View>
-
+          {/* 채팅  */}
           <FlatList
             ref={flatListRef}
             data={messages}
@@ -350,7 +350,7 @@ export default function AIChatScreen() {
               flexGrow: 1
             }}
           />
-
+          {/* 채팅 입력창 */}
           <View className="p-4 bg-white border-t border-gray-100 flex-row items-center">
             <TextInput
               className="flex-1 bg-gray-50 text-gray-900 rounded-2xl px-4 py-3 mr-2 border border-gray-200"

@@ -1,5 +1,5 @@
-import { MessagesScreen } from "@/features/messages/components/MessagesScreen";
+import { ChatRoomsScreen } from "@/features/messages/components/ChatRoomsScreen";
 
 export default function MessagesPage() {
-  return <MessagesScreen />;
+  return <ChatRoomsScreen />;
 }

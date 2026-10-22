@@ -120,6 +120,7 @@ export type CommuteToday = {
   recommended_route: RouteSummary | null;
   alternatives: RouteSummary[];
   calculated_at: string | null;
+  refresh_available_at: string | null;
 };
 
 export type RouteCoordinate = {

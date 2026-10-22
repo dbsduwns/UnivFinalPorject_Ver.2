@@ -121,10 +121,27 @@ def get_today_commute(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return commute_service.get_today_commute(
+    refresh_available_at = None
+    if calculation_mode == "class_arrival":
+        try:
+            refresh_available_at = commute_service.claim_home_commute_calculation(
+                db,
+                current_user,
+            )
+        except commute_service.CommuteCalculationRateLimitError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=str(exc),
+                headers={"Retry-After": str(exc.retry_after_seconds)},
+            ) from exc
+
+    response = commute_service.get_today_commute(
         db,
         current_user,
         calculation_mode=calculation_mode,
+    )
+    return response.model_copy(
+        update={"refresh_available_at": refresh_available_at},
     )
 
 

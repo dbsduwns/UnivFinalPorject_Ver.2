@@ -232,3 +232,4 @@ class CommuteTodayResponse(BaseModel):
     recommended_route: RouteSummaryResponse | None = None
     alternatives: list[RouteSummaryResponse] = Field(default_factory=list)
     calculated_at: datetime | None = None
+    refresh_available_at: datetime | None = None

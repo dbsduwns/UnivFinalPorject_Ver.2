@@ -93,6 +93,40 @@ def test_original_question_is_preserved_in_qdrant_search_query():
     assert "강남대학교 국가장학금 신청 공지사항" in query
 
 
+def test_timetable_only_context_skips_qdrant_search():
+    bot = _bot_with_retriever([])
+    personal_context = "[사용자 개인 시간표]\n- 월요일 09:00~10:00 자료구조"
+
+    context = _run_immediate(
+        bot.build_context(
+            "오늘 내 시간표에서 첫 수업이 뭐야?",
+            personal_context=personal_context,
+        )
+    )
+
+    assert personal_context in context
+    assert bot.retriever.queries == []
+
+
+def test_timetable_question_with_shuttle_still_uses_qdrant():
+    bot = _bot_with_retriever([])
+
+    _run_immediate(
+        bot.build_context(
+            "내 수업 끝나고 셔틀 탈 수 있어?",
+            personal_context="[사용자 개인 시간표]",
+        )
+    )
+
+    assert len(bot.retriever.queries) == 1
+
+
+def test_query_rewrite_is_skipped_for_clear_questions_and_used_for_followups():
+    assert not CampusAIBot._needs_query_rewrite("오늘 내 첫 수업이 뭐야?")
+    assert CampusAIBot._needs_query_rewrite("그럼 몇 시야?")
+    assert CampusAIBot._needs_query_rewrite("언제야?")
+
+
 def test_add_documents_raises_when_vector_store_is_unavailable(monkeypatch):
     bot = object.__new__(CampusAIBot)
     bot.indexing_ready = False

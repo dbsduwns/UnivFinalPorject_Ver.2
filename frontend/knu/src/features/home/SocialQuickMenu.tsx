@@ -1,7 +1,7 @@
 import type { DimensionValue } from "react-native";
 import { router } from "expo-router";
 import { Pressable, Text, View, useWindowDimensions } from "react-native";
-import { BusFront, Utensils, MapPin, Megaphone } from "lucide-react-native";
+import { BusFront, Utensils, MapPin, Megaphone, MessageCircle, Users } from "lucide-react-native";
 
 export const SocialQuickMenu = () => {
     const { width } = useWindowDimensions();
@@ -58,7 +58,6 @@ export const SocialQuickMenu = () => {
                         </View>
                     </Pressable>
                 </View>
-            
             {/* Meal Button */}
                 <View
                     style={{
@@ -99,7 +98,7 @@ export const SocialQuickMenu = () => {
                         style={{ alignItems: "center" }}
                         onPress={() => router.push("/(app)/(tabs)/campus-map")}>
                         <View 
-                            className="CampusMapQuickMenu items-center p-4 flex-row"
+                            className="CampusMapQuickMenu items-center p-2 flex-row"
                             style={{
                                 backgroundColor: '#FFFFFF',
                                 borderRadius: iconRadius,
@@ -109,7 +108,7 @@ export const SocialQuickMenu = () => {
                             <MapPin
                                 size={20}
                                 color={iconColor}/>
-                            <Text style={{ fontWeight: 'bold', color: iconColor, marginLeft: "auto" }}>캠퍼스맵</Text>
+                            <Text style={{ fontSize: 13, fontWeight: 'bold', color: iconColor, marginLeft: "auto" }}>캠퍼스맵</Text>
                         </View>
                     </Pressable>
                 </View>
@@ -140,6 +139,48 @@ export const SocialQuickMenu = () => {
                         </View>
                     </Pressable>
                 </View>
+            {false && <>
+            {/* Friends Button */}
+                <View
+                    style={{
+                        alignItems: "center",
+                        justifyContent: "center",
+                        borderWidth: 1,
+                        borderRadius: iconRadius,
+                        borderColor: iconBgColor,
+                    }}>
+                    <Pressable
+                        style={{ alignItems: "center" }}
+                        onPress={() => router.push("/(app)/friends" as never)}>
+                        <View
+                            className="items-center p-4 flex-row"
+                            style={{ backgroundColor: "#FFFFFF", borderRadius: iconRadius, width: iconWidth, height: iconHeight }}>
+                            <Users size={20} color={iconColor}/>
+                            <Text style={{ fontWeight: "bold", color: iconColor, marginLeft: "auto" }}>친구</Text>
+                        </View>
+                    </Pressable>
+                </View>
+            {/* Chat Button */}
+                <View
+                    style={{
+                        alignItems: "center",
+                        justifyContent: "center",
+                        borderWidth: 1,
+                        borderRadius: iconRadius,
+                        borderColor: iconBgColor,
+                    }}>
+                    <Pressable
+                        style={{ alignItems: "center" }}
+                        onPress={() => router.push("/(app)/messages")}>
+                        <View
+                            className="items-center p-4 flex-row"
+                            style={{ backgroundColor: "#FFFFFF", borderRadius: iconRadius, width: iconWidth, height: iconHeight }}>
+                            <MessageCircle size={20} color={iconColor}/>
+                            <Text style={{ fontWeight: "bold", color: iconColor, marginLeft: "auto" }}>채팅</Text>
+                        </View>
+                    </Pressable>
+                </View>
+            </>}
             </View>
         </View>
         

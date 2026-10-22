@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Float, ForeignKey, Integer, String, TIMESTAMP
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, TIMESTAMP
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -28,6 +28,8 @@ class CommuteProfile(Base):
     use_shuttle = Column(Boolean, nullable=False, default=False, server_default="0")
     shuttle_destination = Column(String(100), nullable=True, default="이공관")
     departure_buffer_minutes = Column(Integer, nullable=False, default=10, server_default="10")
+    # 홈 등교시간 계산 API의 사용자별 60초 재요청 제한 기준 시각
+    last_home_calculation_at = Column(DateTime(timezone=True), nullable=True)
 
     created_at = Column(TIMESTAMP, server_default=func.now(), nullable=False)
     updated_at = Column(
