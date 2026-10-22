@@ -112,6 +112,24 @@ app.include_router(comment_router.admin_router)
 @app.on_event("startup")
 def startup_event():
 
+    # Prepare AI clients, prompts, and the vector-store connection before serving
+    # requests so the first chat does not pay this initialization cost.
+    try:
+        if campus_ai_bot.initialize():
+            logging.getLogger(__name__).info(
+                "CampusAIBot initialized during application startup"
+            )
+        else:
+            logging.getLogger(__name__).warning(
+                "CampusAIBot startup initialization was incomplete; "
+                "chat requests may retry initialization"
+            )
+    except Exception:
+        # AI initialization must not prevent the rest of the API from starting.
+        logging.getLogger(__name__).exception(
+            "CampusAIBot initialization failed during application startup"
+        )
+
     # 2. 서버 시작 시 즉시 크롤링 예약 (순차적으로 실행하여 자원 충돌 방지)
     print("🚀 [Startup] 서버 시작 - 초기 데이터 동기화 예약 중...")
     from datetime import timedelta

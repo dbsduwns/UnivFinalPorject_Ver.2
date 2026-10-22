@@ -150,10 +150,50 @@ function RouteStepIcon({ step, color, size = 16 }: {
   return <Bus size={size} color={color} />;
 }
 
+function appendRoutePath(
+  currentPath: RouteCoordinate[],
+  nextPath: RouteCoordinate[],
+) {
+  if (currentPath.length === 0) return [...nextPath];
+  if (nextPath.length === 0) return [...currentPath];
+
+  const last = currentPath[currentPath.length - 1];
+  const first = nextPath[0];
+  const startsAtSameCoordinate =
+    last.latitude === first.latitude && last.longitude === first.longitude;
+
+  return [
+    ...currentPath,
+    ...nextPath.slice(startsAtSameCoordinate ? 1 : 0),
+  ];
+}
+
+// 승차 전·환승 사이·하차 후를 구분하기 위해 서로 연속된 도보 단계만 합친다.
+function mergeConsecutiveWalkingSteps(steps: RouteStep[]) {
+  return steps.reduce<RouteStep[]>((merged, step) => {
+    const previous = merged[merged.length - 1];
+    if (step.travel_mode !== "WALK" || previous?.travel_mode !== "WALK") {
+      merged.push({ ...step, route_path: [...step.route_path] });
+      return merged;
+    }
+
+    merged[merged.length - 1] = {
+      ...previous,
+      duration_minutes: previous.duration_minutes + step.duration_minutes,
+      distance_meters: previous.distance_meters + step.distance_meters,
+      instruction: "도보 이동",
+      arrival_stop_location:
+        step.arrival_stop_location ?? previous.arrival_stop_location,
+      route_path: appendRoutePath(previous.route_path, step.route_path),
+    };
+    return merged;
+  }, []);
+}
+
 function getCompactRouteSteps(steps: RouteStep[]) {
-  return steps.filter((step, index) => {
+  return mergeConsecutiveWalkingSteps(steps).filter((step, index, mergedSteps) => {
     if (index === 0) return true;
-    const previous = steps[index - 1];
+    const previous = mergedSteps[index - 1];
     return !(
       previous.travel_mode === step.travel_mode &&
       previous.transit_line_name === step.transit_line_name
@@ -672,7 +712,6 @@ export default function CampusMapScreen() {
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
   const [isDetailView, setIsDetailView] = useState(false);
-  const [isWalkingDetailExpanded, setIsWalkingDetailExpanded] = useState(false);
   const [routeFocusRequest, setRouteFocusRequest] = useState(0);
   const [selectedCampusLocation, setSelectedCampusLocation] =
     useState<CampusLocation | null>(null);
@@ -824,32 +863,21 @@ export default function CampusMapScreen() {
     () => route?.route_steps ?? [],
     [route?.route_steps],
   );
-  const routeTimeline = useMemo(
-    () => buildRouteTimeline(
-      routeSteps,
-      commute?.destination?.destination_name ?? "도착지",
-    ),
-    [commute?.destination?.destination_name, routeSteps],
-  );
-  const walkingSteps = useMemo(
-    () => routeSteps.filter((step) => step.travel_mode === "WALK"),
+  const displayRouteSteps = useMemo(
+    () => mergeConsecutiveWalkingSteps(routeSteps),
     [routeSteps],
   );
-  const walkingDistanceMeters = useMemo(
-    () => walkingSteps.reduce((total, step) => total + step.distance_meters, 0),
-    [walkingSteps],
-  );
-  const visibleRouteTimeline = useMemo(
-    () => isWalkingDetailExpanded
-      ? routeTimeline
-      : routeTimeline.filter((item) =>
-          item.type !== "segment" || item.step.travel_mode !== "WALK"),
-    [isWalkingDetailExpanded, routeTimeline],
+  const routeTimeline = useMemo(
+    () => buildRouteTimeline(
+      displayRouteSteps,
+      commute?.destination?.destination_name ?? "도착지",
+    ),
+    [commute?.destination?.destination_name, displayRouteSteps],
   );
   // 단계별 좌표가 있으면 도보와 대중교통을 서로 다른 색상으로 그린다.
   const stepPolylines = useMemo(
     () =>
-      routeSteps
+      displayRouteSteps
         .filter((step) => step.route_path.length > 1)
         .flatMap((step, index) => {
           const color = getStepColor(step, index);
@@ -874,7 +902,7 @@ export default function CampusMapScreen() {
             geodesic: true,
           }];
         }),
-    [routeSteps],
+    [displayRouteSteps],
   );
 
   // 단계별 선이 없는 응답에서는 전체 경로 선을 안전한 대체값으로 사용한다.
@@ -981,14 +1009,12 @@ export default function CampusMapScreen() {
     setExpandedStepIndex(null);
     setActiveTransitLive(null);
     setIsDetailView(false);
-    setIsWalkingDetailExpanded(false);
     snapSheet(SHEET_HALF_Y);
   }, [commute?.calculated_at, snapSheet]);
 
   const openRouteDetail = (index: number) => {
     setSelectedRouteIndex(index);
     setExpandedStepIndex(null);
-    setIsWalkingDetailExpanded(false);
     setIsDetailView(true);
     setRouteFocusRequest((request) => request + 1);
     // 선택한 경로를 지도에서 확인할 수 있도록 상세 화면은 유지한 채 시트를 접는다.
@@ -1379,36 +1405,12 @@ export default function CampusMapScreen() {
                   </View>
                 )}
 
-                {walkingSteps.length > 0 && (
-                  <TouchableOpacity
-                    style={styles.walkingSummaryCard}
-                    activeOpacity={0.72}
-                    onPress={() => setIsWalkingDetailExpanded((expanded) => !expanded)}
-                  >
-                    <View style={styles.walkingSummaryIcon}>
-                      <Footprints size={17} color="#64748B" />
-                    </View>
-                    <View style={styles.walkingSummaryTextWrap}>
-                      <Text style={styles.walkingSummaryTitle}>총 도보 {route.walking_minutes}분</Text>
-                      <Text style={styles.walkingSummaryMeta}>
-                        {walkingSteps.length}개 구간
-                        {walkingDistanceMeters > 0 ? ` · ${walkingDistanceMeters}m` : ""}
-                      </Text>
-                    </View>
-                    {isWalkingDetailExpanded ? (
-                      <ChevronDown size={20} color="#64748B" />
-                    ) : (
-                      <ChevronRight size={20} color="#64748B" />
-                    )}
-                  </TouchableOpacity>
-                )}
-
                 <ScrollView
                   style={styles.timelineScroll}
                   contentContainerStyle={styles.timelineContent}
                   showsVerticalScrollIndicator={false}
                 >
-                  {visibleRouteTimeline.map((item, index) => {
+                  {routeTimeline.map((item, index) => {
                     if (item.type === "location") {
                       return (
                         <View key={`location-${item.label}-${index}`} style={styles.locationRow}>
@@ -1850,30 +1852,6 @@ const styles = StyleSheet.create({
   segmentTitleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   segmentTitle: { flex: 1, fontSize: 13, fontWeight: "700", color: "#334155" },
   segmentMeta: { marginTop: 4, fontSize: 11, color: "#64748B" },
-  walkingSummaryCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginTop: 10,
-    marginBottom: 10,
-    paddingHorizontal: 13,
-    paddingVertical: 11,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 13,
-    backgroundColor: "#F8FAFC",
-  },
-  walkingSummaryIcon: {
-    width: 30,
-    height: 30,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 15,
-    backgroundColor: "#E2E8F0",
-  },
-  walkingSummaryTextWrap: { flex: 1 },
-  walkingSummaryTitle: { fontSize: 13, fontWeight: "800", color: "#334155" },
-  walkingSummaryMeta: { marginTop: 2, fontSize: 11, color: "#64748B" },
   transitStopCard: {
     marginTop: 10,
     overflow: "hidden",
