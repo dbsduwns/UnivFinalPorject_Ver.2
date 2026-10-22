@@ -18,7 +18,6 @@ import {
   Search,
   Calendar,
   Check,
-  UserMinus,
   Clock,
   Send,
 } from "lucide-react-native";
@@ -47,6 +46,7 @@ export const FriendManagementModal = ({ visible, onClose }: Props) => {
   const [activeTab, setActiveTab] = useState<TabType>("friends");
   const [searchQuery, setSearchQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
+  const [selectedFriend, setSelectedFriend] = useState<FriendUser | null>(null);
 
   // 친구 시간표 모달 상태
   const [timetableFriend, setTimetableFriend] = useState<{ id: number; name: string } | null>(null);
@@ -128,6 +128,7 @@ export const FriendManagementModal = ({ visible, onClose }: Props) => {
   const deleteFriendMutation = useMutation({
     mutationFn: deleteFriend,
     onSuccess: () => {
+      setSelectedFriend(null);
       Alert.alert("완료", "친구 관계가 해제되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["friends"] });
       queryClient.invalidateQueries({ queryKey: ["searchFriends"] });
@@ -280,8 +281,10 @@ export const FriendManagementModal = ({ visible, onClose }: Props) => {
                     <ScrollView showsVerticalScrollIndicator={false}>
                       <View className="space-y-2.5">
                         {friends.map((item) => (
-                          <View
+                          <Pressable
                             key={item.id}
+                            onLongPress={() => setSelectedFriend(item)}
+                            delayLongPress={500}
                             className="bg-white p-4 rounded-2xl border border-gray-200 flex-row items-center justify-between shadow-sm"
                           >
                             <View className="flex-row items-center space-x-3 flex-1 mr-3">
@@ -314,14 +317,8 @@ export const FriendManagementModal = ({ visible, onClose }: Props) => {
                               </Pressable>
 
                               {/* 친구 삭제 버튼 */}
-                              <Pressable
-                                onPress={() => handleDeleteFriend(item)}
-                                className="p-2 bg-gray-100 rounded-xl active:bg-gray-200"
-                              >
-                                <UserMinus size={15} color="#94A3B8" />
-                              </Pressable>
                             </View>
-                          </View>
+                          </Pressable>
                         ))}
                       </View>
                     </ScrollView>
@@ -536,6 +533,59 @@ export const FriendManagementModal = ({ visible, onClose }: Props) => {
         friendName={timetableFriend?.name}
         onClose={() => setTimetableFriend(null)}
       />
+
+      <Modal
+        visible={!!selectedFriend}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedFriend(null)}
+      >
+        <Pressable
+          className="flex-1 bg-black/45 items-center justify-center px-6"
+          onPress={() => setSelectedFriend(null)}
+        >
+          <Pressable
+            className="w-full max-w-sm rounded-3xl bg-white p-6"
+            onPress={(event) => event.stopPropagation()}
+          >
+            <View className="w-14 h-14 rounded-full bg-sky-100 items-center justify-center self-center">
+              <Text className="text-sky-700 font-extrabold text-xl">
+                {selectedFriend?.name.slice(0, 1)}
+              </Text>
+            </View>
+            <Text className="text-lg font-extrabold text-gray-900 text-center mt-4">
+              {selectedFriend?.name}
+            </Text>
+            <Text className="text-sm text-gray-400 text-center mt-2">
+              친구 관리 메뉴입니다.
+            </Text>
+
+            <Pressable disabled className="mt-6 h-12 rounded-2xl bg-gray-100 items-center justify-center opacity-60">
+              <Text className="text-sm font-bold text-gray-500">
+                차단 기능은 별도 API 구현 후 사용 가능
+              </Text>
+            </Pressable>
+            <Pressable
+              disabled={deleteFriendMutation.isPending || !selectedFriend}
+              onPress={() => selectedFriend && deleteFriendMutation.mutate(selectedFriend.id)}
+              className="mt-3 h-12 rounded-2xl bg-rose-600 items-center justify-center disabled:opacity-40"
+            >
+              {deleteFriendMutation.isPending ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text className="text-sm font-extrabold text-white">친구 삭제</Text>
+              )}
+            </Pressable>
+            <Pressable
+              disabled={deleteFriendMutation.isPending}
+              onPress={() => setSelectedFriend(null)}
+              className="mt-2 h-11 items-center justify-center"
+            >
+              <Text className="text-sm font-bold text-gray-500">취소</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </>
   );
 };

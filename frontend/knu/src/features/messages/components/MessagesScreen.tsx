@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ActivityIndicator,
+  Alert,
   Keyboard,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -32,7 +34,7 @@ import type { ChatMessage } from "@/features/chat/types";
 import { useAuthStore } from "@/features/auth/store/auth-store";
 import { FriendInviteModal } from "@/features/friend/components/FriendInviteModal";
 import { FriendTimetableModal } from "@/features/friend/components/FriendTimetableModal";
-import { getFriendRequests, getFriends } from "@/features/friend/api/friend";
+import { deleteFriend, getFriendRequests, getFriends } from "@/features/friend/api/friend";
 import type { FriendUser } from "@/features/friend/api/types";
 
 const BRAND = "#13708D";
@@ -59,6 +61,7 @@ export const MessagesScreen = () => {
   const isWide = width >= 760;
   const [query, setQuery] = useState("");
   const [selectedFriend, setSelectedFriend] = useState<FriendUser | null>(null);
+  const [managementFriend, setManagementFriend] = useState<FriendUser | null>(null);
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const [refreshingMessages, setRefreshingMessages] = useState(false);
@@ -113,6 +116,22 @@ export const MessagesScreen = () => {
       if (selectedFriend?.id === targetFriendId) {
         setSendError(getAxiosErrorMessage(error, "메시지를 보내지 못했어요."));
       }
+    },
+  });
+
+  const deleteFriendMutation = useMutation({
+    mutationFn: deleteFriend,
+    onSuccess: (_, friendId) => {
+      setManagementFriend(null);
+      if (selectedFriend?.id === friendId) {
+        setSelectedFriend(null);
+        setDraft("");
+      }
+      void queryClient.invalidateQueries({ queryKey: ["friends"] });
+      void queryClient.invalidateQueries({ queryKey: ["friendRequests"] });
+    },
+    onError: (error) => {
+      Alert.alert("삭제 실패", getAxiosErrorMessage(error, "친구 삭제에 실패했습니다."));
     },
   });
 
@@ -322,8 +341,10 @@ export const MessagesScreen = () => {
                       const selected = selectedFriend?.id === friend.id;
 
                       return (
-                        <View
+                        <Pressable
                           key={friend.id}
+                          onLongPress={() => setManagementFriend(friend)}
+                          delayLongPress={500}
                           className={`px-3 py-3 rounded-2xl flex-row items-center mb-1 ${
                             selected ? "bg-cyan-50" : "active:bg-gray-50"
                           }`}
@@ -361,7 +382,7 @@ export const MessagesScreen = () => {
                               <Text className="ml-1 text-[11px] font-extrabold text-gray-600">시간표</Text>
                             </Pressable>
                           </View>
-                        </View>
+                        </Pressable>
                       );
                     })}
                   </ScrollView>
@@ -556,6 +577,54 @@ export const MessagesScreen = () => {
         friendName={timetableFriend?.name}
         onClose={() => setTimetableFriend(null)}
       />
+      <Modal
+        visible={!!managementFriend}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setManagementFriend(null)}
+      >
+        <Pressable
+          className="flex-1 bg-black/45 items-center justify-center px-6"
+          onPress={() => setManagementFriend(null)}
+        >
+          <Pressable
+            className="w-full max-w-sm rounded-3xl bg-white p-6"
+            onPress={(event) => event.stopPropagation()}
+          >
+            <View className="w-14 h-14 rounded-full bg-cyan-50 items-center justify-center self-center">
+              <Text className="text-cyan-800 font-extrabold text-xl">
+                {managementFriend?.name.slice(0, 1)}
+              </Text>
+            </View>
+            <Text className="text-lg font-extrabold text-gray-900 text-center mt-4">
+              {managementFriend?.name}
+            </Text>
+            <Text className="text-sm text-gray-400 text-center mt-2">친구 관리 메뉴입니다.</Text>
+
+            <Pressable disabled className="mt-6 h-12 rounded-2xl bg-gray-100 items-center justify-center opacity-60">
+              <Text className="text-sm font-bold text-gray-500">차단 기능은 별도 API 구현 후 사용 가능</Text>
+            </Pressable>
+            <Pressable
+              disabled={deleteFriendMutation.isPending || !managementFriend}
+              onPress={() => managementFriend && deleteFriendMutation.mutate(managementFriend.id)}
+              className="mt-3 h-12 rounded-2xl bg-rose-600 items-center justify-center disabled:opacity-40"
+            >
+              {deleteFriendMutation.isPending ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text className="text-sm font-extrabold text-white">친구 삭제</Text>
+              )}
+            </Pressable>
+            <Pressable
+              disabled={deleteFriendMutation.isPending}
+              onPress={() => setManagementFriend(null)}
+              className="mt-2 h-11 items-center justify-center"
+            >
+              <Text className="text-sm font-bold text-gray-500">취소</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </AppScreenLayout>
   );
 };

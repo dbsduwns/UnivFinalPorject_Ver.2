@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   AppState,
   Dimensions,
@@ -12,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import * as Location from "expo-location";
 import { GoogleMaps } from "expo-maps";
 import { useImage } from "expo-image";
 import { useLocalSearchParams } from "expo-router";
@@ -43,6 +45,7 @@ import type {
   RouteStep,
   TransitLive,
 } from "@/features/commute/api/types";
+import { fetchPedestrianRoute } from "@/utils/mapUtils";
 
 const GOOGLE_MAP_ID = process.env.EXPO_PUBLIC_GOOGLE_MAP_ID?.trim();
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -75,6 +78,13 @@ const CAMPUS_LOCATIONS = [
   { name: "심전2관", latitude: 37.278582, longitude: 127.133742 },
   { name: "심전1관", latitude: 37.278044, longitude: 127.134401 },
 ];
+
+type CampusLocation = (typeof CAMPUS_LOCATIONS)[number];
+
+type PedestrianRouteSummary = {
+  distanceMeters: number | null;
+  durationSeconds: number | null;
+};
 
 type MapMode = "campus" | "commute";
 
@@ -577,6 +587,51 @@ function getRouteCamera(routePath: RouteCoordinate[]) {
   };
 }
 
+function parsePedestrianRoute(features: any[]) {
+  const routePath: RouteCoordinate[] = [];
+  let distanceMeters: number | null = null;
+  let durationSeconds: number | null = null;
+
+  features.forEach((feature) => {
+    const properties = feature?.properties ?? {};
+    const featureDistance = Number(properties.totalDistance);
+    const featureDuration = Number(properties.totalTime);
+
+    if (distanceMeters === null && Number.isFinite(featureDistance)) {
+      distanceMeters = featureDistance;
+    }
+    if (durationSeconds === null && Number.isFinite(featureDuration)) {
+      durationSeconds = featureDuration;
+    }
+
+    if (feature?.geometry?.type !== "LineString") return;
+    feature.geometry.coordinates?.forEach((coordinate: unknown) => {
+      if (!Array.isArray(coordinate) || coordinate.length < 2) return;
+      const longitude = Number(coordinate[0]);
+      const latitude = Number(coordinate[1]);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+
+      const previous = routePath[routePath.length - 1];
+      if (
+        previous?.latitude === latitude &&
+        previous.longitude === longitude
+      ) return;
+      routePath.push({ latitude, longitude });
+    });
+  });
+
+  return {
+    routePath,
+    summary: { distanceMeters, durationSeconds } satisfies PedestrianRouteSummary,
+  };
+}
+
+function formatWalkingDistance(distanceMeters: number | null) {
+  if (distanceMeters === null) return null;
+  if (distanceMeters < 1000) return `${Math.round(distanceMeters)}m`;
+  return `${(distanceMeters / 1000).toFixed(1)}km`;
+}
+
 export default function CampusMapScreen() {
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const isFocused = useIsFocused();
@@ -619,6 +674,15 @@ export default function CampusMapScreen() {
   const [isDetailView, setIsDetailView] = useState(false);
   const [isWalkingDetailExpanded, setIsWalkingDetailExpanded] = useState(false);
   const [routeFocusRequest, setRouteFocusRequest] = useState(0);
+  const [selectedCampusLocation, setSelectedCampusLocation] =
+    useState<CampusLocation | null>(null);
+  const [currentLocation, setCurrentLocation] =
+    useState<RouteCoordinate | null>(null);
+  const [campusWalkingPath, setCampusWalkingPath] =
+    useState<RouteCoordinate[]>([]);
+  const [campusWalkingSummary, setCampusWalkingSummary] =
+    useState<PedestrianRouteSummary | null>(null);
+  const [isCampusRouteLoading, setIsCampusRouteLoading] = useState(false);
   const mapRef = useRef<GoogleMaps.MapView>(null);
   const sheetTranslateY = useRef(new Animated.Value(SHEET_HALF_Y)).current;
   const sheetPositionRef = useRef(SHEET_HALF_Y);
@@ -832,6 +896,85 @@ export default function CampusMapScreen() {
 
   const routeCamera = useMemo(() => getRouteCamera(routePath), [routePath]);
 
+  const campusWalkingPolylines = useMemo(
+    () =>
+      campusWalkingPath.length > 1
+        ? buildDashedRouteSegments(campusWalkingPath).map(
+            (coordinates, index) => ({
+              id: `campus-walk-route-${index}`,
+              coordinates,
+              color: "#13708D",
+              width: 8,
+              geodesic: true,
+            }),
+          )
+        : [],
+    [campusWalkingPath],
+  );
+
+  const selectCampusLocation = useCallback((location: CampusLocation) => {
+    setSelectedCampusLocation(location);
+    setCampusWalkingPath([]);
+    setCampusWalkingSummary(null);
+    mapRef.current?.setCameraPosition({
+      coordinates: location,
+      zoom: 18,
+      duration: 300,
+    });
+  }, []);
+
+  const findWalkingRoute = useCallback(async () => {
+    if (!selectedCampusLocation || isCampusRouteLoading) return;
+
+    setIsCampusRouteLoading(true);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== Location.PermissionStatus.GRANTED) {
+        Alert.alert(
+          "위치 권한이 필요해요",
+          "현재 위치에서 건물까지 길을 안내하려면 위치 권한을 허용해주세요.",
+        );
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const origin = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      };
+      const features = await fetchPedestrianRoute(
+        origin.longitude,
+        origin.latitude,
+        selectedCampusLocation.longitude,
+        selectedCampusLocation.latitude,
+      );
+      const { routePath: walkingPath, summary } =
+        parsePedestrianRoute(features);
+
+      if (walkingPath.length < 2) {
+        throw new Error("도보 경로 좌표가 없습니다.");
+      }
+
+      setCurrentLocation(origin);
+      setCampusWalkingPath(walkingPath);
+      setCampusWalkingSummary(summary);
+      mapRef.current?.setCameraPosition({
+        ...getRouteCamera([origin, ...walkingPath, selectedCampusLocation]),
+        duration: 350,
+      });
+    } catch (error) {
+      console.error("캠퍼스 도보 경로 조회 실패", error);
+      Alert.alert(
+        "도보 경로를 불러오지 못했어요",
+        "현재 위치와 네트워크 연결을 확인한 뒤 다시 시도해주세요.",
+      );
+    } finally {
+      setIsCampusRouteLoading(false);
+    }
+  }, [isCampusRouteLoading, selectedCampusLocation]);
+
   // 새로운 등교 계산 결과가 도착하면 Google 추천 경로를 기본 선택한다.
   useEffect(() => {
     setSelectedRouteIndex(0);
@@ -868,15 +1011,17 @@ export default function CampusMapScreen() {
   useEffect(() => {
     if (!isMapLoaded) return;
 
-    const camera =
-      mapMode === "commute" && routePath.length > 0
-        ? routeCamera
+    const camera = mapMode === "commute" && routePath.length > 0
+      ? routeCamera
+      : mapMode === "campus" && campusWalkingPath.length > 1
+        ? getRouteCamera(campusWalkingPath)
         : { coordinates: CAMPUS_CENTER, zoom: 16 };
 
     mapRef.current?.setCameraPosition({ ...camera, duration: 1 });
   }, [
     isMapLoaded,
     mapMode,
+    campusWalkingPath,
     routeCamera,
     routeFocusRequest,
     routePath.length,
@@ -904,6 +1049,33 @@ export default function CampusMapScreen() {
     [activeTransitLive, busMarkerIcon, displayedLiveVehicles],
   );
 
+  const campusMarkers: GoogleMaps.Marker[] = CAMPUS_LOCATIONS.map((location) => ({
+    id: `campus-${location.name}`,
+    coordinates: location,
+    title: location.name,
+    snippet: "선택해서 현재 위치에서 도보 길찾기",
+    icon:
+      selectedCampusLocation?.name === location.name
+        ? destinationMarkerIcon ?? undefined
+        : campusMarkerIcon ?? undefined,
+    anchor: { x: 0.5, y: 1 },
+    zIndex: selectedCampusLocation?.name === location.name ? 5 : 1,
+    showCallout: true,
+  }));
+
+  if (currentLocation && campusWalkingPath.length > 1) {
+    campusMarkers.push({
+      id: "campus-current-location",
+      coordinates: currentLocation,
+      title: "현재 위치",
+      snippet: "도보 길찾기 출발지",
+      icon: originMarkerIcon ?? undefined,
+      anchor: { x: 0.5, y: 1 },
+      zIndex: 10,
+      showCallout: true,
+    });
+  }
+
   const markers =
     mapMode === "commute" && routePath.length > 1
       ? [
@@ -927,15 +1099,7 @@ export default function CampusMapScreen() {
           },
           ...liveVehicleMarkers,
         ]
-      : CAMPUS_LOCATIONS.map((location) => ({
-          id: `campus-${location.name}`,
-          coordinates: location,
-          title: location.name,
-          icon: campusMarkerIcon ?? undefined,
-          anchor: { x: 0.5, y: 1 },
-          zIndex: 1,
-          showCallout: true,
-        }));
+      : campusMarkers;
 
   if (Platform.OS !== "android") {
     return (
@@ -959,12 +1123,28 @@ export default function CampusMapScreen() {
           }}
           cameraPosition={{ coordinates: CAMPUS_CENTER, zoom: 16 }}
           markers={markers}
-          polylines={stepPolylines.length > 0 ? stepPolylines : routePolylines}
+          polylines={
+            mapMode === "campus"
+              ? campusWalkingPolylines
+              : stepPolylines.length > 0
+                ? stepPolylines
+                : routePolylines
+          }
           uiSettings={{
             zoomControlsEnabled: true,
             myLocationButtonEnabled: false,
           }}
           onMapLoaded={() => setIsMapLoaded(true)}
+          onMarkerClick={(marker) => {
+            if (mapMode !== "campus" || !marker.id?.startsWith("campus-")) {
+              return;
+            }
+            const locationName = marker.id.slice("campus-".length);
+            const location = CAMPUS_LOCATIONS.find(
+              (item) => item.name === locationName,
+            );
+            if (location) selectCampusLocation(location);
+          }}
         />
 
         {/* 캠퍼스 안내와 등교 경로를 한 지도에서 전환한다. */}
@@ -1010,6 +1190,43 @@ export default function CampusMapScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {mapMode === "campus" && (
+          <ScrollView
+            horizontal
+            style={styles.buildingStrip}
+            contentContainerStyle={styles.buildingStripContent}
+            showsHorizontalScrollIndicator={false}
+          >
+            {CAMPUS_LOCATIONS.map((location) => {
+              const isSelected = selectedCampusLocation?.name === location.name;
+              return (
+                <TouchableOpacity
+                  key={location.name}
+                  style={[
+                    styles.buildingChip,
+                    isSelected && styles.selectedBuildingChip,
+                  ]}
+                  activeOpacity={0.72}
+                  onPress={() => selectCampusLocation(location)}
+                >
+                  <MapPinned
+                    size={14}
+                    color={isSelected ? "#FFFFFF" : "#13708D"}
+                  />
+                  <Text
+                    style={[
+                      styles.buildingChipText,
+                      isSelected && styles.selectedBuildingChipText,
+                    ]}
+                  >
+                    {location.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
 
         {/* 경로 조회 상태와 실패 원인을 지도 위에서 바로 안내한다. */}
         {mapMode === "commute" && isLoading && (
@@ -1270,6 +1487,48 @@ export default function CampusMapScreen() {
             )}
           </Animated.View>
         )}
+
+        {mapMode === "campus" && selectedCampusLocation && (
+          <View style={styles.campusRouteCard}>
+            <View style={styles.campusRouteInfo}>
+              <View style={styles.campusRouteIcon}>
+                <MapPinned size={21} color="#13708D" />
+              </View>
+              <View style={styles.campusRouteTextWrap}>
+                <Text style={styles.campusRouteEyebrow}>선택한 건물</Text>
+                <Text style={styles.campusRouteTitle}>
+                  {selectedCampusLocation.name}
+                </Text>
+                {campusWalkingSummary && (
+                  <Text style={styles.campusRouteMeta}>
+                    도보 약 {Math.max(
+                      1,
+                      Math.ceil((campusWalkingSummary.durationSeconds ?? 60) / 60),
+                    )}분
+                    {formatWalkingDistance(campusWalkingSummary.distanceMeters)
+                      ? ` · ${formatWalkingDistance(campusWalkingSummary.distanceMeters)}`
+                      : ""}
+                  </Text>
+                )}
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.walkRouteButton}
+              activeOpacity={0.75}
+              disabled={isCampusRouteLoading}
+              onPress={() => void findWalkingRoute()}
+            >
+              {isCampusRouteLoading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Footprints size={18} color="#FFFFFF" />
+              )}
+              <Text style={styles.walkRouteButtonText}>
+                {campusWalkingPath.length > 1 ? "다시 길찾기" : "도보 길찾기"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </AppScreenLayout>
   );
@@ -1312,6 +1571,32 @@ const styles = StyleSheet.create({
   activeModeButton: { backgroundColor: "#13708D" },
   modeButtonText: { fontSize: 13, fontWeight: "700", color: "#475569" },
   activeModeButtonText: { color: "#FFFFFF" },
+  buildingStrip: {
+    position: "absolute",
+    top: 74,
+    left: 0,
+    right: 0,
+    maxHeight: 42,
+  },
+  buildingStripContent: { gap: 8, paddingHorizontal: 16 },
+  buildingChip: {
+    height: 36,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: "#D8E7EC",
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    elevation: 4,
+  },
+  selectedBuildingChip: {
+    borderColor: "#13708D",
+    backgroundColor: "#13708D",
+  },
+  buildingChipText: { fontSize: 12, fontWeight: "800", color: "#334155" },
+  selectedBuildingChipText: { color: "#FFFFFF" },
   statusCard: {
     position: "absolute",
     top: 76,
@@ -1335,6 +1620,64 @@ const styles = StyleSheet.create({
     backgroundColor: "#EAF8FC",
   },
   retryButtonText: { fontSize: 12, fontWeight: "700", color: "#13708D" },
+  campusRouteCard: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    elevation: 12,
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 5 },
+  },
+  campusRouteInfo: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  campusRouteIcon: {
+    width: 42,
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    backgroundColor: "#EAF8FC",
+  },
+  campusRouteTextWrap: { flex: 1, minWidth: 0 },
+  campusRouteEyebrow: { fontSize: 10, fontWeight: "700", color: "#64748B" },
+  campusRouteTitle: {
+    marginTop: 2,
+    fontSize: 17,
+    fontWeight: "900",
+    color: "#0F172A",
+  },
+  campusRouteMeta: {
+    marginTop: 3,
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#13708D",
+  },
+  walkRouteButton: {
+    minWidth: 114,
+    height: 46,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 13,
+    borderRadius: 14,
+    backgroundColor: "#13708D",
+  },
+  walkRouteButtonText: { fontSize: 13, fontWeight: "800", color: "#FFFFFF" },
   bottomSheet: {
     position: "absolute",
     left: 0,

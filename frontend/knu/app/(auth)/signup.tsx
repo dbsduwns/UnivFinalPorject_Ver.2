@@ -1,4 +1,4 @@
-import { Link, Redirect, router } from "expo-router";
+import { Link, Redirect, router, useLocalSearchParams } from "expo-router";
 
 import { hrefAppHome, hrefLogin } from "@/constants/routes";
 import { useState } from "react";
@@ -20,6 +20,7 @@ import { getAxiosErrorMessage, logDevAxiosError } from "@/api/errors";
 import { useAuthStore } from "@/features/auth/store/auth-store";
 
 export default function SignupScreen() {
+  const { redirect } = useLocalSearchParams<{ redirect?: string }>();
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
   const ready = useAuthStore((s) => s.ready);
@@ -31,6 +32,14 @@ export default function SignupScreen() {
   const [student_id, setStudent_id] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Preserve an invite destination through sign-up.  Only internal paths are
+  // accepted so a crafted link cannot redirect a newly registered user away
+  // from the app.
+  const signupDestination =
+    typeof redirect === "string" && redirect.startsWith("/") && !redirect.startsWith("//")
+      ? redirect
+      : hrefAppHome;
 
   if (!ready) {
     return null;
@@ -50,7 +59,7 @@ export default function SignupScreen() {
         password,
         student_id,
       });
-      router.replace(hrefAppHome);
+      router.replace(signupDestination as never);
     } catch (e) {
       logDevAxiosError("signup", e);
       setError(getAxiosErrorMessage(e, "회원가입에 실패했습니다."));
@@ -138,7 +147,14 @@ export default function SignupScreen() {
           )}
         </Pressable>
 
-        <Link href={hrefLogin} asChild>
+            <Link
+              href={
+                signupDestination === hrefAppHome
+                  ? hrefLogin
+                  : { pathname: "/(auth)/login", params: { redirect: signupDestination } }
+              }
+              asChild
+            >
           <Pressable className="mt-6 items-center py-2">
             <Text className="text-[#0a7ea4] dark:text-sky-300">이미 계정이 있어요</Text>
           </Pressable>
