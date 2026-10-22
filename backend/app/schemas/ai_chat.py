@@ -1,10 +1,10 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ChatRoomCreate(BaseModel):
-    title: str | None = None
+    title: str | None = Field(default=None, max_length=60)
 
 
 class ChatRoomResponse(BaseModel):
@@ -20,7 +20,7 @@ class ChatRoomResponse(BaseModel):
 
 
 class ChatMessageCreate(BaseModel):
-    content: str
+    content: str = Field(min_length=1, max_length=500)
 
 
 class ChatMessageResponse(BaseModel):
@@ -39,12 +39,3 @@ class ChatSendResponse(BaseModel):
     room: ChatRoomResponse
     user_message: ChatMessageResponse
     assistant_message: ChatMessageResponse
-
-
-class ChatDemoRequest(BaseModel):
-    message: str
-
-
-class ChatDemoResponse(BaseModel):
-    reply: str
-    provider: str = "demo"

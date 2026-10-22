@@ -307,6 +307,17 @@ class CampusAIBot:
             f"sources={dict(source_counts)}",
             flush=True,
         )
+        for rank, document in enumerate(ranked, start=1):
+            metadata = document.metadata
+            title = metadata.get("title") or metadata.get("event") or "(제목 없음)"
+            source_url = metadata.get("source_url") or "(URL 없음)"
+            preview = " ".join(document.page_content.split())[:160]
+            print(
+                "📄 [AI Bot] 검색 문서: "
+                f"rank={rank}, source={self._document_source(document)!r}, "
+                f"title={title!r}, url={source_url!r}, preview={preview!r}",
+                flush=True,
+            )
         return ranked
 
     async def build_context(

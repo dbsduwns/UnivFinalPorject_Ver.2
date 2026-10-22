@@ -1,9 +1,29 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
+
+
+EMAIL_PATTERN = r"^[^\s@]+@[^\s@]+\.[^\s@]+$"
 
 class UserSignup(BaseModel):
-    email: str
-    password: str
-    name: str
+    email: str = Field(min_length=5, max_length=254, pattern=EMAIL_PATTERN)
+    password: str = Field(min_length=8, max_length=72)
+    name: str = Field(min_length=2, max_length=50)
+    student_id: str = Field(min_length=4, max_length=20)
+
+    @field_validator("email", "name", "student_id")
+    @classmethod
+    def strip_required_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Value cannot be blank.")
+        return value
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_bytes(cls, value: str) -> str:
+        # bcrypt safely handles passwords up to 72 UTF-8 bytes.
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("Password must be at most 72 UTF-8 bytes.")
+        return value
 
 class UserUpdate(BaseModel):
     name: str | None = None

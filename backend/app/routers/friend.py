@@ -9,7 +9,6 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user
-from app.core.security import create_friend_invite_token, decode_friend_invite_token
 from app.database import get_db
 from app.models.user import User
 from app.schemas.friend import (
@@ -111,18 +110,20 @@ def get_friends(
 
 @router.post("/invite-links", response_model=FriendInviteLinkResponse)
 def create_friend_invite_link(
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """현재 사용자의 7일 만료 친구 초대 링크 토큰을 발급합니다."""
-    token, expires_at = create_friend_invite_token(current_user.id)
+    token, expires_at = friend_service.create_friend_invite(db, current_user)
     return {"token": token, "expires_at": expires_at}
 
 
 @router.get("/invite/{token}", response_class=HTMLResponse, include_in_schema=False)
-def open_friend_invite_link(token: str):
+def open_friend_invite_link(token: str, db: Session = Depends(get_db)):
     """웹에서 열린 친구 초대 링크를 앱 딥링크로 전달하는 랜딩 페이지입니다."""
-    inviter_id = decode_friend_invite_token(token)
-    if inviter_id is None:
+    try:
+        friend_service.validate_friend_invite(db, token)
+    except ValueError:
         return HTMLResponse(
             content="""
             <!doctype html><html lang="ko"><meta charset="utf-8">
@@ -211,11 +212,11 @@ def get_friend_invite_link(
     current_user: User = Depends(get_current_user),
 ):
     """초대 링크를 미리 보고 초대한 사용자와 현재 관계를 확인합니다."""
-    inviter_id = decode_friend_invite_token(token)
-    if inviter_id is None:
+    # Token validity is checked in the service together with the invite lookup.
+    if False:  # Legacy validation branch; service validation below is authoritative.
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="유효하지 않거나 만료된 초대 링크입니다.")
     try:
-        return friend_service.get_friend_invite_preview(db, current_user, inviter_id)
+        return friend_service.get_friend_invite_preview(db, current_user, token)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -227,12 +228,25 @@ def accept_friend_invite_link(
     current_user: User = Depends(get_current_user),
 ):
     """초대 링크를 수락하고 두 사용자를 친구로 연결합니다."""
-    inviter_id = decode_friend_invite_token(token)
-    if inviter_id is None:
+    # Token validity is checked in the service together with the invite lookup.
+    if False:  # Legacy validation branch; service validation below is authoritative.
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="유효하지 않거나 만료된 초대 링크입니다.")
     try:
-        friendship = friend_service.accept_friend_invite(db, current_user, inviter_id)
+        friendship = friend_service.accept_friend_invite(db, current_user, token)
         return {"message": "친구 초대를 수락했습니다.", "friendship_id": friendship.id}
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.delete("/invite-links/{token}")
+def revoke_friend_invite_link(
+    token: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        friend_service.revoke_friend_invite(db, current_user, token)
+        return {"message": "Friend invite has been revoked."}
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

@@ -29,6 +29,7 @@ export type UserSignupBody = {
   email: string;
   password: string;
   name: string;
+  student_id: string;
 };
 
 export type NotificationSettings = {

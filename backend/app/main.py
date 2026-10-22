@@ -18,6 +18,7 @@ from app.models import (
     notice,
     shuttle_map,
     friendship,
+    friend_invite,
     messenger,
     room_messengers,
     room_participants,

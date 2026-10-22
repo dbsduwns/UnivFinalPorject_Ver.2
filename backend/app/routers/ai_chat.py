@@ -5,8 +5,6 @@ from app.core.dependencies import get_current_user
 from app.database import get_db
 from app.models.user import User
 from app.schemas.ai_chat import (
-    ChatDemoRequest,
-    ChatDemoResponse,
     ChatMessageCreate,
     ChatMessageResponse,
     ChatRoomCreate,
@@ -16,12 +14,6 @@ from app.schemas.ai_chat import (
 from app.services import ai_chat as chat_service
 
 router = APIRouter(prefix="/api/ai/chat", tags=["aichat"])
-
-
-@router.post("/demo", response_model=ChatDemoResponse)
-async def demo_chat(data: ChatDemoRequest):
-    reply = await chat_service.demo_reply(data.message)
-    return {"reply": reply, "provider": "ai_bot"}
 
 
 @router.post("/rooms", response_model=ChatRoomResponse)
@@ -49,6 +41,8 @@ def get_room_messages(
 ):
     try:
         return chat_service.get_room_messages(db, current_user, room_id)
+    except chat_service.AIRequestLimitExceeded as e:
+        raise HTTPException(status_code=429, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

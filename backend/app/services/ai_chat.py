@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 from sqlalchemy.orm import Session
 
 from app.models.ai_chat_room import ChatRoom
@@ -5,6 +7,32 @@ from app.models.ai_message import Message
 from app.models.user import User
 from app.schemas.ai_chat import ChatMessageCreate, ChatRoomCreate
 from app.core.ai_bot import campus_ai_bot
+
+
+AI_REQUEST_LIMIT = 4
+AI_REQUEST_WINDOW = timedelta(minutes=1)
+
+
+class AIRequestLimitExceeded(ValueError):
+    pass
+
+
+def enforce_ai_request_limit(db: Session, user: User) -> None:
+    """Use the shared database so the limit applies across Cloud Run instances."""
+    # Message.created_at is a database TIMESTAMP without timezone.
+    cutoff = datetime.utcnow() - AI_REQUEST_WINDOW
+    request_count = (
+        db.query(Message)
+        .join(ChatRoom, Message.chat_room_id == ChatRoom.id)
+        .filter(
+            ChatRoom.user_id == user.id,
+            Message.role == "user",
+            Message.created_at >= cutoff,
+        )
+        .count()
+    )
+    if request_count >= AI_REQUEST_LIMIT:
+        raise AIRequestLimitExceeded("AI requests are limited to 4 per minute. Please try again shortly.")
 
 
 def create_room(db: Session, user: User, data: ChatRoomCreate) -> ChatRoom:
@@ -41,6 +69,8 @@ async def send_message(db: Session, user: User, room_id: int, data: ChatMessageC
     room = get_my_room(db, user, room_id)
     if not room:
         raise ValueError("Chat room not found")
+
+    enforce_ai_request_limit(db, user)
 
     user_message = Message(chat_room_id=room.id, role="user", content=data.content)
     db.add(user_message)

@@ -14,6 +14,9 @@ def signup(db: Session, data: UserSignup):
     existing_user = db.query(User).filter(User.email == data.email).first()
     if existing_user:
         raise ValueError("이미 존재하는 이메일입니다")
+    existing_student = db.query(User).filter(User.student_id == data.student_id).first()
+    if existing_student:
+        raise ValueError("이미 존재하는 학번입니다")
 
     hashed = hash_password(data.password)
 
@@ -21,6 +24,7 @@ def signup(db: Session, data: UserSignup):
         email=data.email,
         password_hash=hashed,
         name=data.name,
+        student_id=data.student_id,
     )
     db.add(user)
     db.commit()

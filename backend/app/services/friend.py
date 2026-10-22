@@ -1,13 +1,63 @@
+import hashlib
+import secrets
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_
 
 from app.models.user import User
 from app.models.friendship import Friendship
+from app.models.friend_invite import FriendInvite
 from app.models.timetable import Timetable
 from app.models.timetable_course import TimetableCourse
 from app.models.course import Course
 from app.models.custom_schedule import CustomSchedule
+
+
+FRIEND_INVITE_EXPIRE_DAYS = 7
+
+
+def _hash_invite_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _get_active_invite(db: Session, token: str, *, lock: bool = False) -> FriendInvite:
+    query = db.query(FriendInvite).filter(FriendInvite.token_hash == _hash_invite_token(token))
+    if lock:
+        query = query.with_for_update()
+    invite = query.first()
+    now = datetime.now(timezone.utc) if invite and invite.expires_at.tzinfo else datetime.utcnow()
+    if not invite or invite.revoked_at or invite.accepted_at or invite.expires_at <= now:
+        raise ValueError("This friend invite is invalid, expired, or already used.")
+    return invite
+
+
+def create_friend_invite(db: Session, current_user: User) -> tuple[str, datetime]:
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=FRIEND_INVITE_EXPIRE_DAYS)
+    invite = FriendInvite(
+        token_hash=_hash_invite_token(token),
+        inviter_id=current_user.id,
+        expires_at=expires_at,
+    )
+    db.add(invite)
+    db.commit()
+    return token, expires_at
+
+
+def validate_friend_invite(db: Session, token: str) -> FriendInvite:
+    return _get_active_invite(db, token)
+
+
+def revoke_friend_invite(db: Session, current_user: User, token: str) -> None:
+    invite = db.query(FriendInvite).filter(FriendInvite.token_hash == _hash_invite_token(token)).first()
+    if not invite or invite.inviter_id != current_user.id:
+        raise ValueError("Friend invite not found.")
+    if invite.accepted_at:
+        raise ValueError("An accepted invite cannot be revoked.")
+    if not invite.revoked_at:
+        invite.revoked_at = datetime.now(timezone.utc)
+        db.commit()
 
 def check_is_friend(db: Session, user_a_id: int, user_b_id: int) -> bool:
     """두 사용자가 서로 ACCEPTED 상태의 친구인지 확인"""
@@ -251,8 +301,10 @@ def get_friends(db: Session, current_user: User) -> List[User]:
 def get_friend_invite_preview(
     db: Session,
     current_user: User,
-    inviter_id: int,
+    token: str,
 ) -> Dict[str, Any]:
+    invite = _get_active_invite(db, token)
+    inviter_id = invite.inviter_id
     inviter = db.query(User).filter(User.id == inviter_id).first()
     if not inviter:
         raise ValueError("초대한 사용자를 찾을 수 없습니다.")
@@ -283,8 +335,10 @@ def get_friend_invite_preview(
 def accept_friend_invite(
     db: Session,
     current_user: User,
-    inviter_id: int,
+    token: str,
 ) -> Friendship:
+    invite = _get_active_invite(db, token, lock=True)
+    inviter_id = invite.inviter_id
     inviter = db.query(User).filter(User.id == inviter_id).first()
     if not inviter:
         raise ValueError("초대한 사용자를 찾을 수 없습니다.")
@@ -312,6 +366,7 @@ def accept_friend_invite(
         )
         db.add(friendship)
 
+    invite.accepted_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(friendship)
     return friendship
