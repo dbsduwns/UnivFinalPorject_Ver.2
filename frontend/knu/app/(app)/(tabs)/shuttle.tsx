@@ -1,5 +1,5 @@
-import { Text, View, Platform, TouchableOpacity, ActivityIndicator } from "react-native";
-import { useState } from "react";
+import { Text, View, TouchableOpacity, ActivityIndicator } from "react-native";
+import { useEffect, useState } from "react";
 
 import { useQuery } from "@tanstack/react-query";
 import { getShuttles } from "@/features/shuttle/api/shuttle";
@@ -16,6 +16,8 @@ export default function ShuttleScreen() {
   const semester = getCurrentSemester();
   const [isDownloading, setIsDownloading] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [previewAttempt, setPreviewAttempt] = useState(0);
 
   const { data: shuttles = [], isLoading } = useQuery({
     queryKey: ["shuttles", semester],
@@ -23,12 +25,50 @@ export default function ShuttleScreen() {
   });
 
   const shuttle = shuttles[0];
-
   const getFullUrl = (url: string) => {
     if (!url) return "";
-    if (url.startsWith("http")) return url;
+    if (url.startsWith("http")) {
+      const parsed = new URL(url);
+      if (parsed.hostname === "web.kangnam.ac.kr" && parsed.pathname.startsWith("/comm/cmnFile/")) {
+        parsed.protocol = "https:";
+        return `${API_BASE_URL}/api/notices/pdf-proxy?url=${encodeURIComponent(parsed.toString())}`;
+      }
+      return url;
+    }
     return `${API_BASE_URL}${url}`;
   };
+
+  const fullPdfUrl = shuttle?.file_url ? getFullUrl(shuttle.file_url) : null;
+
+  useEffect(() => {
+    let isCurrent = true;
+    setPreviewUri(null);
+    setHasError(false);
+
+    if (!fullPdfUrl || !FileSystem.cacheDirectory) {
+      if (fullPdfUrl) setHasError(true);
+      return () => {
+        isCurrent = false;
+      };
+    }
+
+    const localUri = `${FileSystem.cacheDirectory}shuttle_preview_${Date.now()}.pdf`;
+    FileSystem.downloadAsync(fullPdfUrl, localUri)
+      .then(({ uri, status }) => {
+        if (status < 200 || status >= 300) {
+          throw new Error(`PDF 다운로드 실패 (HTTP ${status})`);
+        }
+        if (isCurrent) setPreviewUri(uri);
+      })
+      .catch((error) => {
+        console.error("셔틀 PDF 미리보기 다운로드 실패:", error);
+        if (isCurrent) setHasError(true);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [fullPdfUrl, previewAttempt]);
 
   const openPDF = async (pdfUrl: string) => {
     if (!pdfUrl) return;
@@ -84,15 +124,15 @@ export default function ShuttleScreen() {
                   직접 파일을 열어주세요.
                 </Text>
                 <TouchableOpacity
-                  onPress={() => setHasError(false)}
+                  onPress={() => setPreviewAttempt((attempt) => attempt + 1)}
                   className="mt-6 px-6 py-3 bg-gray-100 rounded-xl"
                 >
                   <Text className="text-gray-700 font-medium">다시 시도</Text>
                 </TouchableOpacity>
               </View>
             ) : (
-              <Pdf
-                source={{ uri: getFullUrl(shuttle.file_url!), cache: true }}
+              previewUri ? <Pdf
+                source={{ uri: previewUri, cache: false }}
                 style={{ flex: 1 }}
                 trustAllCerts={false}
                 onError={() => setHasError(true)}
@@ -102,7 +142,12 @@ export default function ShuttleScreen() {
                     <Text className="mt-4 text-gray-500">PDF 로딩 중...</Text>
                   </View>
                 )}
-              />
+              /> : (
+                <View className="flex-1 justify-center items-center">
+                  <ActivityIndicator size="large" color="#2563eb" />
+                  <Text className="mt-4 text-gray-500">PDF 로딩 중...</Text>
+                </View>
+              )
             )}
 
             {/* 우측 하단 플로팅 다운로드/공유 버튼 */}

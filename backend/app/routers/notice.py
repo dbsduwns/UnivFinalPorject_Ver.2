@@ -1,9 +1,8 @@
-import warnings
 from urllib.parse import urljoin, urlsplit
 
 import requests
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from urllib3.exceptions import InsecureRequestWarning
+from app.core.university_http import university_get
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.schemas.notice import NoticeResponse, NoticeUpdate, NoticeCreate
@@ -59,23 +58,27 @@ def proxy_notice_image(
 	url: str = Query(..., min_length=1, max_length=2048),
 ):
 	"""Serve an allowlisted university notice image through the trusted API host."""
+	return _proxy_university_file(url, "image")
+
+
+@router.get("/pdf-proxy", response_class=Response)
+def proxy_university_pdf(url: str = Query(..., min_length=1, max_length=2048)):
+	return _proxy_university_file(url, "pdf")
+
+
+def _proxy_university_file(url: str, kind: str):
 	current_url = _validate_notice_image_url(url)
 	response = None
 
 	try:
 		for _ in range(4):
-			with warnings.catch_warnings():
-				warnings.simplefilter("ignore", InsecureRequestWarning)
-				response = requests.get(
-					current_url,
-					headers={
-						"User-Agent": "KNU-Campus/1.0",
-						"Referer": "https://web.kangnam.ac.kr/",
-					},
-					timeout=(5, 30),
-					verify=False,
-					allow_redirects=False,
-				)
+			response = university_get(
+				current_url,
+				headers={"User-Agent": "KNU-Campus/1.0", "Referer": "https://web.kangnam.ac.kr/"},
+				timeout=(5, 30),
+				allow_redirects=False,
+				stream=True,
+			)
 
 			if response.is_redirect or response.is_permanent_redirect:
 				location = response.headers.get("location")
@@ -96,7 +99,12 @@ def proxy_notice_image(
 		if content_length and int(content_length) > _MAX_NOTICE_IMAGE_BYTES:
 			raise HTTPException(status_code=413, detail="공지 이미지가 너무 큽니다.")
 
-		payload = response.content
+		payload = bytearray()
+		for chunk in response.iter_content(65536):
+			payload.extend(chunk)
+			if len(payload) > _MAX_NOTICE_IMAGE_BYTES:
+				raise HTTPException(status_code=413, detail="파일이 너무 큽니다.")
+		payload = bytes(payload)
 		if len(payload) > _MAX_NOTICE_IMAGE_BYTES:
 			raise HTTPException(status_code=413, detail="공지 이미지가 너무 큽니다.")
 
@@ -104,8 +112,10 @@ def proxy_notice_image(
 			payload,
 			response.headers.get("content-type", ""),
 		)
+		if kind == "pdf":
+			media_type = "application/pdf" if payload.startswith(b"%PDF-") else None
 		if media_type is None:
-			raise HTTPException(status_code=415, detail="요청한 파일은 이미지가 아닙니다.")
+			raise HTTPException(status_code=415, detail="요청한 파일 형식이 올바르지 않습니다.")
 
 		return Response(
 			content=payload,
@@ -118,7 +128,7 @@ def proxy_notice_image(
 	except HTTPException:
 		raise
 	except (requests.RequestException, ValueError) as exc:
-		raise HTTPException(status_code=502, detail="공지 이미지 요청에 실패했습니다.") from exc
+		raise HTTPException(status_code=502, detail="학교 파일 요청에 실패했습니다.") from exc
 	finally:
 		if response is not None:
 			response.close()

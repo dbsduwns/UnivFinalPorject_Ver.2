@@ -1,3 +1,4 @@
+from app.core.university_http import university_get
 from email.message import Message
 from urllib.parse import urljoin, unquote
 from app.database import SessionLocal
@@ -17,7 +18,7 @@ STATIC_SHUTTLE_DIR = "static/shuttle"
 
 #크롤링 함수 메인
 def crawl_shuttle_schedule() -> dict:
-    page_response = requests.get(
+    page_response = university_get(
         SHUTTLE_PAGE_URL,
         headers={"User-Agent": "Mozilla/5.0"},
         timeout=20,
@@ -27,7 +28,7 @@ def crawl_shuttle_schedule() -> dict:
     soup = BeautifulSoup(page_response.text, "html.parser")
     download_url = _find_download_url(soup)
 
-    file_response = requests.get(
+    file_response = university_get(
         download_url,
         headers={
             "User-Agent": "Mozilla/5.0",

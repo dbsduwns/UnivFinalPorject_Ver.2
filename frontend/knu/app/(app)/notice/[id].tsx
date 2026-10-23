@@ -288,7 +288,10 @@ export default function NoticeDetail() {
                     ))}
 
                     {cleanContent ? (
-                        <Text className="text-base text-gray-800 leading-7">
+                        <Text 
+                            className="text-base text-gray-800 leading-7"
+                            selectable
+                        >
                             {cleanContent}
                         </Text>
                     ) : imageItems.length === 0 && (

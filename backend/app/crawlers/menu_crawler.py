@@ -1,3 +1,4 @@
+from app.core.university_http import university_get
 from playwright.sync_api import Error as PlaywrightError, sync_playwright
 from bs4 import BeautifulSoup
 from app.database import SessionLocal
@@ -106,7 +107,7 @@ def detail_img_url(page, detail_url):
     return image_url
 
 def download_img(image_url, filename):
-    response = requests.get(image_url, timeout=30)
+    response = university_get(image_url, timeout=30)
     response.raise_for_status()
 
     with open(filename, "wb") as f:
@@ -116,7 +117,7 @@ def download_img(image_url, filename):
 
 
 def download_image_bytes(image_url: str) -> bytes:
-    response = requests.get(image_url, timeout=30)
+    response = university_get(image_url, timeout=30)
     response.raise_for_status()
     return response.content
 

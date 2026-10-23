@@ -6,6 +6,7 @@ import {
   TextInput,
   TouchableOpacity,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
@@ -27,6 +28,7 @@ export default function AIChatScreen() {
   
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(Keyboard.isVisible());
   const [isLoading, setIsLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamStatus, setStreamStatus] = useState<ChatStreamStatus | null>(null);
@@ -330,6 +332,20 @@ export default function AIChatScreen() {
   }, []);
 
   useEffect(() => {
+    const showSubscription = Keyboard.addListener("keyboardDidShow", () => {
+      setIsKeyboardVisible(true);
+    });
+    const hideSubscription = Keyboard.addListener("keyboardDidHide", () => {
+      setIsKeyboardVisible(false);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
     return () => {
       streamAbortControllerRef.current?.abort();
     };
@@ -428,35 +444,37 @@ export default function AIChatScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={{ flex: 1 }}
-    >
-      <AppScreenLayout>
-        <View style={{ flex: 1, backgroundColor: 'white' }}>
-          <View className="py-3 border-b border-gray-100 flex-row items-center justify-center bg-white px-4 relative">
-            <TouchableOpacity 
-              className="absolute left-4"
-              onPress={openDrawer}
-            >
-              <Inbox size={24} color="#374151" />
-            </TouchableOpacity>
-            <Text className="font-bold text-base text-gray-800">AI 비서</Text>
-          </View>
-          {/* 채팅  */}
-          <FlatList
-            ref={flatListRef}
-            data={messages}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={renderMessage}
-            ListEmptyComponent={renderEmptyComponent}
-            contentContainerStyle={{ 
-              paddingVertical: 10, 
-              paddingBottom: 20,
-              flexGrow: 1
-            }}
-          />
-          {/* 채팅 입력창 */}
+    <AppScreenLayout>
+      <View style={{ flex: 1, backgroundColor: 'white' }}>
+        <View className="py-3 border-b border-gray-100 flex-row items-center justify-center bg-white px-4 relative">
+          <TouchableOpacity
+            className="absolute left-4"
+            onPress={openDrawer}
+          >
+            <Inbox size={24} color="#374151" />
+          </TouchableOpacity>
+          <Text className="font-bold text-base text-gray-800">AI 비서</Text>
+        </View>
+        {/* 채팅  */}
+        <FlatList
+          ref={flatListRef}
+          style={{ flex: 1 }}
+          data={messages}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={renderMessage}
+          ListEmptyComponent={renderEmptyComponent}
+          contentContainerStyle={{
+            paddingVertical: 10,
+            paddingBottom: 20,
+            flexGrow: 1
+          }}
+        />
+        {/* 채팅 입력창 */}
+        <KeyboardAvoidingView
+          behavior="padding"
+          enabled={isKeyboardVisible}
+          keyboardVerticalOffset={90}
+        >
           <View className="p-4 bg-white border-t border-gray-100 flex-row items-center">
             <TextInput
               className="flex-1 bg-gray-50 text-gray-900 rounded-2xl px-4 py-3 mr-2 border border-gray-200"
@@ -486,7 +504,8 @@ export default function AIChatScreen() {
               )}
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
+      </View>
 
         {/* Custom Drawer */}
         <Modal
@@ -614,7 +633,6 @@ export default function AIChatScreen() {
             </View>
           </KeyboardAvoidingView>
         </Modal>
-      </AppScreenLayout>
-    </KeyboardAvoidingView>
+    </AppScreenLayout>
   );
 }
