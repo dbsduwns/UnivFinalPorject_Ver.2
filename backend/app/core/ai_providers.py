@@ -73,16 +73,22 @@ def build_chat_model(provider: str | None = None) -> Any:
                     if isinstance(delta, dict) and "content" in delta:
                         content = delta.get("content")
                         if isinstance(content, list):
-                            valid_content = [
-                                item
-                                for item in content
-                                if isinstance(item, (str, dict))
-                            ]
-                            if len(valid_content) != len(content):
-                                delta["content"] = valid_content
+                            normalized_content = []
+                            for item in content:
+                                if isinstance(item, (str, dict)):
+                                    normalized_content.append(item)
+                                elif isinstance(item, (int, float)) and not isinstance(
+                                    item, bool
+                                ):
+                                    normalized_content.append(str(item))
+                            delta["content"] = normalized_content
+                        elif isinstance(content, (int, float)) and not isinstance(
+                            content, bool
+                        ):
+                            # Workers AI occasionally emits a generated number
+                            # as a JSON number instead of an OpenAI-style string.
+                            delta["content"] = str(content)
                         elif content is not None and not isinstance(content, str):
-                            # Workers AI can emit numeric control values in an
-                            # otherwise OpenAI-compatible content field.
                             delta["content"] = ""
 
                 return super()._convert_chunk_to_generation_chunk(
