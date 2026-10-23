@@ -9,10 +9,13 @@ httpx==0.28.1
 langchain-core==1.3.3
 langchain-google-genai==4.2.2
 langchain-openai==1.1.16
+opencv-python-headless==4.11.0.86
 passlib==1.7.4
+pillow==11.3.0
 playwright==1.58.0
 psycopg2-binary==2.9.11
 pydantic==2.12.5
+pytesseract==0.3.13
 python-dotenv==1.2.2
 python-jose[cryptography]==3.5.0
 python-multipart==0.0.20

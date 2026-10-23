@@ -8,6 +8,8 @@ class MenuItem(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     daily_menu_id = Column(Integer, ForeignKey("daily_menus.id"))
     name = Column(String(200), nullable=False)
+    meal_type = Column(String(30))
+    corner = Column(String(50))
     price = Column(Integer)
     calories = Column(Integer)
 
