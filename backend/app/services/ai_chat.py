@@ -1,11 +1,20 @@
+import json
+from collections.abc import AsyncIterator
 from datetime import datetime, timedelta
+from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.database import SessionLocal
 from app.models.ai_chat_room import ChatRoom
 from app.models.ai_message import Message
 from app.models.user import User
-from app.schemas.ai_chat import ChatMessageCreate, ChatRoomCreate
+from app.schemas.ai_chat import (
+    ChatMessageCreate,
+    ChatMessageResponse,
+    ChatRoomCreate,
+    ChatRoomResponse,
+)
 from app.core.ai_bot import campus_ai_bot
 from app.services.timetable_context import (
     build_main_timetable_context,
@@ -19,6 +28,37 @@ AI_REQUEST_WINDOW = timedelta(minutes=1)
 
 class AIRequestLimitExceeded(ValueError):
     pass
+
+
+def encode_stream_event(event: dict[str, Any]) -> bytes:
+    """Encode one NDJSON event using ASCII-safe JSON for mobile stream readers."""
+    return (json.dumps(event, ensure_ascii=True, default=str) + "\n").encode("ascii")
+
+
+def _serialize_message(message: Message) -> dict[str, Any]:
+    return ChatMessageResponse.model_validate(message).model_dump(mode="json")
+
+
+def _serialize_room(room: ChatRoom) -> dict[str, Any]:
+    return ChatRoomResponse.model_validate(room).model_dump(mode="json")
+
+
+def _build_personal_context(db: Session, user: User, content: str) -> str | None:
+    if not needs_timetable_context(content):
+        return None
+
+    personal_context = build_main_timetable_context(db, user)
+    print(
+        f"[AI Bot] 개인 시간표 Context 추가: user_id={user.id}, "
+        f"length={len(personal_context)}",
+        flush=True,
+    )
+    return personal_context
+
+
+def _set_initial_room_title(room: ChatRoom, content: str) -> None:
+    if room.title in {"새 채팅", "새로운 채팅"}:
+        room.title = content[:20] + ("..." if len(content) > 20 else "")
 
 
 def enforce_ai_request_limit(db: Session, user: User) -> None:
@@ -84,14 +124,7 @@ async def send_message(db: Session, user: User, room_id: int, data: ChatMessageC
 
     # AI 봇에게 RAG 기반 질문 답변 요청
     print(f"DEBUG: [chat_service] Calling AI bot for room {room_id}...")
-    personal_context = None
-    if needs_timetable_context(data.content):
-        personal_context = build_main_timetable_context(db, user)
-        print(
-            f"[AI Bot] 개인 시간표 Context 추가: user_id={user.id}, "
-            f"length={len(personal_context)}",
-            flush=True,
-        )
+    personal_context = _build_personal_context(db, user, data.content)
 
     reply = await campus_ai_bot.ask(
         data.content,
@@ -103,13 +136,107 @@ async def send_message(db: Session, user: User, room_id: int, data: ChatMessageC
     db.add(assistant_message)
 
     # 채팅방 제목이 기본값이면 첫 질문으로 업데이트 (최대 20자)
-    if room.title == "새 채팅" or room.title == "새로운 채팅":
-        room.title = data.content[:20] + ("..." if len(data.content) > 20 else "")
+    _set_initial_room_title(room, data.content)
 
     db.commit()
     db.refresh(room)
     db.refresh(assistant_message)
     return room, user_message, assistant_message
+
+
+def prepare_stream_message(
+    db: Session,
+    user: User,
+    room_id: int,
+    data: ChatMessageCreate,
+) -> tuple[ChatRoom, Message, str | None]:
+    """Validate the request and persist its user message before streaming starts."""
+    room = get_my_room(db, user, room_id)
+    if not room:
+        raise ValueError("Chat room not found")
+
+    enforce_ai_request_limit(db, user)
+    personal_context = _build_personal_context(db, user, data.content)
+
+    user_message = Message(
+        chat_room_id=room.id,
+        role="user",
+        content=data.content,
+    )
+    db.add(user_message)
+    _set_initial_room_title(room, data.content)
+    db.commit()
+    db.refresh(room)
+    db.refresh(user_message)
+    return room, user_message, personal_context
+
+
+async def stream_message(
+    room: ChatRoom,
+    user_message: Message,
+    question: str,
+    *,
+    personal_context: str | None = None,
+) -> AsyncIterator[bytes]:
+    """Stream one assistant reply as NDJSON and persist it after completion."""
+    yield encode_stream_event(
+        {
+            "type": "start",
+            "room": _serialize_room(room),
+            "user_message": _serialize_message(user_message),
+        }
+    )
+    yield encode_stream_event({"type": "status", "status": "searching"})
+
+    chunks: list[str] = []
+    generation_started = False
+    try:
+        async for chunk in campus_ai_bot.astream_answer(
+            question,
+            personal_context=personal_context,
+        ):
+            if not generation_started:
+                generation_started = True
+                yield encode_stream_event(
+                    {"type": "status", "status": "generating"}
+                )
+            chunks.append(chunk)
+            yield encode_stream_event({"type": "delta", "content": chunk})
+
+        reply = "".join(chunks)
+        if not reply:
+            raise RuntimeError("AI bot returned an empty response")
+
+        with SessionLocal() as stream_db:
+            assistant_message = Message(
+                chat_room_id=room.id,
+                role="assistant",
+                content=reply,
+            )
+            stream_db.add(assistant_message)
+            stream_db.commit()
+            stream_db.refresh(assistant_message)
+            persisted_room = stream_db.get(ChatRoom, room.id)
+            if persisted_room is None:
+                raise RuntimeError("Chat room disappeared while saving the response")
+            done_event = {
+                "type": "done",
+                "room": _serialize_room(persisted_room),
+                "assistant_message": _serialize_message(assistant_message),
+            }
+
+        yield encode_stream_event(done_event)
+    except Exception as exc:
+        print(
+            f"❌ [chat_service] 스트리밍 답변 생성 실패: {exc}",
+            flush=True,
+        )
+        yield encode_stream_event(
+            {
+                "type": "error",
+                "message": "답변 생성 중 오류가 발생했습니다.",
+            }
+        )
 
 
 async def demo_reply(message: str) -> str:

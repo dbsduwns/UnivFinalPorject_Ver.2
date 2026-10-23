@@ -1,4 +1,9 @@
 {
+  "semester": "2026-2",
+  "start_time": "26.09.01",
+  "end_time": "26.12.16",
+  "source_url": "https://web.kangnam.ac.kr/comm/cmnFile/download.do?encFileGrpSeq=30b657849b5d890751f6fb6241fcce48&encFileSeq=6fb214568aa9a6fa16124ef1609676b9",
+  "title": "무료셔틀 이용안내",
   "routes": [
     {
       "route_name": "기흥역-이공관",
@@ -14,7 +19,7 @@
           "travel_minutes_from_previous": 0
         },
         {
-          "stop_name": "강남대역 스타벅스",
+          "stop_name": "강남대역 스타벅스(이공관 방향)",
           "stop_order": 2,
           "latitude": 37.27055399370768,
           "longitude": 127.12576199083658,
@@ -186,7 +191,7 @@
           "travel_minutes_from_previous": 3
         },
         {
-          "stop_name": "강남대역 스타벅스",
+          "stop_name": "강남대역 스타벅스(기흥역 방향)",
           "stop_order": 4,
           "latitude": 37.27092095132711,
           "longitude": 127.1259655440124,

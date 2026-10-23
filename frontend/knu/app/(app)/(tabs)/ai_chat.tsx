@@ -13,11 +13,11 @@ import {
   Animated,
   Alert,
 } from "react-native";
-import { Send, Bot, User, Inbox, Plus, MessageSquare, X, Trash2, Edit3 } from "lucide-react-native";
+import { Send, Bot, User, Inbox, Plus, MessageSquare, X, Trash2, Edit3, Square } from "lucide-react-native";
 
 import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
 import { chatApi } from "@/features/ai_chat/api/ai_chat";
-import type { ChatMessage, ChatRoom } from "@/features/ai_chat/api/types";
+import type { ChatMessage, ChatRoom, ChatStreamStatus } from "@/features/ai_chat/api/types";
 
 const DRAWER_WIDTH = 300;
 
@@ -28,6 +28,8 @@ export default function AIChatScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamStatus, setStreamStatus] = useState<ChatStreamStatus | null>(null);
   const [currentRoom, setCurrentRoom] = useState<ChatRoom | null>(null);
   
   // Drawer 상태
@@ -38,11 +40,19 @@ export default function AIChatScreen() {
   const flatListRef = useRef<FlatList>(null);
   const hasProcessedQuery = useRef(false);
   const shouldScrollRef = useRef(false);
+  const streamAbortControllerRef = useRef<AbortController | null>(null);
 
   // 채팅 삭제 & 이름 수정 모달 상태
   const [isSetModalOpen, setIsSetModalOpen] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<ChatRoom | null>(null);
   const [editTitle, setEditTitle] = useState("");
+
+  const stopStreaming = () => {
+    streamAbortControllerRef.current?.abort();
+    streamAbortControllerRef.current = null;
+    setStreamStatus(null);
+    setIsStreaming(false);
+  };
 
   const openDrawer = () => {
     setIsDrawerOpen(true);
@@ -62,6 +72,10 @@ export default function AIChatScreen() {
   };
 
   const loadRoom = async (room: ChatRoom) => {
+    if (isStreaming) {
+      Alert.alert("답변 작성 중", "현재 답변을 중단한 뒤 채팅방을 이동해 주세요.");
+      return;
+    }
     closeDrawer();
     if (currentRoom?.id === room.id) return;
     
@@ -81,6 +95,10 @@ export default function AIChatScreen() {
   };
 
   const createNewRoom = async () => {
+    if (isStreaming) {
+      Alert.alert("답변 작성 중", "현재 답변을 중단한 뒤 새 채팅을 시작해 주세요.");
+      return;
+    }
     closeDrawer();
     setIsLoading(true);
     try {
@@ -177,38 +195,110 @@ export default function AIChatScreen() {
       }
     }
 
-    const tempUserMsg: ChatMessage = {
-      id: Date.now(),
+    const requestId = Date.now();
+    const tempUserId = -requestId;
+    const tempAssistantId = -(requestId + 1);
+    const createdAt = new Date().toISOString();
+    const tempUserMessage: ChatMessage = {
+      id: tempUserId,
       chat_room_id: targetRoom.id,
       role: "user",
       content: userContent,
-      created_at: new Date().toISOString(),
+      created_at: createdAt,
+    };
+    const tempAssistantMessage: ChatMessage = {
+      id: tempAssistantId,
+      chat_room_id: targetRoom.id,
+      role: "assistant",
+      content: "",
+      created_at: createdAt,
     };
 
     shouldScrollRef.current = true;
-    setMessages((prev) => [...prev, tempUserMsg]);
+    setMessages((prev) => [...prev, tempUserMessage, tempAssistantMessage]);
+
+    const controller = new AbortController();
+    streamAbortControllerRef.current = controller;
+    setIsStreaming(true);
+    setStreamStatus("searching");
 
     try {
-      const response = await chatApi.sendMessage(targetRoom.id, userContent);
-      shouldScrollRef.current = true;
-      setMessages((prev) => {
-        const filtered = prev.filter(m => m.id !== tempUserMsg.id);
-        return [...filtered, response.data.user_message, response.data.assistant_message];
-      });
-      
-      // 채팅방 목록 최신화
+      await chatApi.streamMessage(
+        targetRoom.id,
+        userContent,
+        (event) => {
+          shouldScrollRef.current = true;
+
+          if (event.type === "start") {
+            setCurrentRoom(event.room);
+            setChatRooms((previous) =>
+              previous.map((room) =>
+                room.id === event.room.id ? event.room : room,
+              ),
+            );
+            setMessages((previous) =>
+              previous.map((message) =>
+                message.id === tempUserId ? event.user_message : message,
+              ),
+            );
+            return;
+          }
+
+          if (event.type === "status") {
+            setStreamStatus(event.status);
+            return;
+          }
+
+          if (event.type === "delta") {
+            setMessages((previous) =>
+              previous.map((message) =>
+                message.id === tempAssistantId
+                  ? { ...message, content: message.content + event.content }
+                  : message,
+              ),
+            );
+            return;
+          }
+
+          if (event.type === "done") {
+            setCurrentRoom(event.room);
+            setStreamStatus(null);
+            setMessages((previous) =>
+              previous.map((message) =>
+                message.id === tempAssistantId
+                  ? event.assistant_message
+                  : message,
+              ),
+            );
+          }
+        },
+        controller.signal,
+      );
+
       const roomsResponse = await chatApi.getRooms();
       setChatRooms(roomsResponse.data);
-    } catch (error: any) {
-      console.error("Failed to send message:", error);
-      if (error.code === 'ECONNABORTED') {
-        alert("요청 시간이 초과되었습니다. (서버 응답 지연)");
-      } else if (error.message === 'Network Error') {
-        alert("네트워크 연결이 원활하지 않습니다. Wi-Fi 상태를 확인해 주세요.");
-      } else {
-        alert("메시지 전송에 실패했습니다.");
+    } catch (error: unknown) {
+      if (!controller.signal.aborted) {
+        console.error("Failed to stream message:", error);
+        const message =
+          error instanceof Error
+            ? error.message
+            : "메시지 전송에 실패했습니다.";
+        Alert.alert("답변 생성 실패", message);
+      }
+
+      try {
+        const messagesResponse = await chatApi.getMessages(targetRoom.id);
+        setMessages(messagesResponse.data);
+      } catch (refreshError) {
+        console.error("Failed to refresh messages after stream error", refreshError);
       }
     } finally {
+      if (streamAbortControllerRef.current === controller) {
+        streamAbortControllerRef.current = null;
+      }
+      setStreamStatus(null);
+      setIsStreaming(false);
       setIsLoading(false);
     }
   };
@@ -237,6 +327,12 @@ export default function AIChatScreen() {
     };
 
     initChat();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      streamAbortControllerRef.current?.abort();
+    };
   }, []);
 
   useEffect(() => {
@@ -290,6 +386,12 @@ export default function AIChatScreen() {
 
   const renderMessage = ({ item }: { item: ChatMessage }) => {
     const isAssistant = item.role === "assistant";
+    const displayedContent =
+      isAssistant && !item.content
+        ? streamStatus === "searching"
+          ? "관련 정보를 찾고 있어요..."
+          : "답변을 작성하고 있어요..."
+        : item.content;
     return (
       <View
         className={`flex-row my-2 px-4 ${
@@ -308,8 +410,12 @@ export default function AIChatScreen() {
               : "bg-blue-500 rounded-tr-none"
           }`}
         >
-          <Text className={isAssistant ? "text-gray-800" : "text-white"}>
-            {item.content}
+          <Text
+            className={isAssistant ? "text-gray-800" : "text-white"}
+            style={{ lineHeight: 22 }}
+            selectable={isAssistant}
+          >
+            {displayedContent}
           </Text>
         </View>
         {!isAssistant && (
@@ -362,12 +468,18 @@ export default function AIChatScreen() {
               multiline
             />
             <TouchableOpacity
-              onPress={() => onSend(inputText)}
-              disabled={isLoading || !inputText.trim()}
-              className="w-12 h-12 rounded-full items-center justify-center bg-blue-600 shadow-sm"
-              style={{ opacity: (isLoading || !inputText.trim()) ? 0.5 : 1 }}
+              onPress={isStreaming ? stopStreaming : () => onSend(inputText)}
+              disabled={!isStreaming && (isLoading || !inputText.trim())}
+              className={`w-12 h-12 rounded-full items-center justify-center shadow-sm ${
+                isStreaming ? "bg-red-500" : "bg-blue-600"
+              }`}
+              style={{
+                opacity: !isStreaming && (isLoading || !inputText.trim()) ? 0.5 : 1,
+              }}
             >
-              {isLoading ? (
+              {isStreaming ? (
+                <Square size={18} color="white" fill="white" />
+              ) : isLoading ? (
                 <ActivityIndicator size="small" color="white" />
               ) : (
                 <Send size={20} color="white" />

@@ -1,0 +1,32 @@
+{"id":"notice-academic-registration","type":"공지-학사","query":"수강신청 일정 공지 찾아줘","expected":{"sources":["공지사항"],"title_contains":["수강신청"]},"filter_candidates":{"source":"공지사항","category":"학사"}}
+{"id":"calendar-course-drop","type":"학사일정","query":"수강철회나 수강포기 기간은 언제야?","expected":{"sources":["학사일정"],"title_contains":["수강포기"]},"filter_candidates":{"source":"학사일정","academic_year":2026},"require_complete_filter":true}
+{"id":"notice-academic-major-change","type":"공지-학사","query":"전공이수 신청이나 변경 공지 찾아줘","expected":{"sources":["공지사항"],"title_contains":["전공이수"]},"filter_candidates":{"source":"공지사항","category":"학사"}}
+{"id":"notice-academic-graduation","type":"공지-학사","query":"졸업 관련 신청 안내 찾아줘","expected":{"sources":["공지사항"],"title_contains":["졸업"]},"filter_candidates":{"source":"공지사항","category":"학사"}}
+{"id":"notice-academic-enrollment","type":"공지-학사","query":"휴학이나 복학 신청 공지 있나요?","expected":{"sources":["공지사항"],"title_contains":["휴학","복학"]},"filter_candidates":{"source":"공지사항","category":"학사"}}
+{"id":"notice-academic-exam","type":"공지-학사","query":"시험 운영 관련 학사 공지 알려줘","expected":{"sources":["공지사항"],"title_contains":["시험"]},"filter_candidates":{"source":"공지사항","category":"학사"}}
+{"id":"notice-scholarship-national","type":"공지-장학","query":"국가장학금 신청 공지 찾아줘","expected":{"sources":["공지사항"],"title_contains":["국가장학금"]},"filter_candidates":{"source":"공지사항","category":"장학"}}
+{"id":"notice-scholarship-workstudy","type":"공지-장학","query":"근로장학생 모집 안내 있나요?","expected":{"sources":["공지사항"],"title_contains":["근로"]},"filter_candidates":{"source":"공지사항","category":"장학"}}
+{"id":"notice-scholarship-merit","type":"공지-장학","query":"교내 장학금 신청 자격 공지","expected":{"sources":["공지사항"],"title_contains":["장학"]},"filter_candidates":{"source":"공지사항","category":"장학"}}
+{"id":"notice-scholarship-tuition","type":"공지-장학","query":"등록금 감면 장학 안내 찾아줘","expected":{"sources":["공지사항"],"title_contains":["장학"]},"filter_candidates":{"source":"공지사항","category":"장학"}}
+{"id":"notice-career-employment","type":"공지-취창업","query":"취업 프로그램 참가자 모집 공지","expected":{"sources":["공지사항"],"title_contains":["취업"]},"filter_candidates":{"source":"공지사항","category":"취창업"}}
+{"id":"notice-career-startup","type":"공지-취창업","query":"창업 지원 프로그램 안내","expected":{"sources":["공지사항"],"title_contains":["창업"]},"filter_candidates":{"source":"공지사항","category":"취창업"}}
+{"id":"notice-career-recruit","type":"공지-취창업","query":"기업 채용 설명회 신청 공지","expected":{"sources":["공지사항"],"title_contains":["채용"]},"filter_candidates":{"source":"공지사항","category":"취창업"}}
+{"id":"notice-career-intern","type":"공지-취창업","query":"현장실습이나 인턴십 공지 찾아줘","expected":{"sources":["공지사항"],"title_contains":["현장실습","인턴"]},"filter_candidates":{"source":"공지사항","category":"취창업"}}
+{"id":"notice-learning-tutoring","type":"공지-학습상담","query":"학습 상담 프로그램 신청 안내","expected":{"sources":["공지사항"],"title_contains":["상담"]},"filter_candidates":{"source":"공지사항","category":"학습/상담"}}
+{"id":"notice-learning-tutoring2","type":"공지-학습상담","query":"튜터링 참여 학생 모집 공지","expected":{"sources":["공지사항"],"title_contains":["튜터링"]},"filter_candidates":{"source":"공지사항","category":"학습/상담"}}
+{"id":"notice-learning-counsel","type":"공지-학습상담","query":"심리상담 이용 신청 방법 공지","expected":{"sources":["공지사항"],"title_contains":["상담"]},"filter_candidates":{"source":"공지사항","category":"학습/상담"}}
+{"id":"notice-learning-study","type":"공지-학습상담","query":"학습 역량 강화 프로그램 모집","expected":{"sources":["공지사항"],"title_contains":["학습"]},"filter_candidates":{"source":"공지사항","category":"학습/상담"}}
+{"id":"calendar-semester-start","type":"학사일정","query":"2학기 개강일이 언제야?","expected":{"sources":["학사일정"],"title_contains":["개강"]},"filter_candidates":{"source":"학사일정","academic_year":2026},"require_complete_filter":true}
+{"id":"calendar-course-evaluation","type":"학사일정","query":"2학기 강의평가 기간 알려줘","expected":{"sources":["학사일정"],"title_contains":["강의평가기간"]},"filter_candidates":{"source":"학사일정","academic_year":2026},"require_complete_filter":true}
+{"id":"calendar-midterm","type":"학사일정","query":"2학기 중간고사 기간 언제야?","expected":{"sources":["학사일정"],"title_contains":["중간"]},"filter_candidates":{"source":"학사일정","academic_year":2026},"require_complete_filter":true}
+{"id":"calendar-final","type":"학사일정","query":"2학기 기말시험 기간 알려줘","expected":{"sources":["학사일정"],"title_contains":["기말"]},"filter_candidates":{"source":"학사일정","academic_year":2026},"require_complete_filter":true}
+{"id":"calendar-registration","type":"학사일정","query":"수강신청 기간이 언제인지 학사일정에서 찾아줘","expected":{"sources":["학사일정"],"title_contains":["수강신청"]},"filter_candidates":{"source":"학사일정","academic_year":2026},"require_complete_filter":true}
+{"id":"calendar-adddrop","type":"학사일정","query":"수강정정 기간 알려줘","expected":{"sources":["학사일정"],"title_contains":["수강신청변경"]},"filter_candidates":{"source":"학사일정","academic_year":2026},"require_complete_filter":true}
+{"id":"calendar-winter-session","type":"학사일정","query":"겨울 계절수업 기간은 언제야?","expected":{"sources":["학사일정"],"title_contains":["계절수업기간"]},"filter_candidates":{"source":"학사일정","academic_year":2026},"require_complete_filter":true}
+{"id":"calendar-graduation","type":"학사일정","query":"졸업식 예정일 알려줘","expected":{"sources":["학사일정"],"title_contains":["졸업"]},"filter_candidates":{"source":"학사일정","academic_year":2026},"require_complete_filter":true}
+{"id":"calendar-holiday","type":"학사일정","query":"공휴일이나 휴업일 일정 찾아줘","expected":{"sources":["학사일정"],"title_contains":["휴업","공휴일"]},"filter_candidates":{"source":"학사일정","academic_year":2026},"require_complete_filter":true}
+{"id":"calendar-break","type":"학사일정","query":"학기 중간 휴일 일정이 있나요?","expected":{"sources":["학사일정"],"title_contains":["휴일","휴업"]},"filter_candidates":{"source":"학사일정","academic_year":2026},"require_complete_filter":true}
+{"id":"shuttle-timetable","type":"셔틀","query":"강남대학교 셔틀버스 시간표 알려줘","expected":{"sources":["셔틀시간표"],"content_contains":["셔틀버스","시간표"]},"filter_candidates":{"source":"셔틀시간표"}}
+{"id":"shuttle-semester","type":"셔틀","query":"이번 학기 셔틀 운행 일정 확인해줘","expected":{"sources":["셔틀시간표"],"content_contains":["셔틀버스","학기"]},"filter_candidates":{"source":"셔틀시간표"}}
+{"id":"shuttle-download","type":"셔틀","query":"셔틀 시간표 파일 링크 어디 있어?","expected":{"sources":["셔틀시간표"],"content_contains":["시간표","링크"]},"filter_candidates":{"source":"셔틀시간표"}}
+{"id":"shuttle-route","type":"셔틀","query":"학교 셔틀버스 운행 정보 찾아줘","expected":{"sources":["셔틀시간표"],"content_contains":["셔틀버스","운행"]},"filter_candidates":{"source":"셔틀시간표"}}

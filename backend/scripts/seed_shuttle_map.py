@@ -6,10 +6,13 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
+
+if TYPE_CHECKING:
+    from langchain_core.documents import Document
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -49,6 +52,19 @@ def parse_time(value: str) -> time:
         raise ValueError(f"잘못된 시간 형식입니다: {value!r} (HH:MM 필요)") from exc
 
 
+def parse_seed_date(value: str, field_name: str) -> date:
+    """시드에서 사용하는 날짜를 검증하고 날짜 객체로 변환합니다."""
+    for date_format in ("%Y-%m-%d", "%Y.%m.%d", "%y.%m.%d"):
+        try:
+            return datetime.strptime(value, date_format).date()
+        except (TypeError, ValueError):
+            continue
+    raise ValueError(
+        f"{field_name} 날짜 형식이 올바르지 않습니다: {value!r} "
+        "(YYYY-MM-DD, YYYY.MM.DD 또는 YY.MM.DD 필요)"
+    )
+
+
 def load_seed_data(seed_path: Path) -> dict[str, Any]:
     try:
         payload = json.loads(seed_path.read_text(encoding="utf-8"))
@@ -58,9 +74,149 @@ def load_seed_data(seed_path: Path) -> dict[str, Any]:
         raise ValueError(f"JSON 형식이 올바르지 않습니다: {exc}") from exc
 
     routes = payload.get("routes")
-    if not isinstance(routes, list):
-        raise ValueError("seed JSON의 routes는 배열이어야 합니다.")
+    if not isinstance(routes, list) or not routes:
+        raise ValueError("seed JSON의 routes는 비어 있지 않은 배열이어야 합니다.")
+
+    route_names: set[str] = set()
+    for route_data in routes:
+        route_name = str(route_data.get("route_name") or "").strip()
+        if not route_name:
+            raise ValueError("route_name이 비어 있습니다.")
+        if route_name in route_names:
+            raise ValueError(f"route_name이 중복됩니다: {route_name}")
+        route_names.add(route_name)
+
+        stops = route_data.get("stops")
+        schedules = route_data.get("schedules")
+        if not isinstance(stops, list) or not stops:
+            raise ValueError(f"정류장이 없는 노선입니다: {route_name}")
+        if not isinstance(schedules, list) or not schedules:
+            raise ValueError(f"운행 일정이 없는 노선입니다: {route_name}")
+
+        stop_orders = [int(stop["stop_order"]) for stop in stops]
+        if len(stop_orders) != len(set(stop_orders)):
+            raise ValueError(f"정류장 순서가 중복됩니다: {route_name}")
+
+        ordered_stops = sorted(stops, key=lambda item: int(item["stop_order"]))
+        origin_stop = str(route_data.get("origin_stop") or "").strip()
+        destination_stop = str(route_data.get("destination_stop") or "").strip()
+        if origin_stop and origin_stop != str(ordered_stops[0].get("stop_name") or ""):
+            raise ValueError(f"origin_stop과 첫 정류장이 다릅니다: {route_name}")
+        if destination_stop and destination_stop != str(
+            ordered_stops[-1].get("stop_name") or ""
+        ):
+            raise ValueError(f"destination_stop과 마지막 정류장이 다릅니다: {route_name}")
+
+        schedule_days: set[str] = set()
+        for schedule_data in schedules:
+            day_of_week = str(schedule_data.get("day_of_week") or "").upper()
+            if day_of_week not in {"MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"}:
+                raise ValueError(
+                    f"요일 형식이 올바르지 않습니다: {route_name}/{day_of_week!r}"
+                )
+            if day_of_week in schedule_days:
+                raise ValueError(f"요일이 중복됩니다: {route_name}/{day_of_week}")
+            schedule_days.add(day_of_week)
+
+            departure_times = schedule_data.get("departure_times")
+            if not isinstance(departure_times, list) or not departure_times:
+                raise ValueError(
+                    f"departure_times는 비어 있지 않은 배열이어야 합니다: "
+                    f"{route_name}/{day_of_week}"
+                )
+            parsed_times = [parse_time(str(value)) for value in departure_times]
+            if len(parsed_times) != len(set(parsed_times)):
+                raise ValueError(f"출발 시간이 중복됩니다: {route_name}/{day_of_week}")
+
+    start_value = str(payload.get("start_time") or payload.get("start_date") or "").strip()
+    end_value = str(payload.get("end_time") or payload.get("end_date") or "").strip()
+    if start_value or end_value:
+        if not start_value or not end_value:
+            raise ValueError("운행 기간은 시작일과 종료일을 모두 입력해야 합니다.")
+        start_date = parse_seed_date(start_value, "start_time")
+        end_date = parse_seed_date(end_value, "end_time")
+        if start_date > end_date:
+            raise ValueError("start_time은 end_time보다 늦을 수 없습니다.")
     return payload
+
+
+def build_shuttle_rag_records(
+    payload: dict[str, Any],
+) -> list[tuple[str, Document]]:
+    """셔틀 시드를 검색 가능한 노선·요일별 Qdrant 문서로 변환합니다."""
+    from langchain_core.documents import Document
+
+    semester = str(payload.get("semester") or "").strip()
+    title = str(payload.get("title") or "무료셔틀 이용안내").strip()
+    source_url = str(payload.get("source_url") or "").strip()
+    start_value = str(payload.get("start_time") or payload.get("start_date") or "").strip()
+    end_value = str(payload.get("end_time") or payload.get("end_date") or "").strip()
+    start_date = parse_seed_date(start_value, "start_time").isoformat()
+    end_date = parse_seed_date(end_value, "end_time").isoformat()
+
+    if not semester:
+        raise ValueError("Qdrant 인덱싱을 위해 semester가 필요합니다.")
+    if not source_url:
+        raise ValueError("Qdrant 인덱싱을 위해 source_url이 필요합니다.")
+
+    records: list[tuple[str, Document]] = []
+    for route_data in payload["routes"]:
+        route_name = str(route_data["route_name"])
+        direction = str(route_data.get("direction") or "")
+        origin_stop = str(route_data.get("origin_stop") or "")
+        destination_stop = str(route_data.get("destination_stop") or "")
+        ordered_stops = sorted(
+            route_data["stops"], key=lambda item: int(item["stop_order"])
+        )
+        elapsed_minutes = 0
+        stop_offsets: list[str] = []
+        for stop in ordered_stops:
+            elapsed_minutes += int(stop.get("travel_minutes_from_previous", 0))
+            stop_offsets.append(f"{stop['stop_name']}({elapsed_minutes}분)")
+        stop_description = " → ".join(stop_offsets)
+
+        for schedule_data in route_data["schedules"]:
+            day_of_week = str(schedule_data["day_of_week"]).upper()
+            departure_times = [str(value) for value in schedule_data["departure_times"]]
+            page_content = "\n".join(
+                [
+                    f"강남대학교 셔틀버스 운행 시간표: {title}",
+                    f"학기: {semester}",
+                    f"운행 기간: {start_date} ~ {end_date}",
+                    f"노선: {route_name}",
+                    f"운행 방향: {origin_stop}에서 {destination_stop} 방향",
+                    f"운행 요일: {day_of_week}",
+                    f"출발 시간: {', '.join(departure_times)}",
+                    f"정류장과 출발지 기준 예상 시간: {stop_description}",
+                    f"시간표 파일 링크: {source_url}",
+                ]
+            )
+            source_id = f"shuttle-map:{semester}:{route_name}:{day_of_week}"
+            records.append(
+                (
+                    source_id,
+                    Document(
+                        page_content=page_content,
+                        metadata={
+                            "source": "셔틀시간표",
+                            "source_type": "shuttle_map_seed",
+                            "source_document_id": source_id,
+                            "title": title,
+                            "semester": semester,
+                            "start_date": start_date,
+                            "end_date": end_date,
+                            "source_url": source_url,
+                            "type": "transport",
+                            "route_name": route_name,
+                            "direction": direction,
+                            "origin_stop": origin_stop,
+                            "destination_stop": destination_stop,
+                            "day_of_week": day_of_week,
+                        },
+                    ),
+                )
+            )
+    return records
 
 
 def get_or_create_route(db, route_data: dict[str, Any]) -> ShuttleMapRoute:

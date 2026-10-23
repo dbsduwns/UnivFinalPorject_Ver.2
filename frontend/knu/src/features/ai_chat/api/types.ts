@@ -19,3 +19,29 @@ export interface ChatSendResponse {
     user_message: ChatMessage;
     assistant_message: ChatMessage;
 }
+
+export type ChatStreamStatus = 'searching' | 'generating';
+
+export type ChatStreamEvent =
+    | {
+        type: 'start';
+        room: ChatRoom;
+        user_message: ChatMessage;
+    }
+    | {
+        type: 'status';
+        status: ChatStreamStatus;
+    }
+    | {
+        type: 'delta';
+        content: string;
+    }
+    | {
+        type: 'done';
+        room: ChatRoom;
+        assistant_message: ChatMessage;
+    }
+    | {
+        type: 'error';
+        message: string;
+    };

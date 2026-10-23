@@ -5,6 +5,7 @@ from collections import Counter
 from datetime import datetime
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
+from collections.abc import AsyncIterator
 
 from dotenv import load_dotenv
 
@@ -14,6 +15,7 @@ from app.services.academic_calendar import (
     is_academic_calendar_query,
 )
 from app.services.timetable_context import is_timetable_only_query
+from app.core.retrieval_filters import infer_retrieval_filter
 
 if TYPE_CHECKING:
     from langchain_core.documents import Document
@@ -37,6 +39,13 @@ NOTICE_QUERY_KEYWORDS = (
     "상담",
     "모집",
     "신청",
+)
+
+SHUTTLE_QUERY_KEYWORDS = (
+    "셔틀",
+    "통학버스",
+    "기흥역",
+    "이공관",
 )
 
 QUERY_REWRITE_CUES = (
@@ -113,6 +122,8 @@ class CampusAIBot:
                     collection_name=collection_name,
                     embeddings=self.embeddings,
                     search_limit=search_limit,
+                    lexical_weight=float(os.getenv("QDRANT_LEXICAL_WEIGHT", "0.25")),
+                    vector_weight=float(os.getenv("QDRANT_VECTOR_WEIGHT", "0.75")),
                 )
                 collection_status = self.vectorstore.collection_status()
                 if collection_status["exists"]:
@@ -166,12 +177,20 @@ class CampusAIBot:
 제공된 Context를 근거로 사용자의 질문에 정확하고 친절하게 답변하세요.
 
 ### 지침
-1. Context에 있는 공지사항과 공식 학사일정을 최우선 근거로 사용하세요.
+1. Context에 있는 공지사항, 공식 학사일정, 셔틀 운행 정보를 최우선 근거로 사용하세요.
 2. 공지사항은 제목, 카테고리, 게시일을 구분하고 서로 다른 공지의 내용을 합치지 마세요.
 3. 학사일정은 시작일과 종료일을 정확히 구분하세요.
 4. Context에 없는 날짜, 자격, 신청 방법이나 링크를 추측하지 마세요.
 5. 근거가 부족하면 "확인할 수 있는 정보가 없습니다"라고 명확히 안내하세요.
 6. 학생에게 설명하듯 자연스러운 "해요"체를 사용하세요.
+7. 질문에 대한 직접적인 답을 첫 문장에 제시하세요.
+8. 여러 항목은 '• ' 글머리표로 구분하고 같은 내용을 반복하지 마세요.
+9. 일정 정보는 날짜, 시간, 장소를 구분하고 Context의 표기를 정확히 유지하세요.
+10. 사용자가 해야 할 일이 있으면 '확인할 내용' 아래에 간단히 정리하세요.
+11. 근거가 되는 Context 문서 번호를 문장 끝에 [1], [2]처럼 표시하세요.
+12. 정보가 없는 항목의 제목은 만들지 마세요.
+13. 단순 질문은 짧게 답하고, 여러 일정이나 조건을 비교할 때만 항목을 나누세요.
+14. Markdown 굵게 문법이나 표는 사용하지 마세요.
 
 # 오늘 날짜
 {current_date}
@@ -244,12 +263,15 @@ class CampusAIBot:
     def _rank_documents(self, documents: list[Document], question: str) -> list[Document]:
         academic_query = is_academic_calendar_query(question)
         notice_query = any(keyword in question for keyword in NOTICE_QUERY_KEYWORDS)
+        shuttle_query = any(keyword in question for keyword in SHUTTLE_QUERY_KEYWORDS)
 
         def priority(document: Document) -> tuple[int, str]:
             source = self._document_source(document)
             if academic_query and source == "학사일정":
                 return (0, source)
             if notice_query and source == "공지사항":
+                return (0, source)
+            if shuttle_query and source == "셔틀시간표":
                 return (0, source)
             if source in {"공지사항", "학사일정"}:
                 return (1, source)
@@ -298,7 +320,34 @@ class CampusAIBot:
             retrieval_query = f"{retrieval_query}\n검색 보강: {rewritten}"
 
         try:
-            retrieved = await self.retriever.ainvoke(retrieval_query)
+            decision = infer_retrieval_filter(question)
+
+            if decision.confidence == "high":
+                filtered = await self.retriever.asearch(
+                    retrieval_query,
+                    metadata_filter=decision.metadata_filter,
+                )
+            else:
+                filtered = []
+
+            if len(filtered) < DEFAULT_QDRANT_SEARCH_LIMIT:
+                unfiltered = await self.retriever.asearch(retrieval_query)
+
+                retrieved = []
+                seen = set()
+
+                for document in [*filtered, *unfiltered]:
+                    identity = self._document_identity(document)
+                    if identity in seen:
+                        continue
+
+                    seen.add(identity)
+                    retrieved.append(document)
+
+                    if len(retrieved) >= DEFAULT_QDRANT_SEARCH_LIMIT:
+                        break
+            else:
+                retrieved = filtered
         except Exception as exc:
             print(f"❌ [AI Bot] Qdrant 검색 실패: {exc}", flush=True)
             return []
@@ -374,15 +423,17 @@ class CampusAIBot:
             else "검색된 정보가 없습니다."
         )
 
-    async def ask(
+    async def astream_answer(
         self,
         question: str,
         personal_context: str | None = None,
-    ) -> str:
+    ) -> AsyncIterator[str]:
+        """RAG 검색을 수행하고 LLM 답변을 문자열 조각 단위로 반환합니다."""
         if not self.is_initialized:
             print("🤖 [AI Bot] 초기화를 시작합니다...", flush=True)
             if not self.initialize():
-                return "AI 엔진이 아직 준비되지 않았습니다."
+                yield "AI 엔진이 아직 준비되지 않았습니다."
+                return
 
         try:
             print(f"🔍 [AI Bot] 원본 질문: {question}", flush=True)
@@ -410,23 +461,48 @@ class CampusAIBot:
                 flush=True,
             )
 
-            response = await self.answer_chain.ainvoke(
+            produced_chunk = False
+            async for chunk in self.answer_chain.astream(
                 {
                     "context": context,
                     "question": question,
                     "current_date": datetime.now(SEOUL_TIMEZONE).strftime("%Y-%m-%d"),
                 }
-            )
+            ):
+                if not chunk:
+                    continue
+                produced_chunk = True
+                yield chunk
+
+            if not produced_chunk:
+                raise RuntimeError("LLM이 빈 답변을 반환했습니다.")
             print("✅ [AI Bot] 답변 생성 완료", flush=True)
-            return response
         except Exception as exc:
             print(f"❌ [AI Bot] 질문 처리 중 오류 발생: {exc}", flush=True)
             import traceback
 
             traceback.print_exc()
+            raise
+
+    async def ask(
+        self,
+        question: str,
+        personal_context: str | None = None,
+    ) -> str:
+        """기존 호출자를 위해 스트림을 모아 완성된 답변 문자열로 반환합니다."""
+        try:
+            chunks: list[str] = []
+            async for chunk in self.astream_answer(
+                question,
+                personal_context=personal_context,
+            ):
+                chunks.append(chunk)
+            return "".join(chunks)
+        except Exception:
             academic_calendar_answer = build_academic_calendar_answer(question)
             if academic_calendar_answer:
                 return academic_calendar_answer
+
             return "상담 도중 오류가 발생했습니다."
 
 
