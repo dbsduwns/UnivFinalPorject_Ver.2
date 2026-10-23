@@ -181,8 +181,20 @@ export default function MealScreen() {
 
   const getFullUrl = (url: string) => {
     if (!url) return "";
-    if (url.startsWith("http")) return url;
-    return `${API_BASE_URL}${url}`;
+    const absoluteUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
+    try {
+      const parsed = new URL(absoluteUrl);
+      if (
+        parsed.protocol === "https:" &&
+        parsed.hostname === "web.kangnam.ac.kr" &&
+        parsed.pathname.startsWith("/comm/cmnFile/")
+      ) {
+        return `${API_BASE_URL}/api/notices/image-proxy?url=${encodeURIComponent(absoluteUrl)}`;
+      }
+    } catch {
+      return absoluteUrl;
+    }
+    return absoluteUrl;
   };
 
   const handleDownload = async () => {

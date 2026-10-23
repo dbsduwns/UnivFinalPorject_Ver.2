@@ -13,7 +13,6 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 interface ImageItem {
     url: string;
     height: number;
-    isAttachment?: boolean;
 }
 
 // 학교 홈페이지 크롤링시 상대 경로 
@@ -166,30 +165,23 @@ export default function NoticeDetail() {
         }
 
         const urls = notice.content ? extractImageUrls(notice.content) : [];
-        const attachmentUrl = notice.attachment_url
-            ? normalizeImageUrl(notice.attachment_url)
-            : null;
-        // 첨부 이미지도 본문 이미지처럼 즉시 표시합니다.
-        // 본문에서 이미 추출된 URL과 중복되는 경우에는 한 번만 표시합니다.
-        const displayItems = [
-            ...urls.map((url) => ({ url: getDisplayImageUrl(url), isAttachment: false })),
-            ...(attachmentUrl && !urls.includes(attachmentUrl)
-                ? [{ url: getDisplayImageUrl(attachmentUrl), isAttachment: true }]
-                : []),
-        ];
+        // attachment_url에는 HWP, PDF 같은 일반 문서도 들어가므로 이미지로
+        // 렌더링하지 않습니다. 본문에서 명시적으로 추출한 이미지만 표시합니다.
+        const displayItems = urls.map((url) => ({
+            url: getDisplayImageUrl(url),
+        }));
 
         if (displayItems.length > 0) {
                 // 모든 이미지의 크기를 가져와서 상태 업데이트
                 const newItems: ImageItem[] = [];
                 let loadedCount = 0;
 
-                displayItems.forEach(({ url, isAttachment }, index) => {
+                displayItems.forEach(({ url }, index) => {
                     Image.getSize(url, (width, height) => {
                         const ratio = height / width;
                         newItems[index] = { 
                             url, 
                             height: (SCREEN_WIDTH - 32) * ratio,
-                            isAttachment,
                         };
                         loadedCount++;
                         
@@ -202,7 +194,6 @@ export default function NoticeDetail() {
                         newItems[index] = {
                             url,
                             height: Math.max(240, SCREEN_WIDTH * 0.75),
-                            isAttachment,
                         };
                         loadedCount++;
                         if (loadedCount === displayItems.length) {
@@ -213,7 +204,7 @@ export default function NoticeDetail() {
         } else {
             setImageItems([]);
         }
-    }, [notice?.content, notice?.attachment_url]);
+    }, [notice?.content]);
 
     // 이미지 태그들을 제외한 순수 텍스트 내용
     const imageUrls = notice?.content ? extractImageUrls(notice.content) : [];
@@ -290,9 +281,6 @@ export default function NoticeDetail() {
                                     console.warn("공지 이미지 표시 실패:", item.url, error.nativeEvent.error);
                                 }}
                             />
-                            {item.isAttachment && (
-                                <Text className="mt-2 text-xs text-gray-400 italic">첨부파일</Text>
-                            )}
                             {index === 0 && imageItems.length === 1 && (
                                 <Text className="mt-2 text-xs text-gray-400 italic">이미지 공지사항입니다.</Text>
                             )}

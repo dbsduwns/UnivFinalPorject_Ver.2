@@ -5,6 +5,7 @@ from app.models.notice import Notice
 from sqlalchemy.orm import Session
 from app.core.ai_bot import campus_ai_bot
 from langchain_core.documents import Document
+from urllib.parse import urljoin
 import json
 import time
 
@@ -88,12 +89,22 @@ def crawl_notice_detail(page, enc_menu_seq, enc_menu_board_seq):
         for hidden in content.select(".contents_add_one1, .contents_add_one2"):
             hidden.decompose()
 
-        content_text = content.text.strip()
+        text_part = content.get_text(separator="\n", strip=True)
+        image_urls = []
+        for image in content.select("img"):
+            src = image.get("src")
+            if not src:
+                continue
+            absolute_url = urljoin(BASE_URL, src)
+            if absolute_url not in image_urls:
+                image_urls.append(absolute_url)
 
-        if not content_text:
-            img = content.select_one("img")
-            if img:
-                content_text = f"[이미지 공지] {img.get('src')}"
+        image_lines = [
+            f"[이미지] {image_url}"
+            for image_url in image_urls
+        ]
+        content_parts = [part for part in [text_part, *image_lines] if part]
+        content_text = "\n\n".join(content_parts) or None
 
     else:
         content_text = None
@@ -102,7 +113,7 @@ def crawl_notice_detail(page, enc_menu_seq, enc_menu_board_seq):
     attachment_url = None
     if attachment:
        href = attachment.get("href")
-       attachment_url = f"https://web.kangnam.ac.kr{href}"
+       attachment_url = urljoin(BASE_URL, href)
 
     return content_text, attachment_url
 
@@ -115,6 +126,9 @@ def save_notices(notices: list):
                 Notice.title == n["title"]
             ).first()
             if existing:
+                # Re-crawling refreshes body image URLs without duplicating notices.
+                existing.content = n["content"] or existing.content
+                existing.attachment_url = n["attachment_url"] or existing.attachment_url
                 continue
          
             notice = Notice(
