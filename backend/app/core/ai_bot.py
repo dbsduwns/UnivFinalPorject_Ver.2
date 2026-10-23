@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from collections.abc import AsyncIterator
 
 from dotenv import load_dotenv
+from pydantic import ValidationError
 
 from app.services.academic_calendar import (
     build_academic_calendar_answer,
@@ -461,18 +462,32 @@ class CampusAIBot:
                 flush=True,
             )
 
+            answer_input = {
+                "context": context,
+                "question": question,
+                "current_date": datetime.now(SEOUL_TIMEZONE).strftime("%Y-%m-%d"),
+            }
             produced_chunk = False
-            async for chunk in self.answer_chain.astream(
-                {
-                    "context": context,
-                    "question": question,
-                    "current_date": datetime.now(SEOUL_TIMEZONE).strftime("%Y-%m-%d"),
-                }
-            ):
-                if not chunk:
-                    continue
-                produced_chunk = True
-                yield chunk
+            try:
+                async for chunk in self.answer_chain.astream(answer_input):
+                    if not chunk:
+                        continue
+                    produced_chunk = True
+                    yield chunk
+            except ValidationError as exc:
+                if produced_chunk:
+                    raise
+                print(
+                    "⚠️ [AI Bot] 공급자 스트림 형식 오류로 일반 응답을 사용합니다: "
+                    f"{exc}",
+                    flush=True,
+                )
+                response = await self.answer_chain.ainvoke(answer_input)
+                for start in range(0, len(response), 24):
+                    chunk = response[start : start + 24]
+                    if chunk:
+                        produced_chunk = True
+                        yield chunk
 
             if not produced_chunk:
                 raise RuntimeError("LLM이 빈 답변을 반환했습니다.")

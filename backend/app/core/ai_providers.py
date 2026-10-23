@@ -56,7 +56,42 @@ def build_chat_model(provider: str | None = None) -> Any:
     if selected_provider == "cloudflare":
         from langchain_openai import ChatOpenAI
 
-        return ChatOpenAI(
+        class CloudflareChatOpenAI(ChatOpenAI):
+            """Tolerate malformed non-text content in Workers AI SSE chunks."""
+
+            def _convert_chunk_to_generation_chunk(
+                self,
+                chunk,
+                default_chunk_class,
+                base_generation_info,
+            ):
+                choices = chunk.get("choices") or (
+                    (chunk.get("chunk") or {}).get("choices")
+                )
+                if choices:
+                    delta = choices[0].get("delta")
+                    if isinstance(delta, dict) and "content" in delta:
+                        content = delta.get("content")
+                        if isinstance(content, list):
+                            valid_content = [
+                                item
+                                for item in content
+                                if isinstance(item, (str, dict))
+                            ]
+                            if len(valid_content) != len(content):
+                                delta["content"] = valid_content
+                        elif content is not None and not isinstance(content, str):
+                            # Workers AI can emit numeric control values in an
+                            # otherwise OpenAI-compatible content field.
+                            delta["content"] = ""
+
+                return super()._convert_chunk_to_generation_chunk(
+                    chunk,
+                    default_chunk_class,
+                    base_generation_info,
+                )
+
+        return CloudflareChatOpenAI(
             model=os.getenv(
                 "CLOUDFLARE_CHAT_MODEL",
                 "@cf/qwen/qwen3-30b-a3b-fp8",
