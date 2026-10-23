@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { ChevronLeft } from "lucide-react-native";
 
 import { useNotice } from "@/features/notice/hooks/use_notices";
+import { API_BASE_URL } from "@/constants/config";
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -36,6 +37,22 @@ const normalizeImageUrl = (value: string): string | null => {
     } catch {
         return null;
     }
+};
+
+const getDisplayImageUrl = (url: string) => {
+    try {
+        const parsed = new URL(url);
+        if (
+            parsed.protocol === "https:" &&
+            parsed.hostname === "web.kangnam.ac.kr" &&
+            parsed.pathname.startsWith("/comm/cmnFile/")
+        ) {
+            return `${API_BASE_URL}/api/notices/image-proxy?url=${encodeURIComponent(url)}`;
+        }
+    } catch {
+        // normalizeImageUrl에서 검증된 값이지만 실패하면 원본 URL을 사용합니다.
+    }
+    return url;
 };
 
 const isLikelyImageUrl = (url: string) => {
@@ -155,9 +172,9 @@ export default function NoticeDetail() {
         // 첨부 이미지도 본문 이미지처럼 즉시 표시합니다.
         // 본문에서 이미 추출된 URL과 중복되는 경우에는 한 번만 표시합니다.
         const displayItems = [
-            ...urls.map((url) => ({ url, isAttachment: false })),
+            ...urls.map((url) => ({ url: getDisplayImageUrl(url), isAttachment: false })),
             ...(attachmentUrl && !urls.includes(attachmentUrl)
-                ? [{ url: attachmentUrl, isAttachment: true }]
+                ? [{ url: getDisplayImageUrl(attachmentUrl), isAttachment: true }]
                 : []),
         ];
 

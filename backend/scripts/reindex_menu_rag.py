@@ -21,6 +21,7 @@ from sqlalchemy.orm import selectinload  # noqa: E402
 from app.core.ai_bot import campus_ai_bot  # noqa: E402
 from app.database import SessionLocal  # noqa: E402
 from app.models.daily_menu import DailyMenu  # noqa: E402
+from app.services.menu_ocr import remove_parenthetical_content  # noqa: E402
 
 
 def parse_date(value: str) -> date:
@@ -63,15 +64,18 @@ def parse_args() -> argparse.Namespace:
 def build_document(menu: DailyMenu) -> Document | None:
     grouped: dict[tuple[str, str, int | None], list[str]] = {}
     for item in menu.menu_items:
+        item_name = remove_parenthetical_content(item.name)
+        if not item_name:
+            continue
         key = (item.meal_type or "식사", item.corner or "메뉴", item.price)
-        grouped.setdefault(key, []).append(item.name)
+        grouped.setdefault(key, []).append(item_name)
 
     if not grouped:
         return None
 
     lines = []
     for (meal_type, corner, price), item_names in grouped.items():
-        price_text = f" ({price:,}원)" if price is not None else ""
+        price_text = f" · {price:,}원" if price is not None else ""
         lines.append(
             f"{meal_type} {corner}{price_text}: {', '.join(item_names)}"
         )

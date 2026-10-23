@@ -17,16 +17,38 @@ class ExtractedMenuSection:
     items: list[str]
 
 
+@dataclass(frozen=True)
+class _OcrCandidate:
+    preprocessing: str
+    lines: list[str]
+    mean_confidence: float
+    korean_ratio: float
+    score: float
+
+
 # Ratios measured from the stable weekly menu template. The first column contains
 # section labels and the remaining five columns contain Monday through Friday.
 _DAY_COLUMN_EDGES = (0.124, 0.303, 0.478, 0.653, 0.826, 1.0)
+# The detected bounds include the title above the table. These ratios align with
+# the actual menu row borders in the published template and exclude the header
+# and notice rows.
 _SECTION_BANDS = (
-    ("중식", "정식", 0.047, 0.343),
-    ("중식", "일품", 0.343, 0.550),
-    ("중식", "돈가스", 0.550, 0.625),
-    ("석식", "정식", 0.625, 0.927),
+    ("중식", "일품 1", 0.110, 0.372),
+    ("중식", "일품 2", 0.372, 0.658),
+    ("석식", "일품 2", 0.658, 0.919),
 )
 _ORIGIN_WORDS = ("국산", "외국산", "미국산", "중국산", "브라질산")
+_PARENTHETICAL_CONTENT_PATTERN = re.compile(
+    r"[\(\[（［][^\)\]）］]*[\)\]）］]"
+)
+_UNCLOSED_PARENTHETICAL_PATTERN = re.compile(r"[\(\[（［][^\)\]）］]*$")
+
+
+def remove_parenthetical_content(value: str) -> str:
+    """Remove origin notes and other OCR text enclosed by bracket variants."""
+    value = _PARENTHETICAL_CONTENT_PATTERN.sub(" ", value)
+    value = _UNCLOSED_PARENTHETICAL_PATTERN.sub(" ", value)
+    return re.sub(r"\s+", " ", value).strip()
 
 
 def _configure_tesseract(pytesseract_module) -> None:
@@ -59,27 +81,78 @@ def _find_table_bounds(image, cv2):
     )
 
 
-def _prepare_cell(cell, cv2):
+def _resize_grayscale_cell(cell, cv2):
     gray = cv2.cvtColor(cell, cv2.COLOR_BGR2GRAY)
-    gray = cv2.resize(gray, None, fx=2.5, fy=2.5, interpolation=cv2.INTER_CUBIC)
-    gray = cv2.GaussianBlur(gray, (3, 3), 0)
-    return cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+    return cv2.resize(
+        gray,
+        None,
+        fx=2.5,
+        fy=2.5,
+        interpolation=cv2.INTER_CUBIC,
+    )
 
 
-def _ocr_lines(cell, cv2, pytesseract_module) -> list[str]:
+def _prepare_cell_variants(cell, cv2) -> list[tuple[str, object]]:
+    resized = _resize_grayscale_cell(cell, cv2)
+    blurred = cv2.GaussianBlur(resized, (3, 3), 0)
+    otsu = cv2.threshold(
+        resized,
+        0,
+        255,
+        cv2.THRESH_BINARY + cv2.THRESH_OTSU,
+    )[1]
+    blurred_otsu = cv2.threshold(
+        blurred,
+        0,
+        255,
+        cv2.THRESH_BINARY + cv2.THRESH_OTSU,
+    )[1]
+    adaptive = cv2.adaptiveThreshold(
+        resized,
+        255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY,
+        35,
+        11,
+    )
+    return [
+        ("grayscale", resized),
+        ("otsu", otsu),
+        ("adaptive", adaptive),
+        ("blurred_otsu", blurred_otsu),
+    ]
+
+
+def _prepare_cell(cell, cv2):
+    """Return the stable binary image used by numeric price OCR."""
+    resized = _resize_grayscale_cell(cell, cv2)
+    blurred = cv2.GaussianBlur(resized, (3, 3), 0)
+    return cv2.threshold(
+        blurred,
+        0,
+        255,
+        cv2.THRESH_BINARY + cv2.THRESH_OTSU,
+    )[1]
+
+
+def _read_ocr_candidate(
+    prepared,
+    preprocessing: str,
+    pytesseract_module,
+) -> _OcrCandidate | None:
     from pytesseract import Output
 
-    prepared = _prepare_cell(cell, cv2)
     data = pytesseract_module.image_to_data(
         prepared,
-        lang=os.getenv("MENU_OCR_LANG", "kor+eng"),
+        lang=os.getenv("MENU_OCR_LANG", "kor"),
         config="--oem 1 --psm 6",
         output_type=Output.DICT,
     )
 
     grouped: dict[tuple[int, int, int], list[str]] = {}
-    for index, text in enumerate(data["text"]):
-        text = text.strip()
+    accepted_words: list[tuple[str, float]] = []
+    for index, raw_text in enumerate(data["text"]):
+        text = raw_text.strip()
         if not text:
             continue
         try:
@@ -88,13 +161,74 @@ def _ocr_lines(cell, cv2, pytesseract_module) -> list[str]:
             confidence = -1
         if confidence < 10:
             continue
+
         key = (
             data["block_num"][index],
             data["par_num"][index],
             data["line_num"][index],
         )
         grouped.setdefault(key, []).append(text)
-    return [" ".join(words) for words in grouped.values()]
+        accepted_words.append((text, confidence))
+
+    if not accepted_words:
+        return None
+
+    lines = [" ".join(words) for words in grouped.values()]
+    character_weights = [max(len(text), 1) for text, _ in accepted_words]
+    weight_sum = sum(character_weights)
+    mean_confidence = sum(
+        confidence * weight
+        for (_, confidence), weight in zip(accepted_words, character_weights)
+    ) / weight_sum
+
+    combined_text = " ".join(text for text, _ in accepted_words)
+    korean_count = len(re.findall(r"[가-힣]", combined_text))
+    letter_count = len(re.findall(r"[가-힣A-Za-z]", combined_text))
+    korean_ratio = korean_count / letter_count if letter_count else 0.0
+
+    # Confidence is primary. Korean ratio rejects symbol-heavy results, while a
+    # small coverage bonus prevents a single easy word from beating a complete cell.
+    score = (
+        mean_confidence
+        + korean_ratio * 12.0
+        + min(korean_count, 30) * 0.3
+    )
+    return _OcrCandidate(
+        preprocessing=preprocessing,
+        lines=lines,
+        mean_confidence=mean_confidence,
+        korean_ratio=korean_ratio,
+        score=score,
+    )
+
+
+def _ocr_lines(cell, cv2, pytesseract_module) -> list[str]:
+    candidates = [
+        candidate
+        for preprocessing, prepared in _prepare_cell_variants(cell, cv2)
+        if (
+            candidate := _read_ocr_candidate(
+                prepared,
+                preprocessing,
+                pytesseract_module,
+            )
+        ) is not None
+    ]
+    if not candidates:
+        return []
+
+    selected = max(candidates, key=lambda candidate: candidate.score)
+    if os.getenv("MENU_OCR_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}:
+        candidate_scores = ", ".join(
+                f"{candidate.preprocessing}:{candidate.score:.1f}"
+                for candidate in candidates
+        )
+        print(
+            "🔎 식단 OCR 전처리 선택: "
+            f"{selected.preprocessing}({selected.score:.1f}) "
+            f"후보=[{candidate_scores}]"
+        )
+    return selected.lines
 
 
 def _normalize_menu_lines(lines: Sequence[str]) -> list[str]:
@@ -103,7 +237,7 @@ def _normalize_menu_lines(lines: Sequence[str]) -> list[str]:
         if "미운영" in raw_line:
             return []
 
-        line = re.sub(r"\([^)]*\)", " ", raw_line)
+        line = remove_parenthetical_content(raw_line)
         line = re.sub(r"^[\s·•\-–—|]+|[\s·•\-–—|]+$", "", line)
         line = re.sub(r"\s+", " ", line).strip()
         if not line or not re.search(r"[가-힣A-Za-z]", line):
@@ -123,8 +257,8 @@ def _read_price(label_cell, cv2, pytesseract_module) -> int | None:
     prepared = _prepare_cell(label_cell, cv2)
     text = pytesseract_module.image_to_string(
         prepared,
-        lang=os.getenv("MENU_OCR_LANG", "kor+eng"),
-        config="--oem 1 --psm 6",
+        lang=os.getenv("MENU_OCR_LANG", "kor"),
+        config="--oem 1 --psm 6 -c tessedit_char_whitelist=0123456789,.",
     )
     for value in re.findall(r"\d[\d,\.]{2,}", text):
         digits = re.sub(r"\D", "", value)
