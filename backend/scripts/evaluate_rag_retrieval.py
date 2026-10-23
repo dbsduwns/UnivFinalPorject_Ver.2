@@ -260,6 +260,7 @@ def main() -> int:
                 "metadata.source",
                 "metadata.category",
                 "metadata.academic_year",
+                "metadata.date",
             ],
         }
         report["metadata_coverage"] = store.metadata_coverage()

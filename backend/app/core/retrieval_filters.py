@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import asdict, dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Literal
 
 from qdrant_client.models import FieldCondition, Filter, MatchValue
@@ -27,6 +27,16 @@ SHUTTLE_TERMS = (
     "통학버스",
     "기흥역",
     "이공관",
+)
+
+MEAL_TERMS = (
+    "학식",
+    "식단",
+    "학생식당",
+    "샬롬관 식당",
+    "오늘의 메뉴",
+    "점심 메뉴",
+    "저녁 메뉴",
 )
 
 NOTICE_INTENT_TERMS = (
@@ -129,6 +139,35 @@ def _extract_academic_year(question: str, today: date) -> int:
     return int(match.group(1)) if match else today.year
 
 
+def _extract_meal_date(question: str, today: date) -> date | None:
+    full_date = re.search(
+        r"(20\d{2})\s*(?:년|[-./])\s*(\d{1,2})\s*(?:월|[-./])\s*(\d{1,2})\s*일?",
+        question,
+    )
+    if full_date:
+        try:
+            return date(*(int(value) for value in full_date.groups()))
+        except ValueError:
+            return None
+
+    month_day = re.search(r"(?<!\d)(\d{1,2})\s*월\s*(\d{1,2})\s*일", question)
+    if month_day:
+        try:
+            return date(today.year, int(month_day.group(1)), int(month_day.group(2)))
+        except ValueError:
+            return None
+
+    if "모레" in question:
+        return today + timedelta(days=2)
+    if "내일" in question:
+        return today + timedelta(days=1)
+    if "어제" in question:
+        return today - timedelta(days=1)
+    if "오늘" in question:
+        return today
+    return None
+
+
 def _notice_category(question: str) -> str | None:
     for category, terms in CATEGORY_TERMS:
         if _contains_any(question, terms):
@@ -144,6 +183,19 @@ def infer_retrieval_filter(
     """질문 의도가 충분히 명확할 때만 Qdrant 메타데이터 필터를 반환합니다."""
     normalized = " ".join(question.split())
     reference_date = today or date.today()
+
+    if _contains_any(normalized, MEAL_TERMS):
+        metadata_filter: dict[str, str | int] = {"source": "학식"}
+        reasons = ["학식·식단 관련 고유어 감지"]
+        meal_date = _extract_meal_date(normalized, reference_date)
+        if meal_date:
+            metadata_filter["date"] = meal_date.isoformat()
+            reasons.append(f"식단 날짜 판별: {meal_date.isoformat()}")
+        return RetrievalFilterDecision(
+            metadata_filter=metadata_filter,
+            confidence="high",
+            reasons=tuple(reasons),
+        )
 
     if _contains_any(normalized, SHUTTLE_TERMS):
         return RetrievalFilterDecision(

@@ -49,6 +49,16 @@ SHUTTLE_QUERY_KEYWORDS = (
     "이공관",
 )
 
+MEAL_QUERY_KEYWORDS = (
+    "학식",
+    "식단",
+    "학생식당",
+    "샬롬관 식당",
+    "오늘의 메뉴",
+    "점심 메뉴",
+    "저녁 메뉴",
+)
+
 QUERY_REWRITE_CUES = (
     "그거", "그건", "그 일정", "그 내용", "그 날짜", "그 시간", "거기는",
     "거기서", "아까", "방금", "위 내용", "더 자세히", "다시 설명", "그럼", "그리고",
@@ -178,7 +188,7 @@ class CampusAIBot:
 제공된 Context를 근거로 사용자의 질문에 정확하고 친절하게 답변하세요.
 
 ### 지침
-1. Context에 있는 공지사항, 공식 학사일정, 셔틀 운행 정보를 최우선 근거로 사용하세요.
+1. Context에 있는 공지사항, 공식 학사일정, 셔틀 운행, 학생식당 메뉴 정보를 최우선 근거로 사용하세요.
 2. 공지사항은 제목, 카테고리, 게시일을 구분하고 서로 다른 공지의 내용을 합치지 마세요.
 3. 학사일정은 시작일과 종료일을 정확히 구분하세요.
 4. Context에 없는 날짜, 자격, 신청 방법이나 링크를 추측하지 마세요.
@@ -265,6 +275,7 @@ class CampusAIBot:
         academic_query = is_academic_calendar_query(question)
         notice_query = any(keyword in question for keyword in NOTICE_QUERY_KEYWORDS)
         shuttle_query = any(keyword in question for keyword in SHUTTLE_QUERY_KEYWORDS)
+        meal_query = any(keyword in question for keyword in MEAL_QUERY_KEYWORDS)
 
         def priority(document: Document) -> tuple[int, str]:
             source = self._document_source(document)
@@ -273,6 +284,8 @@ class CampusAIBot:
             if notice_query and source == "공지사항":
                 return (0, source)
             if shuttle_query and source == "셔틀시간표":
+                return (0, source)
+            if meal_query and source == "학식":
                 return (0, source)
             if source in {"공지사항", "학사일정"}:
                 return (1, source)
@@ -321,17 +334,40 @@ class CampusAIBot:
             retrieval_query = f"{retrieval_query}\n검색 보강: {rewritten}"
 
         try:
-            decision = infer_retrieval_filter(question)
+            decision = infer_retrieval_filter(
+                question,
+                today=datetime.now(SEOUL_TIMEZONE).date(),
+            )
+
+            meal_date = decision.metadata_filter.get("date")
+            if decision.metadata_filter.get("source") == "학식" and meal_date:
+                retrieval_query = f"{retrieval_query}\n식단 날짜: {meal_date}"
 
             if decision.confidence == "high":
-                filtered = await self.retriever.asearch(
-                    retrieval_query,
-                    metadata_filter=decision.metadata_filter,
-                )
+                try:
+                    filtered = await self.retriever.asearch(
+                        retrieval_query,
+                        metadata_filter=decision.metadata_filter,
+                    )
+                except Exception as exc:
+                    print(
+                        "⚠️ [AI Bot] 메타데이터 필터 검색 실패: "
+                        f"{exc}",
+                        flush=True,
+                    )
+                    filtered = []
             else:
                 filtered = []
 
-            if len(filtered) < DEFAULT_QDRANT_SEARCH_LIMIT:
+            exact_meal_date_filter = (
+                decision.metadata_filter.get("source") == "학식"
+                and "date" in decision.metadata_filter
+            )
+
+            if exact_meal_date_filter:
+                # 다른 날짜의 메뉴로 빈 자리를 채우면 "오늘 학식" 답변이 틀릴 수 있습니다.
+                retrieved = filtered
+            elif len(filtered) < DEFAULT_QDRANT_SEARCH_LIMIT:
                 unfiltered = await self.retriever.asearch(retrieval_query)
 
                 retrieved = []

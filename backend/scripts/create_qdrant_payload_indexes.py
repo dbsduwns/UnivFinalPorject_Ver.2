@@ -28,6 +28,7 @@ INDEX_SPECS = {
     "metadata.source": PayloadSchemaType.KEYWORD,
     "metadata.category": PayloadSchemaType.KEYWORD,
     "metadata.academic_year": PayloadSchemaType.INTEGER,
+    "metadata.date": PayloadSchemaType.KEYWORD,
 }
 
 
