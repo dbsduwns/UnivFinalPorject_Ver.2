@@ -176,6 +176,10 @@ class TransitLiveRequest(BaseModel):
     arrival_stop_location: RouteCoordinateResponse | None = None
     agency_name: str = Field(default="", max_length=200)
     headsign: str = Field(default="", max_length=120)
+    stop_count: int | None = Field(default=None, ge=0)
+    # 화면에 그리는 Google 대중교통 구간을 방향 검증에도 재사용한다.
+    # 지나치게 큰 요청을 막기 위해 프론트에서도 축약하고 서버에서도 상한을 둔다.
+    route_path: list[RouteCoordinateResponse] = Field(default_factory=list, max_length=512)
 
 
 class TransitLiveResponse(BaseModel):

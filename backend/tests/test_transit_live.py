@@ -357,6 +357,16 @@ def gg_api(monkeypatch, arrival=None, locations=None):
         calls.append((url, kwargs["params"]))
         if "getBusRouteListv2" in url:
             return gg_response("busRouteList", {"routeId": 500, "routeName": "5000", "districtCd": 2})
+        if "getBusRouteInfoItemv2" in url:
+            return gg_response("busRouteInfoItem", {
+                "routeId": 500,
+                "startStationId": 10,
+                "startStationName": "이전정류장",
+                "endStationId": 12,
+                "endStationName": "강남대역",
+                "turnStID": 12,
+                "turnStNm": "강남대역",
+            })
         if "getBusRouteStationListv2" in url:
             return gg_response("busRouteStationList", [
                 {"stationId": 10, "stationSeq": 10, "stationName": "이전정류장", "y": 37.1, "x": 127.1},
@@ -414,6 +424,23 @@ def test_gyeonggi_lookup_returns_all_route_vehicles_and_logs_positions(monkeypat
     assert '"stop_id":"10"' in progress_logs
     assert '"event":"transit_provider_query_completed"' in progress_logs
     assert '"event":"transit_live_response_sent"' in progress_logs
+
+
+def test_gyeonggi_lookup_uses_google_path_and_route_turnaround_metadata(monkeypatch):
+    calls = gg_api(monkeypatch)
+    result = live.get_transit_live(request(
+        headsign="강남대역 방면",
+        stop_count=1,
+        route_path=[
+            {"latitude": 37.2, "longitude": 127.2},
+            {"latitude": 37.3, "longitude": 127.3},
+        ],
+    ))
+
+    assert result.status == "ok"
+    assert result.boarding_stop_order == 11
+    assert result.alighting_stop_order == 12
+    assert any("getBusRouteInfoItemv2" in url for url, _params in calls)
 
 
 def test_stop_coordinate_fallback_enriches_vehicle_without_gps():
@@ -597,6 +624,106 @@ def test_match_requires_downstream_destination_and_rejects_distant_same_name():
     assert live._match_segment(stops, request()) is not None
     assert live._match_segment(stops, request(departure_stop_name="강남대역", arrival_stop_name="기흥역")) is None
     assert live._match_segment(stops, request(departure_stop_location={"latitude": 38, "longitude": 127})) is None
+
+
+def test_gyeonggi_segment_accepts_three_stops_in_google_polyline_order():
+    stops = [
+        RouteStopResponse(stop_id="start", stop_name="출발지", stop_order=1,
+                          latitude=37.0, longitude=127.0),
+        RouteStopResponse(stop_id="middle", stop_name="중간정류장", stop_order=2,
+                          latitude=37.0, longitude=127.01),
+        RouteStopResponse(stop_id="turn", stop_name="회차점", stop_order=3,
+                          latitude=37.0, longitude=127.02),
+    ]
+    query = request(
+        departure_stop_name="출발지",
+        arrival_stop_name="회차점",
+        departure_stop_location={"latitude": 37.0, "longitude": 127.0},
+        arrival_stop_location={"latitude": 37.0, "longitude": 127.02},
+        headsign="회차점 방면",
+        stop_count=2,
+        route_path=[
+            {"latitude": 37.0, "longitude": 127.0},
+            {"latitude": 37.0, "longitude": 127.01},
+            {"latitude": 37.0, "longitude": 127.02},
+        ],
+    )
+
+    segment, details = live._match_segment_diagnostic(
+        stops,
+        query,
+        route_info={
+            "startStationId": "start",
+            "startStationName": "출발지",
+            "endStationId": "turn",
+            "endStationName": "회차점",
+            "turnStID": "turn",
+            "turnStNm": "회차점",
+        },
+        validate_path=True,
+    )
+
+    assert segment == (stops[0], stops[2])
+    assert details["polyline_validation"]["status"] == "matched"
+    assert details["polyline_validation"]["matched_stops"] == 3
+    assert details["stop_count_validation"]["status"] == "matched"
+    assert details["route_direction_validation"]["segment_direction"] == "outbound"
+
+
+def test_gyeonggi_segment_rejects_reversed_google_polyline():
+    stops = [
+        RouteStopResponse(stop_id="start", stop_name="출발지", stop_order=1,
+                          latitude=37.0, longitude=127.0),
+        RouteStopResponse(stop_id="middle", stop_name="중간정류장", stop_order=2,
+                          latitude=37.0, longitude=127.01),
+        RouteStopResponse(stop_id="end", stop_name="도착지", stop_order=3,
+                          latitude=37.0, longitude=127.02),
+    ]
+    query = request(
+        departure_stop_name="출발지",
+        arrival_stop_name="도착지",
+        route_path=[
+            {"latitude": 37.0, "longitude": 127.02},
+            {"latitude": 37.0, "longitude": 127.01},
+            {"latitude": 37.0, "longitude": 127.0},
+        ],
+    )
+
+    segment, details = live._match_segment_diagnostic(stops, query, validate_path=True)
+
+    assert segment is None
+    assert details["reason"] == "polyline_direction_mismatch"
+    assert details["polyline_rejected_pairs"] == 1
+
+
+def test_gyeonggi_segment_rejects_headsign_opposite_to_turnaround_direction():
+    stops = [
+        RouteStopResponse(stop_id="start", stop_name="남동차고지", stop_order=1),
+        RouteStopResponse(stop_id="turn", stop_name="서울역", stop_order=2),
+        RouteStopResponse(stop_id="return", stop_name="남동차고지", stop_order=3),
+    ]
+    query = request(
+        departure_stop_name="남동차고지",
+        arrival_stop_name="서울역",
+        headsign="남동차고지 방면",
+    )
+
+    segment, details = live._match_segment_diagnostic(
+        stops,
+        query,
+        route_info={
+            "startStationId": "start",
+            "startStationName": "남동차고지",
+            "endStationId": "turn",
+            "endStationName": "서울역",
+            "turnStID": "turn",
+            "turnStNm": "서울역",
+            "garageName": "남동차고지",
+        },
+    )
+
+    assert segment is None
+    assert details["reason"] == "headsign_direction_mismatch"
 
 
 def test_unmatched_log_distinguishes_direction_order(monkeypatch, caplog):

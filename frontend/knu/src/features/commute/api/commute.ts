@@ -43,6 +43,16 @@ export const commuteTodayOptions = (
 });
 
 export function transitLiveRequest(step: RouteStep) {
+  const maxRoutePoints = 256;
+  const routePath = step.route_path.length <= maxRoutePoints
+    ? step.route_path
+    : Array.from({ length: maxRoutePoints }, (_, index) => {
+        const sourceIndex = Math.round(
+          (index * (step.route_path.length - 1)) / (maxRoutePoints - 1),
+        );
+        return step.route_path[sourceIndex];
+      });
+
   return {
     route_name: step.transit_line_name ?? "",
     vehicle_type: step.vehicle_type ?? "",
@@ -52,6 +62,8 @@ export function transitLiveRequest(step: RouteStep) {
     arrival_stop_location: step.arrival_stop_location ?? null,
     agency_name: step.transit_agency_name ?? "",
     headsign: step.transit_headsign ?? "",
+    stop_count: step.stop_count ?? null,
+    route_path: routePath,
   };
 }
 

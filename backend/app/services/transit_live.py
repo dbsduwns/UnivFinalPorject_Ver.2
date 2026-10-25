@@ -37,6 +37,9 @@ EMPTY_TTL = 120
 FAILURE_TTL = 60
 DISPLAY_BEFORE_BOARDING_STOP_COUNT = 5
 DISPLAY_AFTER_ALIGHTING_STOP_COUNT = 3
+POLYLINE_MATCH_DISTANCE_METERS = 120
+POLYLINE_PROGRESS_TOLERANCE_METERS = 20
+POLYLINE_MIN_MATCHED_STOPS = 3
 # 서울 버스 api URL
 SEOUL_BUS_API_BASE_URL = "http://ws.bus.go.kr/api/rest"
 # 서울 열린데이터광장의 해당 지하철 API는 공식적으로 HTTP 8088 포트만 제공한다.
@@ -861,11 +864,190 @@ def _same_name_distance(stops, name, location):
     return round(min(usable), 1) if usable else None
 
 
-def _match_segment_diagnostic(stops, request):
+def _direction_name(value):
+    """행선지 비교에 방해되는 안내 접미사를 제거한다."""
+    normalized = _name(value)
+    for suffix in ("버스환승센터", "정류장", "방면", "종점", "행"):
+        normalized = normalized.replace(suffix, "")
+    return normalized
+
+
+def _direction_name_matches(value, candidates):
+    target = _direction_name(value)
+    if len(target) < 2:
+        return False
+    for candidate in candidates:
+        normalized = _direction_name(candidate)
+        if len(normalized) < 2:
+            continue
+        if target == normalized or target in normalized or normalized in target:
+            return True
+    return False
+
+
+def _project_stop_to_polyline(stop, route_path):
+    """정류장을 폴리라인에 투영해 선과의 거리와 시작점부터의 거리를 반환한다."""
+    if stop.latitude is None or stop.longitude is None or len(route_path) < 2:
+        return None
+    best_distance = math.inf
+    best_progress = None
+    cumulative = 0.0
+    for first, second in zip(route_path, route_path[1:]):
+        mid_latitude = (first.latitude + second.latitude) / 2
+        longitude_scale = 111_000 * math.cos(math.radians(mid_latitude))
+        segment_x = (second.longitude - first.longitude) * longitude_scale
+        segment_y = (second.latitude - first.latitude) * 111_000
+        segment_length_squared = segment_x ** 2 + segment_y ** 2
+        if segment_length_squared <= 0:
+            continue
+        point_x = (stop.longitude - first.longitude) * longitude_scale
+        point_y = (stop.latitude - first.latitude) * 111_000
+        ratio = max(0.0, min(1.0, (
+            point_x * segment_x + point_y * segment_y
+        ) / segment_length_squared))
+        projected_x = segment_x * ratio
+        projected_y = segment_y * ratio
+        distance = math.hypot(point_x - projected_x, point_y - projected_y)
+        segment_length = math.sqrt(segment_length_squared)
+        if distance < best_distance:
+            best_distance = distance
+            best_progress = cumulative + segment_length * ratio
+        cumulative += segment_length
+    if best_progress is None:
+        return None
+    return best_distance, best_progress
+
+
+def _polyline_direction_diagnostic(stops, start, end, route_path):
+    """Google 폴리라인 진행 방향과 공공데이터 정류장 순서를 비교한다."""
+    if len(route_path) < 2:
+        return {"status": "unavailable", "matched_stops": 0}
+    segment = [
+        stop for stop in sorted(stops, key=lambda item: item.stop_order)
+        if start.stop_order <= stop.stop_order <= end.stop_order
+    ]
+    projected = []
+    for stop in segment:
+        projection = _project_stop_to_polyline(stop, route_path)
+        if projection is None:
+            continue
+        distance, progress = projection
+        if distance <= POLYLINE_MATCH_DISTANCE_METERS:
+            projected.append((stop, distance, progress))
+    details = {
+        "matched_stops": len(projected),
+        "segment_stops": len(segment),
+        "max_distance_m": round(max((item[1] for item in projected), default=0), 1),
+    }
+    if len(projected) < POLYLINE_MIN_MATCHED_STOPS:
+        return {"status": "insufficient", **details}
+    comparisons = list(zip(projected, projected[1:]))
+    increasing = sum(
+        following[2] >= current[2] - POLYLINE_PROGRESS_TOLERANCE_METERS
+        for current, following in comparisons
+    )
+    decreasing = sum(
+        following[2] <= current[2] + POLYLINE_PROGRESS_TOLERANCE_METERS
+        for current, following in comparisons
+    )
+    increasing_ratio = increasing / len(comparisons)
+    decreasing_ratio = decreasing / len(comparisons)
+    progress_meters = projected[-1][2] - projected[0][2]
+    details.update({
+        "increasing_ratio": round(increasing_ratio, 3),
+        "decreasing_ratio": round(decreasing_ratio, 3),
+        "progress_meters": round(progress_meters, 1),
+    })
+    required_ratio = 1.0 if len(projected) == 3 else 0.8
+    if increasing_ratio >= required_ratio and progress_meters >= 20:
+        return {"status": "matched", **details}
+    if decreasing_ratio >= required_ratio and progress_meters <= -20:
+        return {"status": "reversed", **details}
+    return {"status": "conflict", **details}
+
+
+def _stop_count_diagnostic(stops, start, end, google_stop_count):
+    if google_stop_count is None:
+        return {"status": "unavailable"}
+    segment = [
+        stop for stop in stops
+        if start.stop_order <= stop.stop_order <= end.stop_order
+        and "경유" not in stop.stop_name
+    ]
+    # Google은 출발 정류장을 제외하고 도착 정류장을 포함한다.
+    provider_count = max(0, len(segment) - 1)
+    difference = abs(provider_count - google_stop_count)
+    tolerance = max(2, math.ceil(google_stop_count * 0.25))
+    return {
+        "status": "matched" if difference <= tolerance else "conflict",
+        "google_stop_count": google_stop_count,
+        "provider_stop_count": provider_count,
+        "difference": difference,
+        "tolerance": tolerance,
+    }
+
+
+def _route_metadata_diagnostic(stops, start, end, route_info, headsign):
+    if not route_info:
+        return {"status": "unavailable"}
+    turn_id = _text(route_info.get("turnStID") or route_info.get("turnStId"))
+    turn_name = _text(route_info.get("turnStNm"))
+    turn_candidates = [
+        stop for stop in stops
+        if (turn_id and stop.stop_id == turn_id)
+        or (not turn_id and turn_name and _name(stop.stop_name) == _name(turn_name))
+    ]
+    if len(turn_candidates) != 1:
+        return {
+            "status": "turn_stop_unavailable",
+            "turn_stop_id": turn_id or None,
+            "turn_stop_name": turn_name or None,
+        }
+    turn = turn_candidates[0]
+    if end.stop_order <= turn.stop_order:
+        segment_direction = "outbound"
+    elif start.stop_order >= turn.stop_order:
+        segment_direction = "inbound"
+    else:
+        segment_direction = "crosses_turnaround"
+
+    outbound_match = _direction_name_matches(headsign, [
+        route_info.get("endStationName"), turn_name,
+    ])
+    inbound_match = _direction_name_matches(headsign, [
+        route_info.get("startStationName"), route_info.get("garageName"),
+    ])
+    if outbound_match and not inbound_match:
+        headsign_direction = "outbound"
+    elif inbound_match and not outbound_match:
+        headsign_direction = "inbound"
+    else:
+        headsign_direction = "unknown"
+    conflict = (
+        headsign_direction in {"outbound", "inbound"}
+        and segment_direction in {"outbound", "inbound"}
+        and headsign_direction != segment_direction
+    )
+    return {
+        "status": "conflict" if conflict else "matched",
+        "segment_direction": segment_direction,
+        "headsign_direction": headsign_direction,
+        "turn_stop_id": turn.stop_id,
+        "turn_stop_name": turn.stop_name,
+        "turn_stop_order": turn.stop_order,
+        "start_station_name": _text(route_info.get("startStationName")) or None,
+        "end_station_name": _text(route_info.get("endStationName")) or None,
+    }
+
+
+def _match_segment_diagnostic(stops, request, *, route_info=None, validate_path=False):
     """방향이 맞는 경로 구간과 민감정보를 제외한 매칭 진단 정보를 반환한다."""
     matches = []
     starts = []
     arrivals = []
+    rejected_polyline = 0
+    rejected_stop_count = 0
+    rejected_headsign = 0
     for start in stops:
         score = _stop_score(start, request.departure_stop_name, request.departure_stop_location)
         if score is None:
@@ -878,7 +1060,36 @@ def _match_segment_diagnostic(stops, request):
             if end.stop_order <= start.stop_order:
                 continue
             if end_score is not None:
-                matches.append((score + end_score, end.stop_order - start.stop_order, start, end))
+                polyline = _polyline_direction_diagnostic(
+                    stops, start, end, request.route_path
+                ) if validate_path else {"status": "unavailable", "matched_stops": 0}
+                stop_count = _stop_count_diagnostic(
+                    stops, start, end, request.stop_count
+                ) if validate_path else {"status": "unavailable"}
+                route_direction = _route_metadata_diagnostic(
+                    stops, start, end, route_info, request.headsign
+                ) if route_info else {"status": "unavailable"}
+                if polyline["status"] in {"reversed", "conflict"}:
+                    rejected_polyline += 1
+                    continue
+                if stop_count["status"] == "conflict":
+                    rejected_stop_count += 1
+                    continue
+                if route_direction["status"] == "conflict":
+                    rejected_headsign += 1
+                    continue
+                path_rank = 0 if polyline["status"] == "matched" else 1
+                matches.append((
+                    path_rank,
+                    score + end_score,
+                    end.stop_order - start.stop_order,
+                    -polyline.get("matched_stops", 0),
+                    start,
+                    end,
+                    polyline,
+                    stop_count,
+                    route_direction,
+                ))
     details = {
         "stop_count": len(stops),
         "departure_name_matches": sum(
@@ -895,6 +1106,9 @@ def _match_segment_diagnostic(stops, request):
         "arrival_same_name_distance_m": _same_name_distance(
             stops, request.arrival_stop_name, request.arrival_stop_location
         ),
+        "polyline_rejected_pairs": rejected_polyline,
+        "stop_count_rejected_pairs": rejected_stop_count,
+        "headsign_rejected_pairs": rejected_headsign,
     }
     if not starts:
         details["reason"] = (
@@ -915,28 +1129,39 @@ def _match_segment_diagnostic(stops, request):
         )
         return None, details
     if not matches:
-        details["reason"] = "direction_order_mismatch"
+        if rejected_polyline:
+            details["reason"] = "polyline_direction_mismatch"
+        elif rejected_stop_count:
+            details["reason"] = "stop_count_mismatch"
+        elif rejected_headsign:
+            details["reason"] = "headsign_direction_mismatch"
+        else:
+            details["reason"] = "direction_order_mismatch"
         return None, details
-    matches.sort(key=lambda match: (match[0], match[1]))
+    matches.sort(key=lambda match: match[:4])
     # 순환 노선에서는 같은 이름·좌표의 정류장이 양방향에 존재할 수 있으므로 동점은 거부한다.
-    if len(matches) > 1 and matches[0][:2] == matches[1][:2]:
+    if len(matches) > 1 and matches[0][:4] == matches[1][:4]:
         details["reason"] = "ambiguous_stop_pair"
         details["segment_matches"] = len(matches)
         return None, details
     details["reason"] = "matched"
-    details["boarding_order"] = matches[0][2].stop_order
-    details["alighting_order"] = matches[0][3].stop_order
-    details["boarding_stop_id"] = matches[0][2].stop_id
-    details["boarding_stop_name"] = matches[0][2].stop_name
-    details["alighting_stop_id"] = matches[0][3].stop_id
-    details["alighting_stop_name"] = matches[0][3].stop_name
+    start, end = matches[0][4], matches[0][5]
+    details["boarding_order"] = start.stop_order
+    details["alighting_order"] = end.stop_order
+    details["boarding_stop_id"] = start.stop_id
+    details["boarding_stop_name"] = start.stop_name
+    details["alighting_stop_id"] = end.stop_id
+    details["alighting_stop_name"] = end.stop_name
     details["boarding_match_distance_m"] = _distance_to_stop(
-        matches[0][2], request.departure_stop_location
+        start, request.departure_stop_location
     )
     details["alighting_match_distance_m"] = _distance_to_stop(
-        matches[0][3], request.arrival_stop_location
+        end, request.arrival_stop_location
     )
-    return matches[0][2:], details
+    details["polyline_validation"] = matches[0][6]
+    details["stop_count_validation"] = matches[0][7]
+    details["route_direction_validation"] = matches[0][8]
+    return (start, end), details
 
 
 def _match_segment(stops, request):
@@ -965,8 +1190,10 @@ def _log_unmatched(request, providers, attempts, reason):
         "arrival_stop": request.arrival_stop_name,
         "has_departure_location": request.departure_stop_location is not None,
         "has_arrival_location": request.arrival_stop_location is not None,
-        "headsign_used_for_matching": False,
-        "direction_strategy": "departure_order_before_arrival_order",
+        "has_google_route_path": len(request.route_path) >= 2,
+        "google_stop_count": request.stop_count,
+        "headsign_used_for_matching": bool(request.headsign),
+        "direction_strategy": "stop_order_with_optional_turnaround_headsign_and_polyline_validation",
         "provider_order": providers,
         "attempts": attempts,
     }
@@ -1000,8 +1227,11 @@ def _log_matched_segment(request, provider, route_id, city_code, details):
         "alighting_stop_id": details.get("alighting_stop_id"),
         "boarding_match_distance_m": details.get("boarding_match_distance_m"),
         "alighting_match_distance_m": details.get("alighting_match_distance_m"),
-        "headsign_used_for_matching": False,
-        "matching_strategy": "normalized_name_and_coordinate_then_direction_order",
+        "polyline_validation": details.get("polyline_validation"),
+        "stop_count_validation": details.get("stop_count_validation"),
+        "route_direction_validation": details.get("route_direction_validation"),
+        "headsign_used_for_matching": bool(request.headsign),
+        "matching_strategy": "name_coordinate_order_turnaround_headsign_and_polyline",
     }
     logger.info(
         "Transit route resolution matched: %s",
@@ -1024,14 +1254,14 @@ def _resolve_subway(request):
     stops = _subway_stations(request.route_name)
     segment, _ = _match_segment_diagnostic(stops, request)
     if segment:
-        return "seoul_subway", _subway_line_name(request.route_name), "", stops, *segment
+        return "seoul_subway", _subway_line_name(request.route_name), "", stops, *segment, {}
     reversed_stops = [
         stop.model_copy(update={"stop_order": index})
         for index, stop in enumerate(reversed(stops), start=1)
     ]
     segment, _ = _match_segment_diagnostic(reversed_stops, request)
     if segment:
-        return "seoul_subway", _subway_line_name(request.route_name), "", reversed_stops, *segment
+        return "seoul_subway", _subway_line_name(request.route_name), "", reversed_stops, *segment, {}
     return None
 
 
@@ -1116,12 +1346,38 @@ def _resolve(request):
                     route_attempt["reason"] = "non_gyeonggi_catalog_entry"
                     continue
                 stops = _stops(provider, route_id, city_code)
-                segment, segment_details = _match_segment_diagnostic(stops, request)
+                route_info = dict(item)
+                if provider == "gyeonggi" and (request.headsign or len(request.route_path) >= 2):
+                    try:
+                        info_items = _request(
+                            provider,
+                            "busrouteservice",
+                            "getBusRouteInfoItem",
+                            {"routeId": route_id},
+                            "busRouteInfoItem",
+                            static=True,
+                        )
+                        if info_items:
+                            route_info.update(info_items[0])
+                            route_attempt["route_info"] = "available"
+                        else:
+                            route_attempt["route_info"] = "empty"
+                    except ProviderError as exc:
+                        # 상세 메타데이터는 교차 검증용이다. 정류장 좌표와 폴리라인으로
+                        # 충분히 검증 가능한 경우 기존 실시간 기능은 계속 제공한다.
+                        route_attempt["route_info"] = "provider_error"
+                        route_attempt["route_info_reason"] = exc.reason
+                segment, segment_details = _match_segment_diagnostic(
+                    stops,
+                    request,
+                    route_info=route_info,
+                    validate_path=provider == "gyeonggi" and len(request.route_path) >= 2,
+                )
                 route_attempt.update(segment_details)
                 if segment:
-                    matches.append((provider, route_id, city_code, stops, *segment))
+                    matches.append((provider, route_id, city_code, stops, *segment, route_info))
             if len(matches) == 1:
-                matched_provider, matched_route_id, matched_city_code, _, start, end = matches[0]
+                matched_provider, matched_route_id, matched_city_code, _, start, end, _ = matches[0]
                 _log_matched_segment(
                     request,
                     matched_provider,
@@ -1259,17 +1515,31 @@ def _stop_for_log(stop):
     }
 
 
-def _route_direction_diagnostic(stops, start, end):
+def _route_direction_diagnostic(stops, start, end, route_info=None):
     """선택된 노선의 진행 방향과 탑승·하차 구간 정류장 ID를 로그용으로 만든다."""
     ordered = sorted(stops, key=lambda stop: stop.stop_order)
     segment = [
         stop for stop in ordered
         if start.stop_order <= stop.stop_order <= end.stop_order
     ]
+    def metadata_stop(id_field, name_field):
+        stop_id = _text((route_info or {}).get(id_field))
+        matched = next((stop for stop in ordered if stop.stop_id == stop_id), None)
+        if matched:
+            return _stop_for_log(matched)
+        name = _text((route_info or {}).get(name_field))
+        return {"id": stop_id or None, "name": name or None, "order": None} if name or stop_id else None
+
+    route_origin = metadata_stop("startStationId", "startStationName")
+    route_terminal = metadata_stop("endStationId", "endStationName")
+    turnaround = metadata_stop("turnStID", "turnStNm")
     return {
         "order_direction": "ascending_stop_order",
-        "route_origin": _stop_for_log(ordered[0] if ordered else None),
-        "route_terminal": _stop_for_log(ordered[-1] if ordered else None),
+        "route_origin": route_origin or _stop_for_log(ordered[0] if ordered else None),
+        "route_terminal": route_terminal or _stop_for_log(ordered[-1] if ordered else None),
+        "turnaround_stop": turnaround,
+        "listed_first_stop": _stop_for_log(ordered[0] if ordered else None),
+        "listed_last_stop": _stop_for_log(ordered[-1] if ordered else None),
         "boarding_stop": _stop_for_log(start),
         "alighting_stop": _stop_for_log(end),
         "segment_stop_count": len(segment),
@@ -1336,7 +1606,7 @@ def _log_subway_realtime_stage(event, stage, *, level="info", **details):
     )
 
 
-def _read_arrival(provider, route_id, city_code, stops, start, end):
+def _read_arrival(provider, route_id, city_code, stops, start, end, route_info=None):
     """다음 도착정보와 제공기관이 제공하는 가장 정확한 위치 정밀도를 읽는다."""
     if provider == "gyeonggi":
         items = _request(provider, "busarrivalservice", "getBusArrivalItem",
@@ -1358,7 +1628,7 @@ def _read_arrival(provider, route_id, city_code, stops, start, end):
             "provider_arrival_response",
             provider=provider,
             route_id=route_id,
-            direction=_route_direction_diagnostic(stops, start, end),
+            direction=_route_direction_diagnostic(stops, start, end, route_info),
             arrival=_gyeonggi_arrival_for_log(item),
         )
         try:
@@ -1570,6 +1840,8 @@ def get_transit_live(request: TransitLiveRequest):
         headsign=request.headsign or None,
         has_departure_location=request.departure_stop_location is not None,
         has_arrival_location=request.arrival_stop_location is not None,
+        has_google_route_path=len(request.route_path) >= 2,
+        google_stop_count=request.stop_count,
     )
     if "BUS" not in vehicle_type and "SUBWAY" not in vehicle_type:
         return _result("unsupported", refresh_after_seconds=STATIC_TTL,
@@ -1626,9 +1898,9 @@ def get_transit_live(request: TransitLiveRequest):
         return _result("unmatched", refresh_after_seconds=STATIC_TTL,
                        message="이 구간의 정류장과 운행 방향을 확인하지 못했습니다.",
                        vehicle_position_reason="route_not_matched")
-    provider, route_id, city_code, stops, start, end = resolved
+    provider, route_id, city_code, stops, start, end, route_info = resolved
     displayed_stops = _display_stops(stops, start, end)
-    direction_diagnostic = _route_direction_diagnostic(stops, start, end)
+    direction_diagnostic = _route_direction_diagnostic(stops, start, end, route_info)
     _log_live_stage(
         "transit_route_resolved",
         "route_resolution_completed",
@@ -1734,7 +2006,7 @@ def get_transit_live(request: TransitLiveRequest):
         try:
             (minutes, message, vehicles, fetched_at, position_status,
              position_reason, position_message) = _read_arrival(
-                provider, route_id, city_code, stops, start, end
+                provider, route_id, city_code, stops, start, end, route_info
             )
         except ProviderError:
             logger.exception(
