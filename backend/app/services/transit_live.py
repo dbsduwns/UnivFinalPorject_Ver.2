@@ -1249,6 +1249,66 @@ def _log_live_stage(event, stage, **details):
     )
 
 
+def _stop_for_log(stop):
+    if stop is None:
+        return None
+    return {
+        "id": stop.stop_id,
+        "name": stop.stop_name,
+        "order": stop.stop_order,
+    }
+
+
+def _route_direction_diagnostic(stops, start, end):
+    """선택된 노선의 진행 방향과 탑승·하차 구간 정류장 ID를 로그용으로 만든다."""
+    ordered = sorted(stops, key=lambda stop: stop.stop_order)
+    segment = [
+        stop for stop in ordered
+        if start.stop_order <= stop.stop_order <= end.stop_order
+    ]
+    return {
+        "order_direction": "ascending_stop_order",
+        "route_origin": _stop_for_log(ordered[0] if ordered else None),
+        "route_terminal": _stop_for_log(ordered[-1] if ordered else None),
+        "boarding_stop": _stop_for_log(start),
+        "alighting_stop": _stop_for_log(end),
+        "segment_stop_count": len(segment),
+        "segment_stops": [_stop_for_log(stop) for stop in segment],
+    }
+
+
+def _gyeonggi_arrival_for_log(item):
+    """GBIS 도착 응답에서 방향·예측 오차 진단에 필요한 공개 운행 필드만 남긴다."""
+    return {
+        "flag": _text(item.get("flag")) or None,
+        "first_vehicle": {
+            "number": _text(item.get("plateNo1")) or None,
+            "predict_minutes": _number(item.get("predictTime1")),
+            "predict_seconds": _number(item.get("predictTimeSec1")),
+            "remaining_stops": _number(item.get("locationNo1")),
+        },
+        "second_vehicle": {
+            "number": _text(item.get("plateNo2")) or None,
+            "predict_minutes": _number(item.get("predictTime2")),
+            "predict_seconds": _number(item.get("predictTimeSec2")),
+            "remaining_stops": _number(item.get("locationNo2")),
+        },
+    }
+
+
+def _gyeonggi_positions_for_log(positions):
+    return [
+        {
+            "vehicle_number": _text(position.get("plateNo"))
+            or _text(position.get("vehId"))
+            or None,
+            "stop_id": _text(position.get("stationId")) or None,
+            "stop_order": _number(position.get("stationSeq")),
+        }
+        for position in positions
+    ]
+
+
 def _subway_response_rows_for_log(rows):
     """열차 위치 API 응답 중 진단에 필요한 공개 운행 필드만 로그용으로 남긴다."""
     return [
@@ -1293,6 +1353,14 @@ def _read_arrival(provider, route_id, city_code, stops, start, end):
         remaining = _number(item.get("locationNo1"))
         order = start.stop_order - remaining if remaining is not None and remaining >= 0 else None
         arrival_vehicle = _vehicle(number, order, stops, position_source="stop") if has_arrival else []
+        _log_live_stage(
+            "gyeonggi_bus_arrival_received",
+            "provider_arrival_response",
+            provider=provider,
+            route_id=route_id,
+            direction=_route_direction_diagnostic(stops, start, end),
+            arrival=_gyeonggi_arrival_for_log(item),
+        )
         try:
             positions = _request(
                 provider, "buslocationservice", "getBusLocationList",
@@ -1304,6 +1372,14 @@ def _read_arrival(provider, route_id, city_code, stops, start, end):
                         "fallback", "location_api_failed_using_arrival_data",
                         "전체 차량 위치 조회에 실패해 도착정보의 차량만 표시합니다.")
             raise
+        _log_live_stage(
+            "gyeonggi_bus_positions_received",
+            "provider_vehicle_positions",
+            provider=provider,
+            route_id=route_id,
+            position_count=len(positions),
+            positions=_gyeonggi_positions_for_log(positions),
+        )
         vehicles = []
         for position in positions:
             stop_id = _text(position.get("stationId"))
@@ -1552,6 +1628,7 @@ def get_transit_live(request: TransitLiveRequest):
                        vehicle_position_reason="route_not_matched")
     provider, route_id, city_code, stops, start, end = resolved
     displayed_stops = _display_stops(stops, start, end)
+    direction_diagnostic = _route_direction_diagnostic(stops, start, end)
     _log_live_stage(
         "transit_route_resolved",
         "route_resolution_completed",
@@ -1559,10 +1636,13 @@ def get_transit_live(request: TransitLiveRequest):
         route_id=route_id,
         city_code=city_code or None,
         route_name=request.route_name,
+        agency_name=request.agency_name or None,
+        google_headsign=request.headsign or None,
         total_stop_count=len(stops),
         displayed_stop_count=len(displayed_stops),
         boarding_stop={"id": start.stop_id, "name": start.stop_name, "order": start.stop_order},
         alighting_stop={"id": end.stop_id, "name": end.stop_name, "order": end.stop_order},
+        direction=direction_diagnostic,
     )
     if provider == "seoul_subway":
         arrival_minutes = None

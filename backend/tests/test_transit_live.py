@@ -404,6 +404,14 @@ def test_gyeonggi_lookup_returns_all_route_vehicles_and_logs_positions(monkeypat
     progress_logs = "\n".join(record.getMessage() for record in caplog.records)
     assert '"event":"transit_live_request_received"' in progress_logs
     assert '"event":"transit_route_resolved"' in progress_logs
+    assert '"route_id":"500"' in progress_logs
+    assert '"google_headsign":null' in progress_logs
+    assert '"segment_stops":[{"id":"11","name":"기흥역","order":11},{"id":"12","name":"강남대역","order":12}]' in progress_logs
+    assert '"event":"gyeonggi_bus_arrival_received"' in progress_logs
+    assert '"predict_seconds":61' in progress_logs
+    assert '"remaining_stops":1' in progress_logs
+    assert '"event":"gyeonggi_bus_positions_received"' in progress_logs
+    assert '"stop_id":"10"' in progress_logs
     assert '"event":"transit_provider_query_completed"' in progress_logs
     assert '"event":"transit_live_response_sent"' in progress_logs
 
