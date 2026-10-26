@@ -350,7 +350,7 @@ def save_menus(menus: list):
                 notify_users_by_type_sync(
                     db,
                     "cafeteria_alert",
-                    "🍱 새로운 식단표 업데이트",
+                    "🍱 식단 크롤링 업데이트",
                     "이번 주 새로운 식단표가 등록되었습니다. 지금 확인해보세요!"
                 )
             except Exception as exc:

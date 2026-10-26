@@ -14,7 +14,9 @@ async def send_push_notification(tokens: List[str], title: str, body: str, data:
 
     messages = []
     for token in tokens:
-        if not token.startswith("ExponentPushToken"):
+        # Expo SDK/서비스 버전에 따라 두 형식 모두 발급될 수 있습니다.
+        if not token.startswith(("ExpoPushToken[", "ExponentPushToken[")):
+            logger.warning("Ignoring an invalid Expo push token format")
             continue
         
         message = {

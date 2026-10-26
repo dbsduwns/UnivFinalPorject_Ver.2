@@ -1,10 +1,15 @@
 import { create } from "zustand";
 
-import { meRequest, loginRequest, signupRequest, updateMeRequest } from "@/features/auth/api/auth";
+import {
+  deleteMeRequest,
+  googleLoginRequest,
+  loginRequest,
+  meRequest,
+  signupRequest,
+  updateMeRequest,
+} from "@/features/auth/api/auth";
 import * as tokenStorage from "@/features/auth/services/token-storage";
 import type { User, UserLoginBody, UserSignupBody, UserUpdateBody } from "@/features/auth/api/types";
-import { googleLoginRequest } from "@/features/auth/api/auth";
-import { API_BASE_URL } from "@/constants/config";
 
 type AuthState = {
   user: User | null;
@@ -15,6 +20,7 @@ type AuthState = {
   login: (body: UserLoginBody) => Promise<void>;
   signup: (body: UserSignupBody) => Promise<void>;
   logout: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
   updateProfile: (body: UserUpdateBody) => Promise<void>;
   googleLogin: (idToken: string) => Promise<void>;
 };
@@ -60,6 +66,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
+    await tokenStorage.clearTokens();
+    set({ user: null, ready: true });
+  },
+
+  deleteAccount: async () => {
+    await deleteMeRequest();
     await tokenStorage.clearTokens();
     set({ user: null, ready: true });
   },

@@ -29,6 +29,10 @@ export async function updateMeRequest(body: UserUpdateBody): Promise<User> {
   return data;
 }
 
+export async function deleteMeRequest(): Promise<void> {
+  await apiClient.delete("/auth/me");
+}
+
 export async function googleLoginRequest(idToken: string): Promise<TokenResponse> {
   const { data } = await apiClient.post<TokenResponse>("/auth/google", { id_token: idToken });
   return data;

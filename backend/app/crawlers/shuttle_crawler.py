@@ -116,7 +116,12 @@ def save_shuttle_schedule(schedule):
         ).first()
         
         if existing:
-            # 같은 학기 시간표가 있어도 원본 PDF URL은 최신 값으로 갱신합니다.
+            changed = any(
+                getattr(existing, field) != schedule[field]
+                for field in ("title", "semester", "file_url", "source_url", "original_filename")
+            )
+
+            # 같은 학기 시간표라도 원본 파일 또는 링크가 바뀌면 갱신 및 알림을 보냅니다.
             existing.title = schedule["title"]
             existing.semester = schedule["semester"]
             existing.file_url = schedule["file_url"]
@@ -124,8 +129,17 @@ def save_shuttle_schedule(schedule):
             existing.original_filename = schedule["original_filename"]
             existing.is_active = 1
             db.commit()
-            print(f"기존 시간표 URL 갱신 완료: {schedule['title']}")
-            return
+            if changed:
+                notify_users_by_type_sync(
+                    db,
+                    "shuttle_alert",
+                    "🚌 셔틀버스 크롤링 업데이트",
+                    f"[{schedule['semester']}] 시간표 파일이 갱신되었습니다."
+                )
+                print(f"기존 시간표 갱신 및 알림 전송 완료: {schedule['title']}")
+            else:
+                print(f"ℹ️ 셔틀 시간표 변경 없음: {schedule['title']}")
+            return changed
 
         # 2. 기존의 활성화된 시간표들을 비활성(0)으로 변경 (버전 관리)
         db.query(Shuttle).filter(Shuttle.is_active == 1).update({"is_active": 0})
@@ -169,14 +183,16 @@ def save_shuttle_schedule(schedule):
         notify_users_by_type_sync(
             db, 
             "shuttle_alert", 
-            "🚌 셔틀버스 시간표 업데이트", 
+            "🚌 셔틀버스 크롤링 업데이트",
             f"[{schedule['semester']}] 새로운 셔틀버스 시간표가 등록되었습니다."
         )
 
         print(f"[{schedule['semester']}] {schedule['title']} 저장 및 인덱싱 완료!")
+        return True
     except Exception as e:
         print(f"저장 중 오류 발생: {e}")
         db.rollback()
+        raise
     finally:
         db.close()
 

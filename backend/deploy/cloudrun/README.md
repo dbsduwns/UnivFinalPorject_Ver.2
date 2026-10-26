@@ -171,6 +171,18 @@ CLOUDFLARE_API_TOKEN=knu-cloudflare-api-token:latest
 QDRANT_API_KEY=knu-qdrant-api-key:latest
 ```
 
+## Daily crawler notifications
+
+Create a Cloud Run Job from the API image for the daily crawlers. Set its command
+to `python` and its arguments to `scripts/run_daily_crawlers.py`, then give the
+job the same database, AI, and crawler secrets as the API service.
+
+Cloud Scheduler should execute this Job, rather than call the administrator-only
+`/crawl` API routes. The Job runs the notice, menu, and shuttle crawlers in
+sequence. A push notification is sent only when a crawler finds and saves new
+or changed data, preventing notifications for runs with no updates. Give the
+Scheduler service account permission to execute only this Job.
+
 ## 9. Verify before switching traffic
 
 Check these endpoints on the generated Cloud Run URL:

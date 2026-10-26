@@ -131,7 +131,7 @@ def crawl_notices_safely(max_pages: int = 1000):
                                 notify_users_by_type_sync(
                                     db, 
                                     "notice_alert", 
-                                    f"[{category_name}] 새로운 공지", 
+                                    f"[{category_name}] 공지 크롤링 업데이트",
                                     item["title"],
                                     {"notice_id": notice.id}
                                 )

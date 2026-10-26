@@ -6,6 +6,7 @@ import {
   Bell, 
   ShieldCheck, 
   LogOut, 
+  UserMinus,
   ChevronRight, 
   Settings, 
   Key, 
@@ -24,6 +25,7 @@ export default function MyScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const deleteAccount = useAuthStore((s) => s.deleteAccount);
 
   // 모달 상태
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
@@ -31,6 +33,7 @@ export default function MyScreen() {
   // 알림 설정 상태
   const [notifSettings, setNotifSettings] = useState<NotificationSettings | null>(null);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   useEffect(() => {
     fetchSettings();
@@ -79,6 +82,32 @@ export default function MyScreen() {
             await logout();
             router.replace("/login");
           } 
+        },
+      ]
+    );
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "회원 탈퇴",
+      "계정, 시간표, 채팅, 게시글·댓글, 설정 등 모든 데이터가 영구 삭제됩니다. 이 작업은 되돌릴 수 없습니다.",
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "탈퇴하기",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setIsDeletingAccount(true);
+              await deleteAccount();
+              router.replace("/login");
+            } catch (error) {
+              console.error("Failed to delete account:", error);
+              Alert.alert("회원 탈퇴 실패", "잠시 후 다시 시도해주세요.");
+            } finally {
+              setIsDeletingAccount(false);
+            }
+          },
         },
       ]
     );
@@ -136,21 +165,21 @@ export default function MyScreen() {
               <>
                 <SettingToggle
                   icon={<Bell size={20} color="#4B5563" />}
-                  title="셔틀버스 업데이트 알림"
+                  title="셔틀버스 크롤링 업데이트 알림"
                   value={notifSettings.shuttle_alert}
                   onValueChange={() => toggleSetting("shuttle_alert")}
                 />
                 <View className="h-[1px] bg-gray-50 mx-4" />
                 <SettingToggle
                   icon={<Bell size={20} color="#4B5563" />}
-                  title="오늘의 식단 업데이트 알림"
+                  title="식단 크롤링 업데이트 알림"
                   value={notifSettings.cafeteria_alert}
                   onValueChange={() => toggleSetting("cafeteria_alert")}
                 />
                 <View className="h-[1px] bg-gray-50 mx-4" />
                 <SettingToggle
                   icon={<Bell size={20} color="#4B5563" />}
-                  title="공지사항 업데이트 알림"
+                  title="공지사항 크롤링 업데이트 알림"
                   value={notifSettings.notice_alert}
                   onValueChange={() => toggleSetting("notice_alert")}
                 />
@@ -171,6 +200,14 @@ export default function MyScreen() {
               icon={<Key size={20} color="#4B5563" />}
               title="비밀번호 변경"
               onPress={() => Alert.alert("준비 중", "비밀번호 변경 기능은 곧 추가됩니다.")}
+            />
+            <View className="h-[1px] bg-gray-50 mx-4" />
+            <SettingLink
+              icon={<UserMinus size={20} color="#EF4444" />}
+              title={isDeletingAccount ? "회원 탈퇴 처리 중..." : "회원 탈퇴"}
+              titleColor="text-red-500"
+              disabled={isDeletingAccount}
+              onPress={handleDeleteAccount}
             />
           </View>
 
@@ -243,20 +280,25 @@ function SettingLink({
   icon, 
   title, 
   onPress, 
-  rightText 
+  rightText,
+  titleColor = "text-gray-700",
+  disabled = false,
 }: { 
   icon: React.ReactNode, 
   title: string, 
   onPress: () => void,
-  rightText?: string
+  rightText?: string,
+  titleColor?: string,
+  disabled?: boolean,
 }) {
   return (
     <TouchableOpacity 
       onPress={onPress}
+      disabled={disabled}
       className="flex-row items-center px-5 py-4 active:bg-gray-50"
     >
       <View className="w-8">{icon}</View>
-      <Text className="flex-1 text-gray-700 font-medium ml-1">{title}</Text>
+      <Text className={`flex-1 ${titleColor} font-medium ml-1`}>{title}</Text>
       {rightText && <Text className="text-gray-400 mr-2">{rightText}</Text>}
       <ChevronRight size={18} color="#D1D5DB" />
     </TouchableOpacity>

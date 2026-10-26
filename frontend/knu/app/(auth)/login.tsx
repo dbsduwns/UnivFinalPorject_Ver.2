@@ -71,10 +71,16 @@ export default function LoginScreen() {
 
   const onChangePassword = useCallback((text: string) => {
     setPassword(text)
-    console.log("API URL =", process.env.EXPO_PUBLIC_API_URL);
-    console.log("API_BASE_URL =", API_BASE_URL);
-    setPasswordMessage('')
-    setIsPassword(true)
+
+    // 영문, 숫자, 특수문자를 각각 하나 이상 포함하고 공백 없이 8자 이상이어야 한다.
+    const passwordRegEx = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9\s])\S{8,}$/
+    if (!passwordRegEx.test(text)) {
+      setPasswordMessage('영문, 숫자, 특수문자를 포함해 8자 이상 입력하세요.')
+      setIsPassword(false)
+    } else {
+      setPasswordMessage('')
+      setIsPassword(true)
+    }
   }, [])
 
   useEffect(() => {
@@ -88,6 +94,11 @@ export default function LoginScreen() {
   }
 
   async function onSubmit() {
+    if (!isPassword) {
+      setPasswordMessage('영문, 숫자, 특수문자를 포함해 8자 이상 입력하세요.');
+      return;
+    }
+
     setError(null);
     setSubmitting(true);
     try {
@@ -171,7 +182,7 @@ export default function LoginScreen() {
 
             <Pressable
               className="mt-8 items-center rounded-lg bg-[#0a7ea4] py-3 active:opacity-90 disabled:opacity-50"
-              disabled={submitting || !email.trim() || !password}
+              disabled={submitting || !email.trim() || !password || !isPassword}
               onPress={() => void onSubmit()}
             >
               {submitting ? (

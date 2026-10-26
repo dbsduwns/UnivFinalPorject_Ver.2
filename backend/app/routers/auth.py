@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.schemas.user import (
@@ -6,6 +6,7 @@ from app.schemas.user import (
     PushTokenUpdate, NotificationSettingResponse, NotificationSettingUpdate
 )
 from app.services import auth as auth_service
+from app.services import account as account_service
 from app.models.user import User
 from app.models.notification_setting import NotificationSetting
 from app.core.dependencies import get_current_user
@@ -60,6 +61,20 @@ def login(data: UserLogin, db: Session = Depends(get_db)):
 @router.get("/me", response_model=UserResponse)
 def me(current_user: User= Depends(get_current_user)):
     return current_user
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_me(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """현재 회원 계정과 회원이 생성한 데이터를 영구 삭제한다."""
+    try:
+        account_service.delete_account(db, current_user)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="회원 탈퇴 처리에 실패했습니다.") from exc
 
 @router.put("/update", response_model=UserResponse)
 def update_profile(
