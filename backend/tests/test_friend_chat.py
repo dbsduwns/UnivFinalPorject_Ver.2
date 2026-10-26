@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -68,6 +69,22 @@ class FriendChatTest(unittest.TestCase):
         chat.delete_room(self.db, bob, group.id)
         self.assertIsNone(chat.get_my_room(self.db, bob, group.id))
         self.assertEqual(len(chat.get_room_messages(self.db, carol, group.id)), 1)
+
+    @patch("app.services.chat.notify_users_by_type_sync")
+    def test_direct_message_notifies_only_the_recipient(self, notify):
+        alice, bob, _, _ = self.users
+        direct = chat.create_room(self.db, alice, MessengerRoomCreate(friend_id=bob.id))
+
+        chat.send_message(self.db, alice, direct.id, ChatMessageCreate(content="private message"))
+
+        notify.assert_called_once_with(
+            self.db,
+            "message_alert",
+            "User 1님이 메시지를 보냈습니다.",
+            "새 메시지가 도착했습니다.",
+            {"type": "direct_message", "room_id": direct.id},
+            recipient_ids=[bob.id],
+        )
 
     def test_non_friend_cannot_create_room_and_direct_leave_allows_new_room(self):
         alice, bob, _, outsider = self.users

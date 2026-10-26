@@ -10,6 +10,7 @@ class NotificationSetting(Base):
     notice_alert = Column(Boolean, default=True)
     shuttle_alert = Column(Boolean, default=False)
     cafeteria_alert = Column(Boolean, default=False)
+    message_alert = Column(Boolean, default=True, nullable=False)
     expo_push_token = Column(String(255), nullable=True)
 
     user = relationship("User", back_populates="notification_setting")

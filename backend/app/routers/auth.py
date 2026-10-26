@@ -176,6 +176,7 @@ def update_notification_settings(
     if data.notice_alert is not None: setting.notice_alert = data.notice_alert
     if data.cafeteria_alert is not None: setting.cafeteria_alert = data.cafeteria_alert
     if data.shuttle_alert is not None: setting.shuttle_alert = data.shuttle_alert
+    if data.message_alert is not None: setting.message_alert = data.message_alert
     
     db.commit()
     db.refresh(setting)

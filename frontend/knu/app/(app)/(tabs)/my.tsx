@@ -202,6 +202,13 @@ export default function MyScreen() {
                   onValueChange={() => toggleSetting("notice_alert")}
                 />
                 <View className="h-[1px] bg-gray-50 mx-4" />
+                <SettingToggle
+                  icon={<Bell size={20} color="#4B5563" />}
+                  title="1:1 메시지 알림"
+                  value={notifSettings.message_alert}
+                  onValueChange={() => toggleSetting("message_alert")}
+                />
+                <View className="h-[1px] bg-gray-50 mx-4" />
                 <SettingLink
                   icon={<Bell size={20} color="#2563eb" />}
                   title={isSendingTestNotification ? "테스트 알림 전송 중..." : "푸시 알림 테스트"}

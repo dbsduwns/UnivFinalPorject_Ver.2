@@ -37,13 +37,26 @@ async def send_push_notification(tokens: List[str], title: str, body: str, data:
             response = await client.post(EXPO_PUSH_URL, json=messages)
             response.raise_for_status()
             result = response.json()
+            failed_tickets = [
+                ticket for ticket in result.get("data", []) if ticket.get("status") != "ok"
+            ]
+            if failed_tickets:
+                logger.error("Expo push notification rejected: %s", failed_tickets)
+                return None
             logger.info(f"Push notification sent successfully: {result}")
             return result
         except Exception as e:
             logger.error(f"Failed to send push notification: {e}")
             return None
 
-async def notify_users_by_type(db: Session, alert_type: str, title: str, body: str, data: Dict[str, Any] = None):
+async def notify_users_by_type(
+    db: Session,
+    alert_type: str,
+    title: str,
+    body: str,
+    data: Dict[str, Any] = None,
+    recipient_ids: List[int] | None = None,
+):
     """
     alert_type: 'notice_alert', 'shuttle_alert', 'cafeteria_alert'
     """
@@ -51,6 +64,8 @@ async def notify_users_by_type(db: Session, alert_type: str, title: str, body: s
         getattr(NotificationSetting, alert_type) == True,
         NotificationSetting.expo_push_token != None
     )
+    if recipient_ids is not None:
+        query = query.filter(NotificationSetting.user_id.in_(recipient_ids))
     
     settings = query.all()
     tokens = [s.expo_push_token for s in settings]
@@ -62,7 +77,14 @@ async def notify_users_by_type(db: Session, alert_type: str, title: str, body: s
     logger.info("Sending %s push notification(s) for alert type: %s", len(tokens), alert_type)
     return await send_push_notification(tokens, title, body, data)
 
-def notify_users_by_type_sync(db: Session, alert_type: str, title: str, body: str, data: Dict[str, Any] = None):
+def notify_users_by_type_sync(
+    db: Session,
+    alert_type: str,
+    title: str,
+    body: str,
+    data: Dict[str, Any] = None,
+    recipient_ids: List[int] | None = None,
+):
     import asyncio
     try:
         loop = asyncio.get_event_loop()
@@ -75,8 +97,12 @@ def notify_users_by_type_sync(db: Session, alert_type: str, title: str, body: st
         import threading
         def run_in_new_loop():
             new_loop = asyncio.new_event_loop()
-            new_loop.run_until_complete(notify_users_by_type(db, alert_type, title, body, data))
+            new_loop.run_until_complete(
+                notify_users_by_type(db, alert_type, title, body, data, recipient_ids)
+            )
             new_loop.close()
         threading.Thread(target=run_in_new_loop).start()
     else:
-        loop.run_until_complete(notify_users_by_type(db, alert_type, title, body, data))
+        loop.run_until_complete(
+            notify_users_by_type(db, alert_type, title, body, data, recipient_ids)
+        )

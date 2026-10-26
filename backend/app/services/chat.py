@@ -6,6 +6,7 @@ from app.models.messenger import Messenger
 from app.models.room_messengers import RoomMessenger
 from app.models.room_participants import RoomParticipant
 from app.models.user import User
+from app.core.notification import notify_users_by_type_sync
 from app.schemas.chat import ChatMessageCreate, MessengerRoomCreate
 from app.services.friend import check_is_friend
 
@@ -108,6 +109,22 @@ def send_message(db: Session, user: User, room_id: int, data: ChatMessageCreate)
     room.updated_at = func.now()
     db.commit()
     db.refresh(message)
+
+    # 1:1 대화에서만 상대방에게 새 메시지 알림을 보낸다. 메시지 본문은 잠금 화면에 노출하지 않는다.
+    if not room.is_group:
+        recipient_ids = [
+            participant.user_id
+            for participant in room.participants
+            if participant.user_id != user.id
+        ]
+        notify_users_by_type_sync(
+            db,
+            "message_alert",
+            f"{user.name}님이 메시지를 보냈습니다.",
+            "새 메시지가 도착했습니다.",
+            {"type": "direct_message", "room_id": room.id},
+            recipient_ids=recipient_ids,
+        )
     return message
 
 

@@ -36,6 +36,7 @@ export type NotificationSettings = {
   notice_alert: boolean;
   shuttle_alert: boolean;
   cafeteria_alert: boolean;
+  message_alert: boolean;
 };
 
 export type NotificationSettingsUpdateBody = Partial<NotificationSettings>;
