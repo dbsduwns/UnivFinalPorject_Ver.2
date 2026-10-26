@@ -10,6 +10,7 @@ from app.services import account as account_service
 from app.models.user import User
 from app.models.notification_setting import NotificationSetting
 from app.core.dependencies import get_current_user
+from app.core.notification import send_push_notification
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -119,6 +120,34 @@ async def update_notification_token(
     
     db.commit()
     return {"message": "푸시 토큰이 성공적으로 업데이트 되었습니다."}
+
+
+@router.post("/notification-test")
+async def send_notification_test(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """현재 로그인한 회원의 기기로만 테스트 푸시를 전송한다."""
+    setting = (
+        db.query(NotificationSetting)
+        .filter(NotificationSetting.user_id == current_user.id)
+        .first()
+    )
+    if not setting or not setting.expo_push_token:
+        raise HTTPException(
+            status_code=409,
+            detail="등록된 푸시 토큰이 없습니다. 앱 알림 권한을 확인해주세요.",
+        )
+
+    result = await send_push_notification(
+        [setting.expo_push_token],
+        "🔔 KNU Campus 푸시 알림 테스트",
+        "푸시 알림이 정상적으로 연결되었습니다.",
+        {"type": "notification_test"},
+    )
+    if result is None:
+        raise HTTPException(status_code=502, detail="푸시 알림 전송에 실패했습니다.")
+    return {"message": "테스트 푸시 전송 요청이 완료되었습니다.", "result": result}
 
 @router.get("/notification-settings", response_model=NotificationSettingResponse)
 def get_notification_settings(

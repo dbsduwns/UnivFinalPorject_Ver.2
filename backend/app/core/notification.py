@@ -54,9 +54,13 @@ async def notify_users_by_type(db: Session, alert_type: str, title: str, body: s
     
     settings = query.all()
     tokens = [s.expo_push_token for s in settings]
-    
-    if tokens:
-        await send_push_notification(tokens, title, body, data)
+
+    if not tokens:
+        logger.info("No opted-in push tokens for alert type: %s", alert_type)
+        return None
+
+    logger.info("Sending %s push notification(s) for alert type: %s", len(tokens), alert_type)
+    return await send_push_notification(tokens, title, body, data)
 
 def notify_users_by_type_sync(db: Session, alert_type: str, title: str, body: str, data: Dict[str, Any] = None):
     import asyncio

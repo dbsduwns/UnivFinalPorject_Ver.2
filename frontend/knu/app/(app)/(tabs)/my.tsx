@@ -18,7 +18,11 @@ import {
 import { useAuthStore } from "@/features/auth/store/auth-store";
 import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
 import ChangeUserInfo from "@/components/ChangeUserInfoModal";
-import { getNotificationSettingsRequest, updateNotificationSettingsRequest } from "@/features/auth/api/auth";
+import {
+  getNotificationSettingsRequest,
+  sendNotificationTestRequest,
+  updateNotificationSettingsRequest,
+} from "@/features/auth/api/auth";
 import { NotificationSettings } from "@/features/auth/api/types";
 
 export default function MyScreen() {
@@ -33,6 +37,7 @@ export default function MyScreen() {
   // 알림 설정 상태
   const [notifSettings, setNotifSettings] = useState<NotificationSettings | null>(null);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
+  const [isSendingTestNotification, setIsSendingTestNotification] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   useEffect(() => {
@@ -113,6 +118,19 @@ export default function MyScreen() {
     );
   };
 
+  const handleSendTestNotification = async () => {
+    try {
+      setIsSendingTestNotification(true);
+      await sendNotificationTestRequest();
+      Alert.alert("전송 요청 완료", "앱을 백그라운드로 보낸 뒤 푸시 알림 도착 여부를 확인하세요.");
+    } catch (error) {
+      console.error("Failed to send test notification:", error);
+      Alert.alert("테스트 알림 실패", "알림 권한과 로그인 상태를 확인한 뒤 다시 시도하세요.");
+    } finally {
+      setIsSendingTestNotification(false);
+    }
+  };
+
   if (!user) return null;
 
   return (
@@ -182,6 +200,14 @@ export default function MyScreen() {
                   title="공지사항 크롤링 업데이트 알림"
                   value={notifSettings.notice_alert}
                   onValueChange={() => toggleSetting("notice_alert")}
+                />
+                <View className="h-[1px] bg-gray-50 mx-4" />
+                <SettingLink
+                  icon={<Bell size={20} color="#2563eb" />}
+                  title={isSendingTestNotification ? "테스트 알림 전송 중..." : "푸시 알림 테스트"}
+                  rightText="내 기기"
+                  disabled={isSendingTestNotification}
+                  onPress={() => void handleSendTestNotification()}
                 />
               </>
             )}
