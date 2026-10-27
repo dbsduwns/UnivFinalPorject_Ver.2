@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -6,9 +8,13 @@ from app.models.messenger import Messenger
 from app.models.room_messengers import RoomMessenger
 from app.models.room_participants import RoomParticipant
 from app.models.user import User
+from app.models.user_presence import UserPresence
 from app.core.notification import notify_users_by_type_sync
 from app.schemas.chat import ChatMessageCreate, MessengerRoomCreate
 from app.services.friend import check_is_friend
+
+
+PRESENCE_TTL_SECONDS = 60
 
 
 def _direct_key(user_ids: set[int]) -> str:
@@ -19,6 +25,23 @@ def _with_my_notification_setting(room: RoomMessenger, user_id: int) -> RoomMess
     participant = next((item for item in room.participants if item.user_id == user_id), None)
     room.is_muted = participant.is_muted if participant is not None else False
     return room
+
+
+def _is_viewing_room(db: Session, user_id: int, room_id: int) -> bool:
+    """최근 heartbeat가 있는 사용자가 해당 대화방을 보고 있는지 확인한다."""
+    # DB의 TIMESTAMP가 timezone 없이 저장되므로 UTC 기준 naive datetime으로 비교한다.
+    cutoff = (datetime.now(timezone.utc) - timedelta(seconds=PRESENCE_TTL_SECONDS)).replace(tzinfo=None)
+    return (
+        db.query(UserPresence.id)
+        .filter(
+            UserPresence.user_id == user_id,
+            UserPresence.active_room_id == room_id,
+            UserPresence.is_app_foreground.is_(True),
+            UserPresence.last_seen_at >= cutoff,
+        )
+        .first()
+        is not None
+    )
 
 
 def create_room(db: Session, user: User, data: MessengerRoomCreate) -> RoomMessenger:
@@ -123,7 +146,11 @@ def send_message(db: Session, user: User, room_id: int, data: ChatMessageCreate)
         recipient_ids = [
             participant.user_id
             for participant in room.participants
-            if participant.user_id != user.id and not participant.is_muted
+            if (
+                participant.user_id != user.id
+                and not participant.is_muted
+                and not _is_viewing_room(db, participant.user_id, room.id)
+            )
         ]
         if recipient_ids:
             notify_users_by_type_sync(
@@ -131,7 +158,12 @@ def send_message(db: Session, user: User, room_id: int, data: ChatMessageCreate)
                 "message_alert",
                 f"{user.name}님이 메시지를 보냈습니다.",
                 "새 메시지가 도착했습니다.",
-                {"type": "direct_message", "room_id": room.id},
+                {
+                    "type": "direct_message",
+                    "room_id": room.id,
+                    "sender_id": user.id,
+                    "recipient_id": recipient_ids[0],
+                },
                 recipient_ids=recipient_ids,
             )
     return message

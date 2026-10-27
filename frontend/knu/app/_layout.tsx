@@ -18,13 +18,35 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 
 // 앱 최상단에서 포그라운드 알림 핸들러 등록
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
+  handleNotification: async (notification) => {
+    const data = notification.request.content.data;
+    const roomId = Number(data.room_id);
+    const currentUserId = useAuthStore.getState().user?.id;
+    const isViewingMessageRoom =
+      data.type === "direct_message"
+      && data.recipient_id === currentUserId
+      && AppState.currentState === "active"
+      && Number.isInteger(roomId)
+      && usePresenceStore.getState().activeRoomId === roomId;
+
+    if (isViewingMessageRoom) {
+      return {
+        shouldShowAlert: false,
+        shouldShowBanner: false,
+        shouldShowList: false,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      };
+    }
+
+    return {
+      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    };
+  },
 });
 
 function handleNotificationResponse(response: Notifications.NotificationResponse) {

@@ -12,7 +12,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { ArrowLeft, Bell, BellOff, Check, MessageCircle, Pencil, Plus, Send, Trash2, Users, X } from "lucide-react-native";
+import { ArrowLeft, Bell, BellOff, Check, Pencil, Plus, Send, Trash2, Users, X } from "lucide-react-native";
 
 import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
 import { KeyboardAwareContent } from "@/components/ui/KeyboardAwareContent";
@@ -252,7 +252,6 @@ export const ChatRoomsScreen = () => {
                 </View>
               ) : rooms.length === 0 ? (
                 <View className="flex-1 items-center justify-center px-8">
-                  <View className="w-16 h-16 rounded-full bg-cyan-50 items-center justify-center"><MessageCircle size={30} color={BRAND} /></View>
                   <Text className="text-base font-extrabold text-gray-800 mt-4">아직 대화가 없습니다.</Text>
                   <Text className="text-xs text-gray-400 text-center mt-2">친구 화면에서 친구를 선택해 대화를 시작하세요.</Text>
                 </View>
@@ -282,7 +281,16 @@ export const ChatRoomsScreen = () => {
                 <ScrollView ref={scrollRef} className="flex-1 bg-[#FBFDFD]" contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled" onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}>
                   {messagesQuery.isLoading ? <ActivityIndicator color={BRAND} className="mt-8" /> : (messagesQuery.data ?? []).map((message) => {
                     const mine = message.sender_id === userId;
-                    return <View key={message.id} className={`mb-3 ${mine ? "items-end" : "items-start"}`}><View className={`max-w-[78%] rounded-2xl px-3 py-2 ${mine ? "bg-cyan-700" : "bg-white border border-gray-200"}`}><Text className={mine ? "text-white" : "text-gray-800"}>{message.content}</Text></View><Text className="text-[10px] text-gray-400 mt-1">{formatTime(message.created_at)}</Text></View>;
+                    const senderName = getParticipantName(selectedRoom, message.sender_id);
+                    const showSenderProfile = selectedRoom.is_group && !mine;
+                    return <View key={message.id} className={`mb-3 flex-row ${mine ? "justify-end" : "justify-start"}`}>
+                      {showSenderProfile && <View className="w-9 h-9 mt-5 mr-2 rounded-full bg-cyan-100 items-center justify-center"><Text className="font-extrabold" style={{ color: BRAND }}>{getProfileInitial(senderName)}</Text></View>}
+                      <View className={`max-w-[78%] ${mine ? "items-end" : "items-start"}`}>
+                        {showSenderProfile && <Text className="mb-1 text-xs font-bold text-gray-500">{senderName}</Text>}
+                        <View className={`rounded-2xl px-3 py-2 ${mine ? "bg-cyan-700" : "bg-white border border-gray-200"}`}><Text className={mine ? "text-white" : "text-gray-800"}>{message.content}</Text></View>
+                        <Text className="text-[10px] text-gray-400 mt-1">{formatTime(message.created_at)}</Text>
+                      </View>
+                    </View>;
                   })}
                 </ScrollView>
                 <View className="p-3 border-t border-gray-100 flex-row items-end"><TextInput value={draft} onChangeText={setDraft} onSubmitEditing={send} placeholder="메시지 입력" placeholderTextColor="#94A3B8" className="flex-1 min-h-11 max-h-28 px-4 py-2 rounded-2xl bg-gray-100 text-gray-900" multiline /><Pressable onPress={send} disabled={!draft.trim() || sendMutation.isPending} className="ml-2 w-11 h-11 rounded-2xl items-center justify-center disabled:opacity-40" style={{ backgroundColor: BRAND }}>{sendMutation.isPending ? <ActivityIndicator color="white" /> : <Send size={18} color="white" />}</Pressable></View>
@@ -371,4 +379,12 @@ function getRoomName(room: ChatRoom | null, currentUserId?: number) {
     .map((participant) => participant.user?.name)
     .filter((name): name is string => !!name);
   return names.join(", ") || "채팅방";
+}
+
+function getParticipantName(room: ChatRoom, userId: number) {
+  return room.participants.find((participant) => participant.user_id === userId)?.user?.name ?? "알 수 없음";
+}
+
+function getProfileInitial(name: string) {
+  return name.trim().slice(0, 1) || "?";
 }

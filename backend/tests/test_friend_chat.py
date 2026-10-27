@@ -10,6 +10,7 @@ from app.models.messenger import Messenger
 from app.models.room_messengers import RoomMessenger
 from app.models.room_participants import RoomParticipant
 from app.models.user import User
+from app.models.user_presence import UserPresence
 from app.schemas.chat import ChatMessageCreate, ChatRoomResponse, MessengerRoomCreate
 from app.services import chat
 
@@ -21,7 +22,7 @@ class FriendChatTest(unittest.TestCase):
             connect_args={"check_same_thread": False},
             poolclass=StaticPool,
         )
-        for table in (User.__table__, Friendship.__table__, RoomMessenger.__table__, RoomParticipant.__table__, Messenger.__table__):
+        for table in (User.__table__, Friendship.__table__, RoomMessenger.__table__, RoomParticipant.__table__, Messenger.__table__, UserPresence.__table__):
             table.create(self.engine)
         self.db = Session(self.engine)
         self.users = [
@@ -100,7 +101,12 @@ class FriendChatTest(unittest.TestCase):
             "message_alert",
             "User 1님이 메시지를 보냈습니다.",
             "새 메시지가 도착했습니다.",
-            {"type": "direct_message", "room_id": direct.id},
+            {
+                "type": "direct_message",
+                "room_id": direct.id,
+                "sender_id": alice.id,
+                "recipient_id": bob.id,
+            },
             recipient_ids=[bob.id],
         )
 
@@ -111,6 +117,21 @@ class FriendChatTest(unittest.TestCase):
         chat.update_room_notification(self.db, bob, direct.id, True)
 
         chat.send_message(self.db, alice, direct.id, ChatMessageCreate(content="muted message"))
+
+        notify.assert_not_called()
+
+    @patch("app.services.chat.notify_users_by_type_sync")
+    def test_viewing_direct_room_does_not_notify_recipient(self, notify):
+        alice, bob, _, _ = self.users
+        direct = chat.create_room(self.db, alice, MessengerRoomCreate(friend_id=bob.id))
+        self.db.add(UserPresence(
+            user_id=bob.id,
+            active_room_id=direct.id,
+            is_app_foreground=True,
+        ))
+        self.db.commit()
+
+        chat.send_message(self.db, alice, direct.id, ChatMessageCreate(content="already viewing"))
 
         notify.assert_not_called()
 
