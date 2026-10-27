@@ -11,6 +11,7 @@ from app.models import user, subject, course, course_schedule
 from app.models import building, room, notice, notice_read
 from app.models import timetable, timetable_course, custom_schedule, wizard_selection
 from app.models import daily_menu, menu_item
+from app.models import academic_calendar_event
 from app.models import notification_setting, completed_course, graduation_standard
 from app.models import user_presence
 from app.models import shuttle_map

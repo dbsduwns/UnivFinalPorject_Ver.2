@@ -13,8 +13,10 @@ from pydantic import ValidationError
 from app.services.academic_calendar import (
     build_academic_calendar_answer,
     build_academic_calendar_context,
+    build_academic_calendar_context_from_db,
     is_academic_calendar_query,
 )
+from app.database import SessionLocal
 from app.services.timetable_context import is_timetable_only_query
 from app.core.retrieval_filters import infer_retrieval_filter
 
@@ -438,6 +440,23 @@ class CampusAIBot:
             context_sections.append(self._format_documents(documents))
 
         if is_academic_calendar_query(question):
+            try:
+                with SessionLocal() as calendar_db:
+                    academic_context = build_academic_calendar_context_from_db(
+                        calendar_db,
+                        question,
+                        today=datetime.now(SEOUL_TIMEZONE).date(),
+                    )
+                context_sections.append(academic_context)
+                print("[AI Bot] Supabase 학사일정 Context 추가", flush=True)
+            except Exception as exc:
+                print(
+                    "⚠️ [AI Bot] Supabase 학사일정 조회 실패: "
+                    f"{exc}",
+                    flush=True,
+                )
+
+            # Keep the original Qdrant/static-calendar fallback behavior.
             has_qdrant_calendar = any(
                 self._document_source(document) == "학사일정"
                 for document in documents

@@ -63,7 +63,6 @@ def _set_initial_room_title(room: ChatRoom, content: str) -> None:
 
 def enforce_ai_request_limit(db: Session, user: User) -> None:
     """Use the shared database so the limit applies across Cloud Run instances."""
-    # Message.created_at is a database TIMESTAMP without timezone.
     cutoff = datetime.utcnow() - AI_REQUEST_WINDOW
     request_count = (
         db.query(Message)

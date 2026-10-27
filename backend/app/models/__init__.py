@@ -5,6 +5,7 @@ from .course_schedule import CourseSchedule
 from .building import Building
 from .room import Room
 from .daily_menu import DailyMenu
+from .academic_calendar_event import AcademicCalendarEvent
 from .menu_item import MenuItem
 from .notice import Notice
 from .notice_read import NoticeRead

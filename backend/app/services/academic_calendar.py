@@ -4,6 +4,10 @@ import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
+from sqlalchemy.orm import Session
+
+from app.models.academic_calendar_event import AcademicCalendarEvent as AcademicCalendarEventModel
+
 
 @dataclass(frozen=True)
 class AcademicCalendarEvent:
@@ -250,6 +254,86 @@ def find_academic_events(question: str, today: date | None = None, limit: int = 
             events = semester_events
 
     return sorted(events, key=lambda event: (event.start, event.end, event.title))[:limit]
+
+
+def find_academic_events_in_db(
+    db: Session,
+    question: str,
+    today: date | None = None,
+    limit: int = 15,
+) -> list[AcademicCalendarEvent]:
+    """Query the active Supabase calendar rows using the same question rules.
+
+    The database is the source of truth; the in-module list above remains only
+    as an outage fallback for legacy callers.
+    """
+    if today is None:
+        today = datetime.now().date()
+
+    start, end, upcoming_only = _infer_query_range(question, today)
+    query = db.query(AcademicCalendarEventModel).filter(
+        AcademicCalendarEventModel.is_active.is_(True)
+    )
+    if upcoming_only:
+        query = query.filter(AcademicCalendarEventModel.end_date >= today)
+    else:
+        query = query.filter(
+            AcademicCalendarEventModel.start_date <= end,
+            AcademicCalendarEventModel.end_date >= start,
+        )
+
+    events = [
+        AcademicCalendarEvent(
+            start=row.start_date,
+            end=row.end_date,
+            title=row.title,
+        )
+        for row in query.order_by(
+            AcademicCalendarEventModel.start_date,
+            AcademicCalendarEventModel.end_date,
+            AcademicCalendarEventModel.title,
+        ).all()
+    ]
+
+    topics = _topic_keywords(question)
+    if topics:
+        matched = [event for event in events if any(topic in event.title for topic in topics)]
+        if matched:
+            events = matched
+
+    semesters = _semester_keywords(question)
+    if semesters:
+        matched = [event for event in events if any(semester in event.title for semester in semesters)]
+        if matched:
+            events = matched
+
+    return events[:limit]
+
+
+def build_academic_calendar_context_from_db(
+    db: Session,
+    question: str,
+    today: date | None = None,
+) -> str:
+    """Build an AI context exclusively from active Supabase calendar rows."""
+    if today is None:
+        today = datetime.now().date()
+
+    events = find_academic_events_in_db(db, question, today=today)
+    if not events:
+        return (
+            "[Supabase 학사일정]\n"
+            f"기준일: {today.isoformat()}\n"
+            "활성화된 학사일정 중 질문 조건에 맞는 일정이 없습니다."
+        )
+
+    lines = [
+        "[Supabase 학사일정]",
+        f"기준일: {today.isoformat()}",
+        "아래는 공식 PDF seed에서 적재된 활성 일정입니다. 이 목록을 학사일정의 최우선 근거로 사용하세요.",
+    ]
+    lines.extend(f"- {event.date_text}: {event.title}" for event in events)
+    return "\n".join(lines)
 
 
 def build_academic_calendar_answer(question: str, today: date | None = None) -> str:
