@@ -18,12 +18,26 @@ export interface ChatRoom {
   created_at: string;
   updated_at: string;
   participants: ChatParticipant[];
+  is_muted: boolean;
 }
 
 export interface ChatRoomCreateRequest {
   friend_id?: number;
   participant_ids?: number[];
   name?: string;
+}
+
+export interface ChatRoomUpdateRequest {
+  name: string;
+}
+
+export interface RoomNotificationUpdateRequest {
+  is_muted: boolean;
+}
+
+export interface RoomNotificationResponse {
+  room_id: number;
+  is_muted: boolean;
 }
 
 export interface ChatMessage {

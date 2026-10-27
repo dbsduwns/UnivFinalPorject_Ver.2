@@ -9,6 +9,7 @@ from .menu_item import MenuItem
 from .notice import Notice
 from .notice_read import NoticeRead
 from .notification_setting import NotificationSetting
+from .user_presence import UserPresence
 from app.models.shuttle import Shuttle
 from .timetable import Timetable
 from .timetable_course import TimetableCourse

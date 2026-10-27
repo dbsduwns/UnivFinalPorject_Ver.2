@@ -16,3 +16,4 @@ class RoomMessenger(Base):
 
     participants = relationship("RoomParticipant", back_populates="room", cascade="all, delete-orphan")
     messages = relationship("Messenger", back_populates="room", cascade="all, delete-orphan")
+    active_presences = relationship("UserPresence", back_populates="active_room")

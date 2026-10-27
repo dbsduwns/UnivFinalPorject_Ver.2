@@ -23,6 +23,12 @@ class User(Base):
     chat_rooms = relationship("ChatRoom", back_populates="user")
     notice_reads = relationship("NoticeRead", back_populates="user")
     notification_setting = relationship("NotificationSetting", back_populates="user", uselist=False)
+    presence = relationship(
+        "UserPresence",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
     wizard_selections = relationship("WizardSelection", back_populates="user")
     messengers = relationship("Messenger", back_populates="sender")
     room_participants = relationship("RoomParticipant", back_populates="user", cascade="all, delete-orphan")

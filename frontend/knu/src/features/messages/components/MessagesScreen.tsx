@@ -1,12 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ActivityIndicator,
   Alert,
-  Keyboard,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -28,6 +25,7 @@ import {
 } from "lucide-react-native";
 
 import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
+import { KeyboardAwareContent } from "@/components/ui/KeyboardAwareContent";
 import { getAxiosErrorMessage } from "@/api/errors";
 import { chatApi } from "@/features/chat/api/chat-api";
 import type { ChatMessage } from "@/features/chat/types";
@@ -67,9 +65,6 @@ export const MessagesScreen = () => {
   const [refreshingMessages, setRefreshingMessages] = useState(false);
   const conversationScrollRef = useRef<ScrollView>(null);
   const shouldAutoScrollRef = useRef(true);
-  const screenContentRef = useRef<View>(null);
-  const keyboardTopRef = useRef<number | null>(null);
-  const [keyboardOverlap, setKeyboardOverlap] = useState(0);
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
   const [timetableFriend, setTimetableFriend] = useState<FriendUser | null>(null);
 
@@ -171,55 +166,11 @@ export const MessagesScreen = () => {
   const showList = isWide || !selectedFriend;
   const showConversation = isWide || !!selectedFriend;
 
-  const measureKeyboardOverlap = useCallback(() => {
-    const keyboardTop = keyboardTopRef.current;
-    if (keyboardTop === null) return;
-
-    screenContentRef.current?.measureInWindow((_x, y, _width, height) => {
-      if (keyboardTopRef.current !== keyboardTop) return;
-      setKeyboardOverlap(Math.max(0, Math.ceil(y + height - keyboardTop)));
-    });
-  }, []);
-
-  useEffect(() => {
-    if (Platform.OS !== "android") return;
-
-    let frameId: number | null = null;
-    const scheduleMeasurement = () => {
-      if (frameId !== null) cancelAnimationFrame(frameId);
-      frameId = requestAnimationFrame(() => {
-        frameId = null;
-        measureKeyboardOverlap();
-      });
-    };
-
-    const showSubscription = Keyboard.addListener("keyboardDidShow", (event) => {
-      keyboardTopRef.current = event.endCoordinates.screenY;
-      scheduleMeasurement();
-    });
-    const hideSubscription = Keyboard.addListener("keyboardDidHide", () => {
-      keyboardTopRef.current = null;
-      setKeyboardOverlap(0);
-    });
-
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-      if (frameId !== null) cancelAnimationFrame(frameId);
-    };
-  }, [measureKeyboardOverlap]);
-
   return (
     <AppScreenLayout>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      <KeyboardAwareContent>
         <View
-          ref={screenContentRef}
           className="flex-1 bg-[#F4F7F8] px-4 pb-4 pt-3 md:px-7 md:pb-7"
-          style={Platform.OS === "android" ? { paddingBottom: keyboardOverlap + 16 } : undefined}
-          onLayout={Platform.OS === "android" ? measureKeyboardOverlap : undefined}
         >
           <View className="self-center w-full max-w-[1080px] flex-1">
           <View className="flex-row items-center justify-between mb-4">
@@ -565,7 +516,7 @@ export const MessagesScreen = () => {
           </View>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardAwareContent>
 
       <FriendInviteModal
         visible={inviteModalVisible}

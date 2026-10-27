@@ -58,7 +58,7 @@ async def notify_users_by_type(
     recipient_ids: List[int] | None = None,
 ):
     """
-    alert_type: 'notice_alert', 'shuttle_alert', 'cafeteria_alert'
+    alert_type: 'notice_alert', 'shuttle_alert', 'cafeteria_alert', 'direct_message'
     """
     query = db.query(NotificationSetting).filter(
         getattr(NotificationSetting, alert_type) == True,

@@ -15,6 +15,12 @@ def _direct_key(user_ids: set[int]) -> str:
     return ":".join(str(user_id) for user_id in sorted(user_ids))
 
 
+def _with_my_notification_setting(room: RoomMessenger, user_id: int) -> RoomMessenger:
+    participant = next((item for item in room.participants if item.user_id == user_id), None)
+    room.is_muted = participant.is_muted if participant is not None else False
+    return room
+
+
 def create_room(db: Session, user: User, data: MessengerRoomCreate) -> RoomMessenger:
     participant_ids = set(data.participant_ids)
     participant_ids.add(user.id)
@@ -40,7 +46,7 @@ def create_room(db: Session, user: User, data: MessengerRoomCreate) -> RoomMesse
             .first()
         )
         if existing_room is not None:
-            return existing_room
+            return _with_my_notification_setting(existing_room, user.id)
 
     room = RoomMessenger(is_group=is_group, name=data.name if is_group else None, direct_key=direct_key)
     room.participants = [RoomParticipant(user_id=participant_id) for participant_id in sorted(participant_ids)]
@@ -58,15 +64,15 @@ def create_room(db: Session, user: User, data: MessengerRoomCreate) -> RoomMesse
                 .first()
             )
             if existing_room is not None:
-                return existing_room
+                return _with_my_notification_setting(existing_room, user.id)
         raise
 
     db.refresh(room)
-    return room
+    return _with_my_notification_setting(room, user.id)
 
 
 def get_my_rooms(db: Session, user: User) -> list[RoomMessenger]:
-    return (
+    rooms = (
         db.query(RoomMessenger)
         .join(RoomParticipant, RoomParticipant.room_id == RoomMessenger.id)
         .options(selectinload(RoomMessenger.participants).selectinload(RoomParticipant.user))
@@ -74,16 +80,18 @@ def get_my_rooms(db: Session, user: User) -> list[RoomMessenger]:
         .order_by(RoomMessenger.updated_at.desc(), RoomMessenger.id.desc())
         .all()
     )
+    return [_with_my_notification_setting(room, user.id) for room in rooms]
 
 
 def get_my_room(db: Session, user: User, room_id: int) -> RoomMessenger | None:
-    return (
+    room = (
         db.query(RoomMessenger)
         .join(RoomParticipant, RoomParticipant.room_id == RoomMessenger.id)
         .options(selectinload(RoomMessenger.participants).selectinload(RoomParticipant.user))
         .filter(RoomMessenger.id == room_id, RoomParticipant.user_id == user.id)
         .first()
     )
+    return _with_my_notification_setting(room, user.id) if room is not None else None
 
 
 def get_room_messages(db: Session, user: User, room_id: int) -> list[Messenger]:
@@ -115,16 +123,17 @@ def send_message(db: Session, user: User, room_id: int, data: ChatMessageCreate)
         recipient_ids = [
             participant.user_id
             for participant in room.participants
-            if participant.user_id != user.id
+            if participant.user_id != user.id and not participant.is_muted
         ]
-        notify_users_by_type_sync(
-            db,
-            "message_alert",
-            f"{user.name}님이 메시지를 보냈습니다.",
-            "새 메시지가 도착했습니다.",
-            {"type": "direct_message", "room_id": room.id},
-            recipient_ids=recipient_ids,
-        )
+        if recipient_ids:
+            notify_users_by_type_sync(
+                db,
+                "message_alert",
+                f"{user.name}님이 메시지를 보냈습니다.",
+                "새 메시지가 도착했습니다.",
+                {"type": "direct_message", "room_id": room.id},
+                recipient_ids=recipient_ids,
+            )
     return message
 
 
@@ -142,3 +151,37 @@ def delete_room(db: Session, user: User, room_id: int) -> None:
             room.direct_key = None
         db.delete(participant)
     db.commit()
+
+
+def update_room_name(db: Session, user: User, room_id: int, name: str) -> RoomMessenger:
+    room = get_my_room(db, user, room_id)
+    if room is None:
+        raise ValueError("대화방을 찾을 수 없습니다.")
+    if not room.is_group:
+        raise ValueError("단체 채팅방만 이름을 변경할 수 있습니다.")
+
+    room.name = name
+    room.updated_at = func.now()
+    db.commit()
+    db.refresh(room)
+    return _with_my_notification_setting(room, user.id)
+
+
+def update_room_notification(
+    db: Session,
+    user: User,
+    room_id: int,
+    is_muted: bool,
+) -> RoomParticipant:
+    participant = (
+        db.query(RoomParticipant)
+        .filter(RoomParticipant.room_id == room_id, RoomParticipant.user_id == user.id)
+        .first()
+    )
+    if participant is None:
+        raise ValueError("대화방을 찾을 수 없습니다.")
+
+    participant.is_muted = is_muted
+    db.commit()
+    db.refresh(participant)
+    return participant

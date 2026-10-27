@@ -1,5 +1,13 @@
 import { apiClient } from "@/api/client";
-import type { ChatRoom, ChatMessage, ChatRoomCreateRequest, ChatSendResponse } from "../types";
+import type {
+  ChatRoom,
+  ChatMessage,
+  ChatRoomCreateRequest,
+  ChatRoomUpdateRequest,
+  ChatSendResponse,
+  RoomNotificationResponse,
+  RoomNotificationUpdateRequest,
+} from "../types";
 
 export const chatApi = {
   getRooms: () => apiClient.get<ChatRoom[]>("/api/chat/rooms"),
@@ -17,4 +25,10 @@ export const chatApi = {
   // 현재 사용자만 대화방에서 나갑니다.
   deleteRoom: (roomId: number) =>
     apiClient.delete(`/api/chat/rooms/${roomId}`),
+
+  updateRoom: (roomId: number, request: ChatRoomUpdateRequest) =>
+    apiClient.patch<ChatRoom>(`/api/chat/rooms/${roomId}`, request),
+
+  updateRoomNotification: (roomId: number, request: RoomNotificationUpdateRequest) =>
+    apiClient.patch<RoomNotificationResponse>(`/api/chat/rooms/${roomId}/notification`, request),
 };

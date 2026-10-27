@@ -42,8 +42,29 @@ class ChatRoomResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     participants: list[ParticipantResponse] = Field(default_factory=list)
+    is_muted: bool = False
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ChatRoomUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def normalize_name(self):
+        self.name = self.name.strip()
+        if not self.name:
+            raise ValueError("채팅방 이름을 입력해 주세요.")
+        return self
+
+
+class RoomNotificationUpdate(BaseModel):
+    is_muted: bool
+
+
+class RoomNotificationResponse(BaseModel):
+    room_id: int
+    is_muted: bool
 
 
 class ChatMessageCreate(BaseModel):

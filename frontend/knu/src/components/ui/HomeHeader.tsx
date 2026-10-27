@@ -4,6 +4,8 @@ import { Menu, Bell, MessageCircle } from "lucide-react-native";
 import { useAppDrawer } from "@/components/ui/AppDrawer";
 import { router } from "expo-router";
 
+export const APP_HEADER_HEIGHT = 90;
+
 export const HomeHeader = () => {
     const { toggleDrawer } = useAppDrawer();
 
@@ -14,7 +16,7 @@ export const HomeHeader = () => {
         <View 
             className="Header flex-row items-center"
             style={{ 
-                height: 90,
+                height: APP_HEADER_HEIGHT,
                 paddingTop: 20,
                 paddingHorizontal: 10,
                 backgroundColor: "#FFFFFF",

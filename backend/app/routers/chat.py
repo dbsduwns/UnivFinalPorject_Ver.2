@@ -9,7 +9,10 @@ from app.schemas.chat import (
     ChatMessageResponse,
     MessengerRoomCreate,
     ChatRoomResponse,
+    ChatRoomUpdate,
     MessengerSendResponse,
+    RoomNotificationResponse,
+    RoomNotificationUpdate,
 )
 from app.services import chat as chat_service
 
@@ -69,3 +72,33 @@ def delete_room(
         return {"message": "대화방에서 나갔습니다."}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.patch("/rooms/{room_id}", response_model=ChatRoomResponse)
+def update_room(
+    room_id: int,
+    data: ChatRoomUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        return chat_service.update_room_name(db, current_user, room_id, data.name)
+    except ValueError as exc:
+        status_code = 404 if str(exc) == "대화방을 찾을 수 없습니다." else 400
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+
+
+@router.patch("/rooms/{room_id}/notification", response_model=RoomNotificationResponse)
+def update_room_notification(
+    room_id: int,
+    data: RoomNotificationUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        participant = chat_service.update_room_notification(
+            db, current_user, room_id, data.is_muted
+        )
+        return {"room_id": room_id, "is_muted": participant.is_muted}
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

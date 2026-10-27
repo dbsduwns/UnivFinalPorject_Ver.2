@@ -33,6 +33,7 @@ from app.routers import (
     commute as commute_router,
     friend as friend_router,
     chat as chat_router,
+    presence as presence_router,
     admin as admin_router,
 )
 from app.routers.community import (
@@ -98,6 +99,7 @@ app.include_router(shuttle_router.router)
 app.include_router(commute_router.router)
 app.include_router(friend_router.router)
 app.include_router(chat_router.router)
+app.include_router(presence_router.router)
 app.include_router(admin_router.router)
 app.include_router(post_router.router)
 app.include_router(post_router.admin_router)

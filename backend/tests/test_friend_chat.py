@@ -70,6 +70,24 @@ class FriendChatTest(unittest.TestCase):
         self.assertIsNone(chat.get_my_room(self.db, bob, group.id))
         self.assertEqual(len(chat.get_room_messages(self.db, carol, group.id)), 1)
 
+    def test_group_room_name_and_notification_settings_are_per_participant(self):
+        alice, bob, carol, _ = self.users
+        group = chat.create_room(self.db, alice, MessengerRoomCreate(participant_ids=[bob.id, carol.id]))
+
+        renamed = chat.update_room_name(self.db, bob, group.id, "캡스톤 팀")
+        self.assertEqual(renamed.name, "캡스톤 팀")
+        muted = chat.update_room_notification(self.db, bob, group.id, True)
+        self.assertTrue(muted.is_muted)
+
+        bob_room = next(room for room in chat.get_my_rooms(self.db, bob) if room.id == group.id)
+        self.assertTrue(bob_room.is_muted)
+        carol_room = next(room for room in chat.get_my_rooms(self.db, carol) if room.id == group.id)
+        self.assertFalse(carol_room.is_muted)
+
+        direct = chat.create_room(self.db, alice, MessengerRoomCreate(friend_id=bob.id))
+        with self.assertRaises(ValueError):
+            chat.update_room_name(self.db, alice, direct.id, "변경 불가")
+
     @patch("app.services.chat.notify_users_by_type_sync")
     def test_direct_message_notifies_only_the_recipient(self, notify):
         alice, bob, _, _ = self.users
@@ -85,6 +103,16 @@ class FriendChatTest(unittest.TestCase):
             {"type": "direct_message", "room_id": direct.id},
             recipient_ids=[bob.id],
         )
+
+    @patch("app.services.chat.notify_users_by_type_sync")
+    def test_muted_direct_room_does_not_notify_recipient(self, notify):
+        alice, bob, _, _ = self.users
+        direct = chat.create_room(self.db, alice, MessengerRoomCreate(friend_id=bob.id))
+        chat.update_room_notification(self.db, bob, direct.id, True)
+
+        chat.send_message(self.db, alice, direct.id, ChatMessageCreate(content="muted message"))
+
+        notify.assert_not_called()
 
     def test_non_friend_cannot_create_room_and_direct_leave_allows_new_room(self):
         alice, bob, _, outsider = self.users
