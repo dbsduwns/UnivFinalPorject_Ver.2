@@ -107,6 +107,14 @@ export const ChatRoomsScreen = () => {
   });
 
   useEffect(() => {
+    if (!selectedRoom || !messagesQuery.isSuccess) return;
+
+    client.setQueryData<ChatRoom[]>(["chatRooms"], (current) => current?.map((room) => (
+      room.id === selectedRoom.id ? { ...room, unread_count: 0 } : room
+    )));
+  }, [client, messagesQuery.dataUpdatedAt, messagesQuery.isSuccess, selectedRoom?.id]);
+
+  useEffect(() => {
     const activeRoomId = selectedRoom?.id ?? null;
     setActiveRoomId(activeRoomId);
     // 사용자가 채팅방 접속 시 푸시 알람 차단
@@ -263,6 +271,11 @@ export const ChatRoomsScreen = () => {
                     return <Pressable key={room.id} onPress={() => setSelectedRoom(room)} onLongPress={() => openSettings(room)} delayLongPress={450} className={`p-4 rounded-2xl mb-1 flex-row items-center ${active ? "bg-cyan-50" : "active:bg-gray-50"}`}>
                       <View className="w-11 h-11 rounded-full bg-cyan-100 items-center justify-center"><Text className="font-extrabold" style={{ color: BRAND }}>{name.slice(0, 1)}</Text></View>
                       <View className="flex-1 ml-3"><Text className="text-[15px] font-extrabold text-gray-900" numberOfLines={1}>{name}</Text><Text className="text-xs text-gray-400 mt-1">{room.is_group ? "그룹 채팅" : "개인 채팅"}{room.is_muted ? " · 알림 꺼짐" : ""}</Text></View>
+                      {room.unread_count > 0 ? (
+                        <View className="h-6 min-w-6 px-1.5 rounded-full bg-cyan-700 items-center justify-center">
+                          <Text className="text-xs font-extrabold text-white">{room.unread_count > 99 ? "99+" : room.unread_count}</Text>
+                        </View>
+                      ) : null}
                     </Pressable>;
                   })}
                 </ScrollView>

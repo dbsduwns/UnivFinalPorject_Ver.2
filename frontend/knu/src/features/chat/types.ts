@@ -19,6 +19,7 @@ export interface ChatRoom {
   updated_at: string;
   participants: ChatParticipant[];
   is_muted: boolean;
+  unread_count: number;
 }
 
 export interface ChatRoomCreateRequest {

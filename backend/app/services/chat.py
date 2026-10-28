@@ -10,7 +10,7 @@ from app.models.room_participants import RoomParticipant
 from app.models.user import User
 from app.models.user_presence import UserPresence
 from app.core.notification import notify_users_by_type_sync
-from app.schemas.chat import ChatMessageCreate, MessengerRoomCreate
+from app.schemas.chat import ChatMessageCreate, ChatRoomResponse, MessengerRoomCreate
 from app.services.friend import check_is_friend
 
 
@@ -94,7 +94,7 @@ def create_room(db: Session, user: User, data: MessengerRoomCreate) -> RoomMesse
     return _with_my_notification_setting(room, user.id)
 
 
-def get_my_rooms(db: Session, user: User) -> list[RoomMessenger]:
+def get_my_rooms(db: Session, user: User) -> list[ChatRoomResponse]:
     rooms = (
         db.query(RoomMessenger)
         .join(RoomParticipant, RoomParticipant.room_id == RoomMessenger.id)
@@ -103,7 +103,40 @@ def get_my_rooms(db: Session, user: User) -> list[RoomMessenger]:
         .order_by(RoomMessenger.updated_at.desc(), RoomMessenger.id.desc())
         .all()
     )
-    return [_with_my_notification_setting(room, user.id) for room in rooms]
+
+    responses = []
+    for room in rooms:
+        my_participant = next(
+            participant
+            for participant in room.participants
+            if participant.user_id == user.id
+        )
+
+        unread_count = (
+            db.query(func.count(Messenger.id))
+            .filter(
+                Messenger.room_messenger_id == room.id,
+                Messenger.sender_id != user.id,
+                Messenger.created_at > my_participant.last_read,
+            )
+            .scalar()
+        )
+
+        responses.append(
+            ChatRoomResponse(
+                id=room.id,
+                is_group=room.is_group,
+                name=room.name,
+                created_at=room.created_at,
+                updated_at=room.updated_at,
+                participants=room.participants,
+                is_muted=my_participant.is_muted,
+                unread_count=unread_count,
+            )
+        )
+
+    return responses
+
 
 
 def get_my_room(db: Session, user: User, room_id: int) -> RoomMessenger | None:
@@ -118,14 +151,28 @@ def get_my_room(db: Session, user: User, room_id: int) -> RoomMessenger | None:
 
 
 def get_room_messages(db: Session, user: User, room_id: int) -> list[Messenger]:
-    if get_my_room(db, user, room_id) is None:
+    my_room = get_my_room(db, user, room_id)
+
+    if my_room is None:
         raise ValueError("대화방을 찾을 수 없습니다.")
-    return (
+
+    participant = next(
+        item for item in my_room.participants
+        if item.user_id == user.id
+    )
+
+    messages = (
         db.query(Messenger)
         .filter(Messenger.room_messenger_id == room_id)
         .order_by(Messenger.id.asc())
         .all()
     )
+
+    if messages:
+        participant.last_read = messages[-1].created_at
+        db.commit()
+
+    return messages
 
 
 def send_message(db: Session, user: User, room_id: int, data: ChatMessageCreate) -> Messenger:
