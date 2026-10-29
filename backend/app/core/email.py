@@ -1,8 +1,11 @@
 import os
 import smtplib
 import ssl
+import logging
 from email.message import EmailMessage
 from urllib.parse import urlencode
+
+logger = logging.getLogger(__name__)
 
 SMTP_HOST = os.getenv("SMTP_HOST")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
@@ -21,6 +24,7 @@ def send_password_reset_email(email: str, raw_token: str) -> None:
             PASSWORD_RESET_URL,
         ]
     ):
+        logger.error("Password reset email configuration is incomplete")
         raise RuntimeError("이메일 발송에 문제가 생겼습니다.")
 
     query = urlencode({"token": raw_token})
@@ -51,5 +55,7 @@ def send_password_reset_email(email: str, raw_token: str) -> None:
             server.starttls(context=context)
             server.login(SMTP_USERNAME, SMTP_PASSWORD)
             server.send_message(message)
+            logger.info("Password reset email accepted by SMTP server")
     except (OSError, smtplib.SMTPException) as exc:
+        logger.exception("Password reset email SMTP delivery failed")
         raise RuntimeError("비밀번호 재설정 이메일 발송에 실패했습니다.") from exc

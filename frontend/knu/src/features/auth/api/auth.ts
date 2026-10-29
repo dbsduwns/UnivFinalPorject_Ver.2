@@ -1,7 +1,9 @@
 import { apiClient } from "@/api/client";
 import type { 
   TokenResponse, User, UserLoginBody, UserSignupBody, UserUpdateBody,
-  NotificationSettings, NotificationSettingsUpdateBody 
+  NotificationSettings, NotificationSettingsUpdateBody, 
+  PasswordResetRequestPayload,
+  PasswordResetConfirmPayload
 } from "@/features/auth/api/types";
 
 export async function loginRequest(body: UserLoginBody): Promise<TokenResponse> {
@@ -13,6 +15,19 @@ export async function signupRequest(body: UserSignupBody): Promise<User> {
   const { data } = await apiClient.post<User>("/auth/signup", body);
   return data;
 }
+
+export const requestPasswordReset = async (
+  payload: PasswordResetRequestPayload,
+) => {
+  return apiClient.post("/auth/password-reset/request", payload);
+};
+
+export const confirmPasswordRequest = async (
+  payload: PasswordResetConfirmPayload,
+) => {
+  return apiClient.post("/auth/password-reset/confirm", payload);
+};
+
 
 export async function meRequest() {
   console.log("ME START");

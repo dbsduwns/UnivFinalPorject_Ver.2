@@ -39,4 +39,14 @@ export type NotificationSettings = {
   message_alert: boolean;
 };
 
+export interface PasswordResetRequestPayload {
+  email: string;
+}
+
+export interface PasswordResetConfirmPayload {
+  token: string;
+  new_password: string;
+  confirm_password: string;
+}
+
 export type NotificationSettingsUpdateBody = Partial<NotificationSettings>;
