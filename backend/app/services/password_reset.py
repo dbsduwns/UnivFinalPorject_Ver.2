@@ -52,8 +52,11 @@ def request_password_reset(db: Session, email: str, client_ip: str) -> None:
 
     user = db.query(User).filter(User.email == email).first()
     if user is None:
+        logger.info("Password reset request: no matching user found")
         db.commit()
         return
+
+    logger.info("Password reset request: matching user found; starting SMTP delivery")
 
     # A new request invalidates every previous reset link for this user.
     db.query(PasswordResetToken).filter(
