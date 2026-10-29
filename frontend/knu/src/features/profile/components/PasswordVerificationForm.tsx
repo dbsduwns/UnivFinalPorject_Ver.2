@@ -33,7 +33,10 @@ export default function PasswordVerificationForm({ onVerified, onClose, }: Passw
     return (
         <View className="flex-1 bg-white">
             {/* 헤더 */}
-            <View className="flex-row items-center justify-between mt-10 px-6 pt-6 pb-4 border-b border-gray-100">
+            <View
+                className="flex-row items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100"
+                style={{ paddingTop: insets.top, height: insets.top + 76 }}
+            >
                 <Text className="text-xl font-bold text-gray-900">회원 정보 수정</Text>
                 <TouchableOpacity 
                     className="items-center justify-center"

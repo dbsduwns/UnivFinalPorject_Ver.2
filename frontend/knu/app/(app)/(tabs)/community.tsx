@@ -23,6 +23,7 @@ import {
   HOT_POSTS,
   type CommunityPost,
 } from "@/features/community/data/community";
+import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
 
 const BRAND = "#13708D";
 
@@ -36,85 +37,87 @@ const BOARD_ICONS: Record<string, ReactNode> = {
 };
 
 export default function CommunityScreen() {
-  const insets = useSafeAreaInsets();
   const isAdmin = useAuthStore(s => s.user?.is_admin === true);
 
   return (
-    <View className="flex-1 bg-[#F4F6F8]">
-      <View
-        className="bg-white border-b border-gray-200 px-5 justify-end"
-        style={{ paddingTop: insets.top, height: insets.top + (isAdmin ? 112 : 88) }}
-      >
-        {isAdmin && <View className="flex-row items-center self-start bg-cyan-50 rounded-full px-3 py-1 mb-1"><ShieldCheck size={13} color={BRAND} /><Text className="ml-1 text-xs font-bold text-[#13708D]">관리자</Text></View>}
-        <Text className="text-[28px] font-extrabold text-gray-900 pb-4">커뮤니티</Text>
-      </View>
-
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ paddingTop: 24, paddingBottom: 32 }}
-        showsVerticalScrollIndicator={false}
-      >
-        {isAdmin && <Pressable accessibilityRole="button" onPress={() => router.push("/(app)/admin/community")} className="mx-5 mb-6 bg-white rounded-3xl border border-gray-200 p-5 flex-row items-center"><View className="w-12 h-12 rounded-2xl bg-cyan-50 items-center justify-center"><Flag size={24} color={BRAND} /></View><View className="flex-1 ml-4"><Text className="text-base font-extrabold text-gray-900">신고·차단 관리</Text><Text className="text-xs text-gray-500 mt-1">댓글 신고 처리 및 사용자 간 차단 내역 확인</Text></View><ChevronRight size={22} color="#9CA3AF" /></Pressable>}
-        <View className="mb-8">
-          <View className="px-5 flex-row items-center mb-3">
-            <Text className="text-xl font-extrabold text-gray-900">HOT 게시물</Text>
-            <Flame size={22} color="#F97316" fill="#F97316" style={{ marginLeft: 5 }} />
-          </View>
-
-          {HOT_POSTS.length === 0 ? (
-            <View className="mx-5 h-40 rounded-3xl bg-white border border-gray-100 items-center justify-center px-6">
-              <View className="w-12 h-12 rounded-full bg-orange-50 items-center justify-center">
-                <Flame size={23} color="#FDBA74" />
-              </View>
-              <Text className="text-sm font-extrabold text-gray-600 mt-3">아직 HOT 게시물이 없어요</Text>
-              <Text className="text-xs text-gray-400 mt-1.5 text-center">
-                인기 게시물이 생기면 이곳에서 바로 확인할 수 있어요.
-              </Text>
+    <AppScreenLayout>
+      <View className="flex-1 bg-[#F4F6F8]">
+        {isAdmin && (
+          <View className="w-full items-center bg-cyan-50 py-1">
+            <View className="flex-row items-center justify-center rounded-full px-3 py-1">
+              <ShieldCheck size={13} color={BRAND} />
+              <Text className="ml-1 text-xs font-bold text-[#13708D]">관리자</Text>
             </View>
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 20, gap: 14 }}
-            >
-              {HOT_POSTS.map((post) => <HotPostCard key={post.id} post={post} />)}
-            </ScrollView>
-          )}
-        </View>
-
-        <View className="px-5">
-          <Text className="text-xl font-extrabold text-gray-900 mb-4">게시판 목록</Text>
-          <View className="bg-white rounded-3xl border border-gray-200 overflow-hidden">
-            {COMMUNITY_BOARDS.map((board, index) => (
-              <View key={board.slug}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${board.title} 열기`}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/(app)/community/[board]",
-                      params: { board: board.slug },
-                    })
-                  }
-                  className="h-[82px] px-5 flex-row items-center active:bg-gray-50"
-                >
-                  <View className="w-12 h-12 rounded-2xl bg-cyan-50 items-center justify-center">
-                    {BOARD_ICONS[board.slug]}
-                  </View>
-                  <Text className="flex-1 ml-4 text-[17px] font-extrabold text-gray-900">
-                    {board.title}
-                  </Text>
-                  <ChevronRight size={22} color="#9CA3AF" />
-                </Pressable>
-                {index < COMMUNITY_BOARDS.length - 1 && (
-                  <View className="h-px bg-gray-200 ml-[84px]" />
-                )}
-              </View>
-            ))}
           </View>
-        </View>
-      </ScrollView>
-    </View>
+        )}
+
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ paddingTop: 24, paddingBottom: 32 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {isAdmin && <Pressable accessibilityRole="button" onPress={() => router.push("/(app)/admin/community")} className="mx-5 mb-6 bg-white rounded-3xl border border-gray-200 p-5 flex-row items-center"><View className="w-12 h-12 rounded-2xl bg-cyan-50 items-center justify-center"><Flag size={24} color={BRAND} /></View><View className="flex-1 ml-4"><Text className="text-base font-extrabold text-gray-900">신고·차단 관리</Text><Text className="text-xs text-gray-500 mt-1">댓글 신고 처리 및 사용자 간 차단 내역 확인</Text></View><ChevronRight size={22} color="#9CA3AF" /></Pressable>}
+          <View className="mb-8">
+            <View className="px-5 flex-row items-center mb-3">
+              <Text className="text-xl font-extrabold text-gray-900">HOT 게시물</Text>
+              <Flame size={22} color="#F97316" fill="#F97316" style={{ marginLeft: 5 }} />
+            </View>
+
+            {HOT_POSTS.length === 0 ? (
+              <View className="mx-5 h-40 rounded-3xl bg-white border border-gray-100 items-center justify-center px-6">
+                <View className="w-12 h-12 rounded-full bg-orange-50 items-center justify-center">
+                  <Flame size={23} color="#FDBA74" />
+                </View>
+                <Text className="text-sm font-extrabold text-gray-600 mt-3">아직 HOT 게시물이 없어요</Text>
+                <Text className="text-xs text-gray-400 mt-1.5 text-center">
+                  인기 게시물이 생기면 이곳에서 바로 확인할 수 있어요.
+                </Text>
+              </View>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 20, gap: 14 }}
+              >
+                {HOT_POSTS.map((post) => <HotPostCard key={post.id} post={post} />)}
+              </ScrollView>
+            )}
+          </View>
+
+          <View className="px-5">
+            <Text className="text-xl font-extrabold text-gray-900 mb-4">게시판 목록</Text>
+            <View className="bg-white rounded-3xl border border-gray-200 overflow-hidden">
+              {COMMUNITY_BOARDS.map((board, index) => (
+                <View key={board.slug}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${board.title} 열기`}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/(app)/community/[board]",
+                        params: { board: board.slug },
+                      })
+                    }
+                    className="h-[82px] px-5 flex-row items-center active:bg-gray-50"
+                  >
+                    <View className="w-12 h-12 rounded-2xl bg-cyan-50 items-center justify-center">
+                      {BOARD_ICONS[board.slug]}
+                    </View>
+                    <Text className="flex-1 ml-4 text-[17px] font-extrabold text-gray-900">
+                      {board.title}
+                    </Text>
+                    <ChevronRight size={22} color="#9CA3AF" />
+                  </Pressable>
+                  {index < COMMUNITY_BOARDS.length - 1 && (
+                    <View className="h-px bg-gray-200 ml-[84px]" />
+                  )}
+                </View>
+              ))}
+            </View>
+          </View>
+        </ScrollView>
+      </View>
+    </AppScreenLayout>
   );
 }
 

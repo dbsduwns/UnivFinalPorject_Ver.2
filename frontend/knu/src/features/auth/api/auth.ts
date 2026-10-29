@@ -5,6 +5,7 @@ import type {
   PasswordResetRequestPayload,
   PasswordResetConfirmPayload,
   PasswordVerifyRequest,
+  PasswordChangeRequest,
 } from "@/features/auth/api/types";
 
 export async function loginRequest(body: UserLoginBody): Promise<TokenResponse> {
@@ -31,6 +32,10 @@ export const confirmPasswordRequest = async (
 
 export async function verifyPassword(body: PasswordVerifyRequest): Promise<void> {
   await apiClient.post("/auth/verify-password", body);
+}
+
+export async function changePassword(body: PasswordChangeRequest): Promise<void> {
+  await apiClient.post("/auth/password/change", body);
 }
 
 export async function meRequest() {

@@ -12,7 +12,7 @@ const COLOR = "#13708D";
 export const NOTICE_CATEGORIES = ["학사", "장학", "학습/상담", "취창업"];
 
 export function AdminBadge() {
-  return <View className="flex-row items-center self-start rounded-full px-3 py-1.5 bg-[#E8F3F6]"><ShieldCheck size={14} color={COLOR} /><Text className="ml-1 text-xs font-bold text-[#13708D]">관리자</Text></View>;
+  return <View className="w-full items-center bg-cyan-50 py-1"><View className="flex-row items-center rounded-full px-3 py-1.5"><ShieldCheck size={14} color={COLOR} /><Text className="ml-1 text-xs font-bold text-[#13708D]">관리자</Text></View>;</View>
 }
 
 type Props = { notice: Notice | null; creating: boolean; onClose: () => void; onPinned?: () => void };

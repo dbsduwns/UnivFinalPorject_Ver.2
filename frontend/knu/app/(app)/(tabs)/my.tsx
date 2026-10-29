@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "@/features/auth/store/auth-store";
 import ProfileEditForm from "@/features/profile/components/ProfileEditForm";
 import PasswordVerificationForm from "@/features/profile/components/PasswordVerificationForm";
+import PasswordChangeForm from "@/features/profile/components/PasswordChangeForm";
 import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
 import {
   getNotificationSettingsRequest,
@@ -36,6 +37,7 @@ export default function MyScreen() {
 
   // 모달 상태
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [isPasswordChangeModalVisible, setIsPasswordChangeModalVisible] = useState(false);
   const closeModal = () => setIsEditModalVisible(false);
 
   // 알림 설정 상태
@@ -243,7 +245,7 @@ export default function MyScreen() {
             <SettingLink
               icon={<Key size={20} color="#4B5563" />}
               title="비밀번호 변경"
-              onPress={() => Alert.alert("준비 중", "비밀번호 변경 기능은 곧 추가됩니다.")}
+              onPress={() => setIsPasswordChangeModalVisible(true)}
             />
             <View className="h-[1px] bg-gray-50 mx-4" />
             <SettingLink
@@ -313,6 +315,22 @@ export default function MyScreen() {
             onClose={closeModal}
           />
         )}
+      </Modal>
+
+      <Modal
+        visible={isPasswordChangeModalVisible}
+        animationType="slide"
+        onRequestClose={() => setIsPasswordChangeModalVisible(false)}
+      >
+        <PasswordChangeForm
+          onClose={() => setIsPasswordChangeModalVisible(false)}
+          onChanged={async () => {
+            setIsPasswordChangeModalVisible(false);
+            Alert.alert("변경 완료", "비밀번호가 변경되었습니다. 새 비밀번호로 다시 로그인해 주세요.");
+            await logout();
+            router.replace("/login");
+          }}
+        />
       </Modal>
     </AppScreenLayout>
   );

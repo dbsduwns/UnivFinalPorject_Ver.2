@@ -9,7 +9,7 @@ from app.schemas.user import (
 from app.services import auth as auth_service
 from app.services import account as account_service
 from app.services import password_reset as password_reset_service
-from app.schemas.user import PasswordVerifyRequest
+from app.schemas.user import PasswordVerifyRequest, PasswordChangeRequest
 from app.models.user import User
 from app.models.notification_setting import NotificationSetting
 from app.core.dependencies import get_current_user
@@ -30,6 +30,25 @@ def verify_user_password(
 ):
     if not auth_service.verify_user_password(db, current_user.id, data.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="비밀번호가 일치하지 않습니다.",)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/password/change", status_code=status.HTTP_204_NO_CONTENT)
+def change_password(
+    data: PasswordChangeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        auth_service.change_user_password(
+            db,
+            current_user,
+            data.current_password,
+            data.new_password,
+            data.confirm_password,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 @router.post("/signup", response_model=UserResponse)
 def signup(data: UserSignup, db: Session = Depends(get_db)):

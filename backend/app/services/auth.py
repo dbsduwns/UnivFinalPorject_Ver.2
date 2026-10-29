@@ -54,3 +54,22 @@ def verify_user_password(db: Session, user_id: int, password: str) -> bool:
     if user is None:
         return False
     return verify_password(password, user.password_hash)
+
+
+def change_user_password(
+    db: Session,
+    user: User,
+    current_password: str,
+    new_password: str,
+    confirm_password: str,
+) -> None:
+    if not verify_password(current_password, user.password_hash):
+        raise ValueError("현재 비밀번호가 일치하지 않습니다.")
+    if new_password != confirm_password:
+        raise ValueError("새 비밀번호와 비밀번호 재입력이 일치하지 않습니다.")
+    if current_password == new_password:
+        raise ValueError("새 비밀번호는 현재 비밀번호와 달라야 합니다.")
+
+    user.password_hash = hash_password(new_password)
+    user.token_version += 1
+    db.commit()

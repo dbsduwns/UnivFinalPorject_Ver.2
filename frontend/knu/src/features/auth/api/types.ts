@@ -36,6 +36,12 @@ export type PasswordVerifyRequest = {
   password: string;
 }
 
+export type PasswordChangeRequest = {
+  current_password: string;
+  new_password: string;
+  confirm_password: string;
+};
+
 export type NotificationSettings = {
   notice_alert: boolean;
   shuttle_alert: boolean;
