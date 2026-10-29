@@ -192,6 +192,12 @@ export default function LoginScreen() {
               )}
             </Pressable>
 
+            <Link href="/(auth)/reset-password" asChild>
+              <Pressable className="mt-3 items-center py-2">
+                <Text className="text-sm text-neutral-500 dark:text-neutral-400">비밀번호를 잊으셨나요?</Text>
+              </Pressable>
+            </Link>
+
             <Link href={hrefSignup} asChild>
               <Pressable className="mt-6 items-center py-2">
                 <Text className="text-[#0a7ea4] dark:text-sky-300">계정이 없으신가요? 회원가입</Text>
