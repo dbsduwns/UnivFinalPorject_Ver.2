@@ -1,12 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.schemas.user import (
-    UserSignup, UserLogin, TokenResponse, UserResponse, UserUpdate, 
+    UserSignup, UserLogin, TokenResponse, UserResponse, UserUpdate,
+    PasswordResetConfirm, PasswordResetRequest,
     PushTokenUpdate, NotificationSettingResponse, NotificationSettingUpdate
 )
 from app.services import auth as auth_service
 from app.services import account as account_service
+from app.services import password_reset as password_reset_service
 from app.models.user import User
 from app.models.notification_setting import NotificationSetting
 from app.core.dependencies import get_current_user
@@ -31,18 +33,19 @@ async def google_login(data: dict, db: Session = Depends(get_db)):
     try:
         idinfo = id_token.verify_oauth2_token(token, requests.Request(), "433369528179-1ra3pg4pffr7iuupnabdnk588c0q1tga.apps.googleusercontent.com")
 
-        email = idinfo['email'],
+        email = idinfo['email']
         name = idinfo.get('name', 'Google User')
 
         user = db.query(User).filter(User.email == email).first()
         if not user:
-            user = User(email=email, name=name, hashed_password="google_authenticated")
+            user = User(email=email, name=name, password_hash="google_authenticated")
             db.add(user)
             db.commit()
             db.refresh(user)
 
-        access_token = create_access_token(data={"sub": user.email})
-        refresh_token = create_refresh_token(data={"sub": user.email})
+        token_data = {"sub": str(user.id), "token_version": user.token_version}
+        access_token = create_access_token(data=token_data)
+        refresh_token = create_refresh_token(data=token_data)
 
         return {
             "access_token": access_token,
@@ -58,6 +61,35 @@ def login(data: UserLogin, db: Session = Depends(get_db)):
         return auth_service.login(db, data)
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e)) from e
+
+
+@router.post("/password-reset/request", status_code=status.HTTP_202_ACCEPTED)
+def request_password_reset(
+    data: PasswordResetRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    client_ip = request.client.host if request.client else "unknown"
+    try:
+        password_reset_service.request_password_reset(db, data.email, client_ip)
+    except password_reset_service.PasswordResetRateLimitExceeded as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    return {"message": "입력한 이메일이 등록되어 있다면 비밀번호 재설정 안내를 발송했습니다."}
+
+
+@router.post("/password-reset/confirm", status_code=status.HTTP_204_NO_CONTENT)
+def confirm_password_reset(data: PasswordResetConfirm, db: Session = Depends(get_db)):
+    try:
+        password_reset_service.confirm_password_reset(
+            db,
+            data.token,
+            data.new_password,
+            data.confirm_password,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 @router.get("/me", response_model=UserResponse)
 def me(current_user: User= Depends(get_current_user)):

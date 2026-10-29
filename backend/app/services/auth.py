@@ -39,8 +39,9 @@ def login(db: Session, data: UserLogin):
     if not verify_password(data.password, user.password_hash):
         raise ValueError("비밀번호가 일치하지 않습니다")
 
-    access_token = create_access_token({"sub": str(user.id)})
-    refresh_token = create_refresh_token({"sub": str(user.id)})
+    token_data = {"sub": str(user.id), "token_version": user.token_version}
+    access_token = create_access_token(token_data)
+    refresh_token = create_refresh_token(token_data)
 
     return {
         "access_token": access_token,

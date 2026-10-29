@@ -51,6 +51,29 @@ class UserResponse(BaseModel):
         "from_attributes": True
     }
 
+class PasswordResetRequest(BaseModel):
+    email: str = Field(min_length=5, max_length=254, pattern=EMAIL_PATTERN)
+
+    @field_validator("email")
+    @classmethod
+    def strip_email(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Email cannot be blank.")
+        return value
+
+class PasswordResetConfirm(BaseModel):
+    token: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=8, max_length=72)
+    confirm_password: str = Field(min_length=8, max_length=72)
+
+    @field_validator("new_password", "confirm_password")
+    @classmethod
+    def validate_password_bytes(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("Password must be at most 72 UTF-8 bytes.")
+        return value
+
 class PushTokenUpdate(BaseModel):
     expo_push_token: str
 

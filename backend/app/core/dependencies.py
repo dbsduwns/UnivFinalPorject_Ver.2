@@ -28,6 +28,10 @@ def get_current_user(
     if user is None:
         raise HTTPException(status_code=401, detail="User not found")
 
+    token_version = payload.get("token_version")
+    if token_version is None or token_version != user.token_version:
+        raise HTTPException(status_code=401, detail="Session has expired")
+
     return user
 
 def get_current_admin_user(

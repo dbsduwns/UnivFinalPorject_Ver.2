@@ -5,18 +5,11 @@ import { useRouter } from "expo-router";
 import { BotMessageSquare, Mic, SendHorizonal, StopCircle } from "lucide-react-native";
 import * as FileSystem from "expo-file-system/legacy";
 
-// Korean speech recognition model. The base model is about 140 MB.
-const MODEL_URL = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin";
-const WHISPER_DIR = `${FileSystem.documentDirectory}whisper/`;
-const MODEL_PATH = `${WHISPER_DIR}ggml-base.bin`;
-const MIN_MODEL_SIZE_BYTES = 100 * 1024 * 1024;
-
 export const AIAskBar = () => {
     const [text, setText] = useState("");
     const [isListening, setIsListening] = useState(false);
     const [isInitializing, setIsInitializing] = useState(false);
     const [isTranscribing, setIsTranscribing] = useState(false);
-    const recordingRef = useRef<Audio.Recording | null>(null);
     const router = useRouter();
 
     const handleSend = () => {

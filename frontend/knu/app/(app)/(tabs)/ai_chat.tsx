@@ -40,7 +40,6 @@ export default function AIChatScreen() {
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
 
   const flatListRef = useRef<FlatList>(null);
-  const hasProcessedQuery = useRef(false);
   const shouldScrollRef = useRef(false);
   const streamAbortControllerRef = useRef<AbortController | null>(null);
 
@@ -305,6 +304,8 @@ export default function AIChatScreen() {
     }
   };
 
+  const [isChatInitialized, setIsChatInitialized] = useState(false);
+
   useEffect(() => {
     const initChat = async () => {
       try {
@@ -325,9 +326,10 @@ export default function AIChatScreen() {
         }
       } catch (error) {
         console.error("Failed to initialize chat:", error);
+      } finally {
+        setIsChatInitialized(true);
       }
     };
-
     initChat();
   }, []);
 
@@ -360,13 +362,30 @@ export default function AIChatScreen() {
     }
   }, [messages]);
 
+  const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
+
   useEffect(() => {
-    if (q && !hasProcessedQuery.current) {
-      hasProcessedQuery.current = true;
-      onSend(q);
-      router.setParams({ q: "" });
+    const question = q?.trim();
+    if (!question) return;
+
+    setPendingQuestion(question);
+    router.setParams({q: ""});
+  }, [q]);
+
+  useEffect(() => {
+    if (
+      !isChatInitialized ||
+      isLoading ||
+      isStreaming ||
+      !pendingQuestion
+    ) {
+      return;
     }
-  }, [q, currentRoom]);
+
+    const question = pendingQuestion;
+    setPendingQuestion(null);
+    void onSend(question);
+  }, [pendingQuestion, isChatInitialized, isLoading, isStreaming]);
 
   const renderEmptyComponent = () => (
     <View className="flex-1 items-center justify-center pt-20 px-10">

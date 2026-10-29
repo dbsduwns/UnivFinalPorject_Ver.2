@@ -1,8 +1,9 @@
-from datetime import datetime, timedelta
+import hashlib
+import os
+import secrets
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
-import os
 
 
 SECRET_KEY = os.getenv("SECRET_KEY", "fallback-secret-key")
@@ -10,6 +11,7 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 REFRESH_TOKEN_EXPIRE_DAYS = 14
 FRIEND_INVITE_EXPIRE_DAYS = 7
+RESET_TOKEN_EXPIRE_MINUTES = 15
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -42,6 +44,16 @@ def decode_token(token: str) -> dict | None:
         return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:
         return None
+
+
+def create_reset_token() -> str:
+    """ 비밀번호 재설정 토큰 생성 (무작위 난수 32) """
+    return secrets.token_urlsafe(32)
+
+
+def hash_reset_token(token: str) -> str:
+    """ 비밀번호 재설정 토큰 해싱 """
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def create_friend_invite_token(inviter_id: int) -> tuple[str, datetime]:

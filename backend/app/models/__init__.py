@@ -22,6 +22,8 @@ from .completed_course import CompletedCourse
 from .wizard_selection import WizardSelection
 from .friendship import Friendship
 from .friend_invite import FriendInvite
+from .password_reset_token import PasswordResetToken
+from .password_reset_request_log import PasswordResetRequestLog
 from .room_messengers import RoomMessenger
 from .room_participants import RoomParticipant
 from .messenger import Messenger
