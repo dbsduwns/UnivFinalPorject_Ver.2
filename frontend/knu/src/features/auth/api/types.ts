@@ -32,6 +32,10 @@ export type UserSignupBody = {
   student_id: string;
 };
 
+export type PasswordVerifyRequest = {
+  password: string;
+}
+
 export type NotificationSettings = {
   notice_alert: boolean;
   shuttle_alert: boolean;

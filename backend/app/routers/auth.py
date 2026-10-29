@@ -9,6 +9,7 @@ from app.schemas.user import (
 from app.services import auth as auth_service
 from app.services import account as account_service
 from app.services import password_reset as password_reset_service
+from app.schemas.user import PasswordVerifyRequest
 from app.models.user import User
 from app.models.notification_setting import NotificationSetting
 from app.core.dependencies import get_current_user
@@ -20,6 +21,16 @@ from app.core.security import (
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+
+@router.post("/verify-password", status_code=status.HTTP_204_NO_CONTENT)
+def verify_user_password(
+    data: PasswordVerifyRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not auth_service.verify_user_password(db, current_user.id, data.password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="비밀번호가 일치하지 않습니다.",)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 @router.post("/signup", response_model=UserResponse)
 def signup(data: UserSignup, db: Session = Depends(get_db)):
     try:

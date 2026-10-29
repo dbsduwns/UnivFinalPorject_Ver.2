@@ -1,5 +1,5 @@
 import { Text, View, TouchableOpacity, Switch, Alert, ScrollView, Modal, ActivityIndicator } from "react-native";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "expo-router";
 import { 
   User as UserIcon, 
@@ -15,9 +15,11 @@ import {
   Navigation,
 } from "lucide-react-native";
 
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "@/features/auth/store/auth-store";
+import ProfileEditForm from "@/features/profile/components/ProfileEditForm";
+import PasswordVerificationForm from "@/features/profile/components/PasswordVerificationForm";
 import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
-import ChangeUserInfo from "@/components/ChangeUserInfoModal";
 import {
   getNotificationSettingsRequest,
   sendNotificationTestRequest,
@@ -26,6 +28,7 @@ import {
 import { NotificationSettings } from "@/features/auth/api/types";
 
 export default function MyScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
@@ -33,12 +36,16 @@ export default function MyScreen() {
 
   // 모달 상태
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const closeModal = () => setIsEditModalVisible(false);
 
   // 알림 설정 상태
   const [notifSettings, setNotifSettings] = useState<NotificationSettings | null>(null);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
   const [isSendingTestNotification, setIsSendingTestNotification] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+
+  // 비밀번호 인증 상태 확인
+  const [isPasswordVerified, setIsPasswordVerified] = useState(false);
 
   useEffect(() => {
     fetchSettings();
@@ -133,11 +140,15 @@ export default function MyScreen() {
 
   if (!user) return null;
 
+
   return (
     <AppScreenLayout>
       <ScrollView className="flex-1 bg-gray-50">
         {/* 상단 프로필 영역 */}
-        <View className="bg-white px-6 pt-12 pb-8 rounded-b-[40px] shadow-sm">
+        <View 
+          className="bg-white px-6 pt-12 pb-8 rounded-b-[40px] shadow-sm"
+          style={{ paddingTop: insets.top, height: insets.top + 76 }}  
+        >
           <View className="flex-row items-center">
             <View className="w-20 h-20 bg-blue-100 rounded-full items-center justify-center">
               <UserIcon size={40} color="#2563eb" />
@@ -291,13 +302,17 @@ export default function MyScreen() {
       </ScrollView>
 
       {/* 회원 정보 수정 모달 */}
-      <Modal
+      <Modal 
         visible={isEditModalVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setIsEditModalVisible(false)}
       >
-        <ChangeUserInfo onClose={() => setIsEditModalVisible(false)} />
+        {isPasswordVerified ? (
+          <ProfileEditForm onClose={closeModal}/>
+        ) : (
+          <PasswordVerificationForm 
+            onVerified={() => setIsPasswordVerified(true)}
+            onClose={closeModal}
+          />
+        )}
       </Modal>
     </AppScreenLayout>
   );

@@ -74,6 +74,9 @@ class PasswordResetConfirm(BaseModel):
             raise ValueError("Password must be at most 72 UTF-8 bytes.")
         return value
 
+class PasswordVerifyRequest(BaseModel):
+    password: str = Field(min_length=8, max_lengh=72)
+
 class PushTokenUpdate(BaseModel):
     expo_push_token: str
 

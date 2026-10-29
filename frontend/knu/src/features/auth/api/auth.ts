@@ -3,7 +3,8 @@ import type {
   TokenResponse, User, UserLoginBody, UserSignupBody, UserUpdateBody,
   NotificationSettings, NotificationSettingsUpdateBody, 
   PasswordResetRequestPayload,
-  PasswordResetConfirmPayload
+  PasswordResetConfirmPayload,
+  PasswordVerifyRequest,
 } from "@/features/auth/api/types";
 
 export async function loginRequest(body: UserLoginBody): Promise<TokenResponse> {
@@ -28,6 +29,9 @@ export const confirmPasswordRequest = async (
   return apiClient.post("/auth/password-reset/confirm", payload);
 };
 
+export async function verifyPassword(body: PasswordVerifyRequest): Promise<void> {
+  await apiClient.post("/auth/verify-password", body);
+}
 
 export async function meRequest() {
   console.log("ME START");

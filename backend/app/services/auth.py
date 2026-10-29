@@ -48,3 +48,9 @@ def login(db: Session, data: UserLogin):
         "refresh_token": refresh_token,
         "user": user,
     }
+
+def verify_user_password(db: Session, user_id: int, password: str) -> bool:
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        return False
+    return verify_password(password, user.password_hash)
