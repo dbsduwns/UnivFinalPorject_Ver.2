@@ -42,21 +42,40 @@ type DrawerItem = {
   label: string;
 };
 
+type DrawerSection = {
+  title: string;
+  items: DrawerItem[];
+};
+
 const AppDrawerContext = createContext<AppDrawerContextValue | null>(null);
 
-const drawerItems: DrawerItem[] = [
-  { label: "홈", href: "/(app)/(tabs)", icon: Home },
-  { label: "시간표", href: "/(app)/(tabs)/schedule", icon: Calendar },
-  { label: "쪽지", href: "/(app)/messages", icon: MessageCircle },
-  { label: "커뮤니티", href: "/(app)/(tabs)/community", icon: Megaphone },
-  { label: "AI 챗봇", href: "/(app)/(tabs)/ai_chat", icon: Bot },
-  { label: "공지사항", href: "/(app)/(tabs)/notice", icon: Megaphone },
-  { label: "마이페이지", href: "/(app)/(tabs)/my", icon: User },
-  { label: "캠퍼스맵", href: "/(app)/(tabs)/campus-map", icon: MapPin },
-  { label: "셔틀", href: "/(app)/(tabs)/shuttle", icon: BusFront },
-  { label: "학식", href: "/(app)/(tabs)/meal", icon: Utensils },
-  { label: "통학 설정", href: "/(app)/commute-settings", icon: Settings },
-  { label: "친구", href: "/(app)/friends", icon: Users },
+const drawerSections: DrawerSection[] = [
+  {
+    title: "캠퍼스 생활",
+    items: [
+      { label: "시간표", href: "/(app)/(tabs)/schedule", icon: Calendar },
+      { label: "AI 챗봇", href: "/(app)/(tabs)/ai_chat", icon: Bot },
+      { label: "공지사항", href: "/(app)/(tabs)/notice", icon: Megaphone },
+      { label: "캠퍼스맵", href: "/(app)/(tabs)/campus-map", icon: MapPin },
+      { label: "셔틀", href: "/(app)/(tabs)/shuttle", icon: BusFront },
+      { label: "학식", href: "/(app)/(tabs)/meal", icon: Utensils },
+    ],
+  },
+  {
+    title: "함께하는 캠퍼스",
+    items: [
+      { label: "쪽지", href: "/(app)/(tabs)/messages", icon: MessageCircle },
+      { label: "커뮤니티", href: "/(app)/(tabs)/community", icon: Megaphone },
+      { label: "친구", href: "/(app)/(tabs)/friend", icon: Users },
+    ],
+  },
+  {
+    title: "설정",
+    items: [
+      { label: "통학 설정", href: "/(app)/commute-settings", icon: Settings },
+      { label: "마이페이지", href: "/(app)/(tabs)/my", icon: User },
+    ],
+  },
 ];
 
 export const AppDrawerProvider = ({ children }: PropsWithChildren) => {
@@ -123,25 +142,32 @@ export const AppDrawerMenu = () => {
         }}
       >
         <ScrollView>
-          {drawerItems.map((item) => {
-            const Icon = item.icon;
+          {drawerSections.map((section) => (
+            <View key={section.title} className="pb-2">
+              <Text className="border-b border-gray-100 px-5 pb-1 pt-5 text-s font-bold uppercase tracking-wider text-gray-500">
+                {section.title}
+              </Text>
+              {section.items.map((item) => {
+                const Icon = item.icon;
 
-            return (
-              <Pressable
-                key={item.href}
-                onPress={() => navigateTo(item.href)}
-                className="flex-row items-center px-5 py-4"
-              >
-                <Icon color="#13708d" size={22}/>
-                <Text
-                  className="ml-3"
-                  style={{ fontSize: 15, fontWeight: "600", color: "#111827" }}
-                >
-                  {item.label}
-                </Text>
-              </Pressable>
-            );
-          })}
+                return (
+                  <Pressable
+                    key={item.href}
+                    onPress={() => navigateTo(item.href)}
+                    className="flex-row items-center px-5 py-4"
+                  >
+                    <Icon color="#13708d" size={22} />
+                    <Text
+                      className="ml-3"
+                      style={{ fontSize: 15, fontWeight: "600", color: "#111827" }}
+                    >
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
         </ScrollView>
       </View>
       <Pressable className="flex-1" onPress={closeDrawer}/>

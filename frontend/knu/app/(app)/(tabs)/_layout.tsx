@@ -80,6 +80,19 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="messages"
+        options={{
+          href: null,
+          tabBarHideOnKeyboard: true,
+        }}
+      />
+      <Tabs.Screen
+        name="friend"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
         name="notice"
         options={{
           href: null,

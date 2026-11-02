@@ -308,7 +308,7 @@ export const FriendManagementModal = ({ visible, onClose }: Props) => {
 
                             <View className="flex-row items-center space-x-2">
                               <Pressable
-                                onPress={() => router.push({ pathname: "/(app)/messages", params: { friendId: String(item.id) } })}
+                                onPress={() => router.push({ pathname: "/(app)/(tabs)/messages", params: { friendId: String(item.id) } })}
                                 className="px-3 py-2 bg-cyan-50 rounded-xl flex-row items-center space-x-1.5 active:bg-cyan-100"
                               >
                                 <MessageCircle size={14} color="#13708D" />

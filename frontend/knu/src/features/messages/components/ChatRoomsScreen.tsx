@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocalSearchParams } from "expo-router";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
@@ -114,7 +114,7 @@ export const ChatRoomsScreen = () => {
     )));
   }, [client, messagesQuery.dataUpdatedAt, messagesQuery.isSuccess, selectedRoom?.id]);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     const activeRoomId = selectedRoom?.id ?? null;
     setActiveRoomId(activeRoomId);
     // 사용자가 채팅방 접속 시 푸시 알람 차단
@@ -123,16 +123,14 @@ export const ChatRoomsScreen = () => {
       active_room_id: activeRoomId,
       is_app_foreground: true,
     }).catch(() => undefined);
-  }, [selectedRoom?.id, setActiveRoomId, userId]);
-  // 사용자 채팅방 퇴장 시 푸시 알림 재게
-  useEffect(() => () => {
-    setActiveRoomId(null);
-    if (!userId) return;
-    void presenceApi.updateMyPresence({
-      active_room_id: null,
-      is_app_foreground: true,
-    }).catch(() => undefined);
-  }, [setActiveRoomId, userId]);
+    return () => {
+      setActiveRoomId(null);
+      void presenceApi.updateMyPresence({
+        active_room_id: null,
+        is_app_foreground: true,
+      }).catch(() => undefined);
+    };
+  }, [selectedRoom?.id, setActiveRoomId, userId]));
 
   const sendMutation = useMutation({
     mutationFn: async (content: string) => (await chatApi.sendMessage(selectedRoom!.id, content)).data,

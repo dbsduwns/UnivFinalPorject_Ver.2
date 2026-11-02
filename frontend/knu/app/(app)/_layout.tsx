@@ -23,7 +23,6 @@ export default function AppGroupLayout() {
     <AppDrawerProvider>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="messages" />
         <Stack.Screen name="friends/index" />
         <Stack.Screen name="commute-settings" />
         <Stack.Screen name="friends/invite" />

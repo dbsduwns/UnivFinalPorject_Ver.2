@@ -27,6 +27,8 @@ def get_current_user(
     user = db.query(User).filter(User.id == int(user_id)).first()
     if user is None:
         raise HTTPException(status_code=401, detail="User not found")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="비활성화된 계정입니다")
 
     token_version = payload.get("token_version")
     if token_version is None or token_version != user.token_version:

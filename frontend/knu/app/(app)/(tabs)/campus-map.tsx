@@ -87,6 +87,16 @@ type PedestrianRouteSummary = {
 };
 
 type MapMode = "campus" | "commute";
+type CameraRequest = {
+  id: number;
+  position: {
+    coordinates: RouteCoordinate;
+    zoom?: number;
+    bearing?: number;
+    tilt?: number;
+    duration?: number;
+  };
+};
 
 const ROUTE_CATEGORY_LABELS = {
   google_recommended: "Google 추천",
@@ -712,7 +722,8 @@ export default function CampusMapScreen() {
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
   const [isDetailView, setIsDetailView] = useState(false);
-  const [routeFocusRequest, setRouteFocusRequest] = useState(0);
+  const [cameraRequest, setCameraRequest] = useState<CameraRequest | null>(null);
+  const cameraRequestId = useRef(0);
   const [selectedCampusLocation, setSelectedCampusLocation] =
     useState<CampusLocation | null>(null);
   const [currentLocation, setCurrentLocation] =
@@ -726,6 +737,13 @@ export default function CampusMapScreen() {
   const sheetTranslateY = useRef(new Animated.Value(SHEET_HALF_Y)).current;
   const sheetPositionRef = useRef(SHEET_HALF_Y);
   const dragStartRef = useRef(SHEET_HALF_Y);
+
+  const requestCameraPosition = useCallback((
+    position: CameraRequest["position"],
+  ) => {
+    cameraRequestId.current += 1;
+    setCameraRequest({ id: cameraRequestId.current, position });
+  }, []);
 
   const handleLiveDataChange = useCallback((
     stepIndex: number,
@@ -944,12 +962,12 @@ export default function CampusMapScreen() {
     setSelectedCampusLocation(location);
     setCampusWalkingPath([]);
     setCampusWalkingSummary(null);
-    mapRef.current?.setCameraPosition({
+    requestCameraPosition({
       coordinates: location,
       zoom: 18,
       duration: 300,
     });
-  }, []);
+  }, [requestCameraPosition]);
 
   const findWalkingRoute = useCallback(async () => {
     if (!selectedCampusLocation || isCampusRouteLoading) return;
@@ -988,7 +1006,7 @@ export default function CampusMapScreen() {
       setCurrentLocation(origin);
       setCampusWalkingPath(walkingPath);
       setCampusWalkingSummary(summary);
-      mapRef.current?.setCameraPosition({
+      requestCameraPosition({
         ...getRouteCamera([origin, ...walkingPath, selectedCampusLocation]),
         duration: 350,
       });
@@ -1001,7 +1019,7 @@ export default function CampusMapScreen() {
     } finally {
       setIsCampusRouteLoading(false);
     }
-  }, [isCampusRouteLoading, selectedCampusLocation]);
+  }, [isCampusRouteLoading, requestCameraPosition, selectedCampusLocation]);
 
   // 새로운 등교 계산 결과가 도착하면 Google 추천 경로를 기본 선택한다.
   useEffect(() => {
@@ -1016,7 +1034,6 @@ export default function CampusMapScreen() {
     setSelectedRouteIndex(index);
     setExpandedStepIndex(null);
     setIsDetailView(true);
-    setRouteFocusRequest((request) => request + 1);
     // 선택한 경로를 지도에서 확인할 수 있도록 상세 화면은 유지한 채 시트를 접는다.
     snapSheet(SHEET_COLLAPSED_Y);
   };
@@ -1025,33 +1042,38 @@ export default function CampusMapScreen() {
     const coordinates = getStepFocusCoordinates(step);
     if (coordinates.length === 0) return;
 
-    mapRef.current?.setCameraPosition({
+    requestCameraPosition({
       ...getRouteCamera(coordinates),
       duration: 350,
     });
     // 선택한 구간을 가리지 않도록 시트를 최소화한다.
     snapSheet(SHEET_COLLAPSED_Y);
-  }, [snapSheet]);
+  }, [requestCameraPosition, snapSheet]);
 
-  // 지도와 모든 경로 좌표가 준비된 뒤 전체 경로가 보이도록 카메라를 이동한다.
+  // 자동 카메라 이동의 목표만 만들고, 실제 지도 명령은 아래 effect에서 한 곳으로 처리한다.
   useEffect(() => {
     if (!isMapLoaded) return;
 
     const camera = mapMode === "commute" && routePath.length > 0
       ? routeCamera
-      : mapMode === "campus" && campusWalkingPath.length > 1
-        ? getRouteCamera(campusWalkingPath)
-        : { coordinates: CAMPUS_CENTER, zoom: 16 };
+      : { coordinates: CAMPUS_CENTER, zoom: 16 };
 
-    mapRef.current?.setCameraPosition({ ...camera, duration: 1 });
+    requestCameraPosition({ ...camera, duration: 1 });
   }, [
     isMapLoaded,
     mapMode,
-    campusWalkingPath,
     routeCamera,
-    routeFocusRequest,
     routePath.length,
+    requestCameraPosition,
   ]);
+
+  useEffect(() => {
+    if (!isMapLoaded || !cameraRequest) return;
+
+    // expo-maps 0.12.x exposes setCameraPosition as void, even though the
+    // Android native async call may reject when an animation is interrupted.
+    mapRef.current?.setCameraPosition(cameraRequest.position);
+  }, [cameraRequest, isMapLoaded]);
 
   const liveVehicleMarkers = useMemo(
     () => activeTransitLive ? displayedLiveVehicles
@@ -1075,35 +1097,39 @@ export default function CampusMapScreen() {
     [activeTransitLive, busMarkerIcon, displayedLiveVehicles],
   );
 
-  const campusMarkers: GoogleMaps.Marker[] = CAMPUS_LOCATIONS.map((location) => ({
-    id: `campus-${location.name}`,
-    coordinates: location,
-    title: location.name,
-    snippet: "선택해서 현재 위치에서 도보 길찾기",
-    icon:
-      selectedCampusLocation?.name === location.name
-        ? destinationMarkerIcon ?? undefined
-        : campusMarkerIcon ?? undefined,
-    anchor: { x: 0.5, y: 1 },
-    zIndex: selectedCampusLocation?.name === location.name ? 5 : 1,
-    showCallout: true,
-  }));
-
-  if (currentLocation && campusWalkingPath.length > 1) {
-    campusMarkers.push({
-      id: "campus-current-location",
-      coordinates: currentLocation,
-      title: "현재 위치",
-      snippet: "도보 길찾기 출발지",
-      icon: originMarkerIcon ?? undefined,
+  const campusMarkers = useMemo<GoogleMaps.Marker[]>(() => {
+    const nextMarkers: GoogleMaps.Marker[] = CAMPUS_LOCATIONS.map((location) => ({
+      id: `campus-${location.name}`,
+      coordinates: location,
+      title: location.name,
+      snippet: "선택해서 현재 위치에서 도보 길찾기",
+      icon:
+        selectedCampusLocation?.name === location.name
+          ? destinationMarkerIcon ?? undefined
+          : campusMarkerIcon ?? undefined,
       anchor: { x: 0.5, y: 1 },
-      zIndex: 10,
+      zIndex: selectedCampusLocation?.name === location.name ? 5 : 1,
       showCallout: true,
-    });
-  }
+    }));
 
-  const markers =
-    mapMode === "commute" && routePath.length > 1
+    if (currentLocation && campusWalkingPath.length > 1) {
+      nextMarkers.push({
+        id: "campus-current-location",
+        coordinates: currentLocation,
+        title: "현재 위치",
+        snippet: "도보 길찾기 출발지",
+        icon: originMarkerIcon ?? undefined,
+        anchor: { x: 0.5, y: 1 },
+        zIndex: 10,
+        showCallout: true,
+      });
+    }
+
+    return nextMarkers;
+  }, [campusMarkerIcon, campusWalkingPath.length, currentLocation, destinationMarkerIcon, originMarkerIcon, selectedCampusLocation?.name]);
+
+  const markers = useMemo<GoogleMaps.Marker[]>(
+    () => mapMode === "commute" && routePath.length > 1
       ? [
           {
             id: "origin",
@@ -1125,7 +1151,15 @@ export default function CampusMapScreen() {
           },
           ...liveVehicleMarkers,
         ]
-      : campusMarkers;
+      : campusMarkers,
+    [campusMarkers, commute?.destination?.destination_name, destinationMarkerIcon, liveVehicleMarkers, mapMode, originMarkerIcon, routePath],
+  );
+
+  const mapOptions = useMemo(() => ({ mapId: GOOGLE_MAP_ID }), []);
+  const mapUiSettings = useMemo(() => ({
+    zoomControlsEnabled: true,
+    myLocationButtonEnabled: false,
+  }), []);
 
   if (Platform.OS !== "android") {
     return (
@@ -1144,9 +1178,7 @@ export default function CampusMapScreen() {
         <GoogleMaps.View
           ref={mapRef}
           style={StyleSheet.absoluteFill}
-          mapOptions={{
-            mapId: GOOGLE_MAP_ID,
-          }}
+          mapOptions={mapOptions}
           cameraPosition={{ coordinates: CAMPUS_CENTER, zoom: 16 }}
           markers={markers}
           polylines={
@@ -1156,10 +1188,7 @@ export default function CampusMapScreen() {
                 ? stepPolylines
                 : routePolylines
           }
-          uiSettings={{
-            zoomControlsEnabled: true,
-            myLocationButtonEnabled: false,
-          }}
+          uiSettings={mapUiSettings}
           onMapLoaded={() => setIsMapLoaded(true)}
           onMarkerClick={(marker) => {
             if (mapMode !== "campus" || !marker.id?.startsWith("campus-")) {

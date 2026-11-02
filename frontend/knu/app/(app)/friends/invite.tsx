@@ -115,7 +115,7 @@ export default function FriendInvitePage() {
             </>
           )}
 
-          <Pressable onPress={() => router.replace("/(app)/messages")} className="mt-5 py-3 px-5">
+          <Pressable onPress={() => router.replace("/(app)/(tabs)/messages")} className="mt-5 py-3 px-5">
             <Text className="text-sm font-bold" style={{ color: BRAND }}>쪽지 화면으로 이동</Text>
           </Pressable>
         </View>

@@ -1,5 +1,5 @@
 import { Text, View, TouchableOpacity, Switch, Alert, ScrollView, Modal, ActivityIndicator } from "react-native";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
 import { 
   User as UserIcon, 
@@ -8,6 +8,7 @@ import {
   LogOut, 
   UserMinus,
   ChevronRight, 
+  ChevronDown,
   Settings, 
   Key, 
   Mail,
@@ -23,7 +24,6 @@ import PasswordChangeForm from "@/features/profile/components/PasswordChangeForm
 import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
 import {
   getNotificationSettingsRequest,
-  sendNotificationTestRequest,
   updateNotificationSettingsRequest,
 } from "@/features/auth/api/auth";
 import { NotificationSettings } from "@/features/auth/api/types";
@@ -43,7 +43,7 @@ export default function MyScreen() {
   // 알림 설정 상태
   const [notifSettings, setNotifSettings] = useState<NotificationSettings | null>(null);
   const [isSettingsLoading, setIsSettingsLoading] = useState(true);
-  const [isSendingTestNotification, setIsSendingTestNotification] = useState(false);
+  const [isNotificationSettingsExpanded, setIsNotificationSettingsExpanded] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   // 비밀번호 인증 상태 확인
@@ -127,19 +127,6 @@ export default function MyScreen() {
     );
   };
 
-  const handleSendTestNotification = async () => {
-    try {
-      setIsSendingTestNotification(true);
-      await sendNotificationTestRequest();
-      Alert.alert("전송 요청 완료", "앱을 백그라운드로 보낸 뒤 푸시 알림 도착 여부를 확인하세요.");
-    } catch (error) {
-      console.error("Failed to send test notification:", error);
-      Alert.alert("테스트 알림 실패", "알림 권한과 로그인 상태를 확인한 뒤 다시 시도하세요.");
-    } finally {
-      setIsSendingTestNotification(false);
-    }
-  };
-
   if (!user) return null;
 
 
@@ -186,14 +173,26 @@ export default function MyScreen() {
           </View>
           
           {/* 알림 설정 */}
-          <SectionTitle title="알림 설정" />
           <View className="bg-white rounded-3xl overflow-hidden shadow-sm border border-gray-100 mb-6">
-            {isSettingsLoading ? (
-              <View className="py-10 items-center justify-center">
-                <ActivityIndicator color="#2563eb" />
-              </View>
-            ) : notifSettings && (
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityState={{ expanded: isNotificationSettingsExpanded }}
+              onPress={() => setIsNotificationSettingsExpanded((expanded) => !expanded)}
+              className="flex-row items-center px-5 py-4"
+            >
+              <View className="w-8"><Bell size={20} color="#4B5563" /></View>
+              <Text className="flex-1 ml-1 font-medium text-gray-700">알림 설정</Text>
+              {isNotificationSettingsExpanded ? <ChevronDown size={18} color="#9CA3AF" /> : <ChevronRight size={18} color="#D1D5DB" />}
+            </TouchableOpacity>
+            {isNotificationSettingsExpanded && (
               <>
+                <View className="h-[1px] bg-gray-50 mx-4" />
+                {isSettingsLoading ? (
+                  <View className="py-8 items-center justify-center">
+                    <ActivityIndicator color="#2563eb" />
+                  </View>
+                ) : notifSettings ? (
+                  <>
                 <SettingToggle
                   icon={<Bell size={20} color="#4B5563" />}
                   title="셔틀버스 크롤링 업데이트 알림"
@@ -221,14 +220,10 @@ export default function MyScreen() {
                   value={notifSettings.message_alert}
                   onValueChange={() => toggleSetting("message_alert")}
                 />
-                <View className="h-[1px] bg-gray-50 mx-4" />
-                <SettingLink
-                  icon={<Bell size={20} color="#2563eb" />}
-                  title={isSendingTestNotification ? "테스트 알림 전송 중..." : "푸시 알림 테스트"}
-                  rightText="내 기기"
-                  disabled={isSendingTestNotification}
-                  onPress={() => void handleSendTestNotification()}
-                />
+                  </>
+                ) : (
+                  <Text className="px-5 py-6 text-center text-sm text-gray-500">알림 설정을 불러오지 못했습니다.</Text>
+                )}
               </>
             )}
           </View>

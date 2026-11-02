@@ -53,7 +53,7 @@ export const QuickMenu = () => {
                     }}>
                     <Pressable 
                         style={{ alignItems: "center" }}
-                        onPress={() => router.push("/(app)/messages")}>
+                        onPress={() => router.push("/(app)/(tabs)/messages")}>
                         <View 
                             className="items-center p-4"
                             style={{
@@ -128,7 +128,7 @@ export const QuickMenu = () => {
                     }}>
                     <Pressable
                         style={{ width: "100%", alignItems: "center" }}
-                        onPress={() => router.push("/(app)/friends" as never)}>
+                        onPress={() => router.push("/(app)/(tabs)/friend" as never)}>
                         <View
                             className="items-center p-4"
                             style={{

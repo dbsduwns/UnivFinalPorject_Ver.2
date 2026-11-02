@@ -38,6 +38,8 @@ def login(db: Session, data: UserLogin):
         raise ValueError("해당 이메일의 계정을 찾을 수 없습니다")
     if not verify_password(data.password, user.password_hash):
         raise ValueError("비밀번호가 일치하지 않습니다")
+    if not user.is_active:
+        raise ValueError("비활성화된 계정입니다")
 
     token_data = {"sub": str(user.id), "token_version": user.token_version}
     access_token = create_access_token(token_data)

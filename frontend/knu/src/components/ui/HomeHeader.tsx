@@ -51,7 +51,7 @@ export const HomeHeader = () => {
                  }}>
                 {/* Talk  */}
                 <Pressable
-                    onPress={() => router.push("/(app)/messages")}
+                    onPress={() => router.push("/(app)/(tabs)/messages")}
                     accessibilityRole="button"
                     accessibilityLabel="쪽지 열기"
                     className="items-center justify-center"

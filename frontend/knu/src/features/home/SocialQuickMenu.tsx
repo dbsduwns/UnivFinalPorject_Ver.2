@@ -171,7 +171,7 @@ export const SocialQuickMenu = () => {
                     }}>
                     <Pressable
                         style={{ alignItems: "center" }}
-                        onPress={() => router.push("/(app)/messages")}>
+                        onPress={() => router.push("/(app)/(tabs)/messages")}>
                         <View
                             className="items-center p-4 flex-row"
                             style={{ backgroundColor: "#FFFFFF", borderRadius: iconRadius, width: iconWidth, height: iconHeight }}>

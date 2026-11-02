@@ -24,3 +24,26 @@ class AdminRoleResponse(BaseModel):
     model_config = {
         "from_attributes": True,
     }
+
+
+class AdminUserResponse(AdminRoleResponse):
+    student_id: str | None = None
+    department: str | None = None
+    grade: int | None = None
+    is_active: bool
+    created_at: datetime | None = None
+
+
+class AdminUserActiveUpdate(BaseModel):
+    is_active: bool
+
+
+class AdminDashboardResponse(BaseModel):
+    total_users: int
+    active_users: int
+    admin_users: int
+    total_posts: int
+    hidden_posts: int
+    pending_reports: int
+    notices: int
+    recent_reports: list[dict]

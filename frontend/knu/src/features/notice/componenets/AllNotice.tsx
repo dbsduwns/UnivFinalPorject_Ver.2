@@ -151,7 +151,7 @@ export default function AllNotice() {
 
     return (
         <View className="flex-1">
-            {isAdmin && <View><AdminBadge /><Text className="text-xs text-gray-500 mt-2">공지를 길게 눌러 수정·삭제·상단 고정할 수 있습니다.</Text></View>}
+            {isAdmin && <View><AdminBadge /><Text className="text-xs text-gray-500 ml-2 mt-2">공지를 길게 눌러 수정·삭제·상단 고정할 수 있습니다.</Text></View>}
             <View className="flex-row items-center bg-white border border-gray-200 rounded-2xl px-4 my-3">
                 <Search size={20} color="#13708D" />
                 <TextInput accessibilityLabel="공지 제목 검색" placeholder="공지 제목을 검색해 주세요" placeholderTextColor="#9CA3AF" value={searchText} onChangeText={setSearchText} onSubmitEditing={() => setKeyword(searchText.trim())} returnKeyType="search" className="flex-1 px-3 py-3 text-base text-gray-800" />

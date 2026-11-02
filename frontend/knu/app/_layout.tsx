@@ -54,7 +54,7 @@ function handleNotificationResponse(response: Notifications.NotificationResponse
 
   if (data.type === "direct_message") {
     router.push({
-      pathname: "/(app)/messages",
+      pathname: "/(app)/(tabs)/messages",
       params: { roomId: String(data.room_id) },
     });
   }
