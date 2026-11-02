@@ -1,5 +1,6 @@
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -57,7 +58,17 @@ class NoticeAdminTest(unittest.TestCase):
         self.assertEqual(self.client.post("/api/notices/", json={"title": "공지", "content": "본문", "category": "학사"}).status_code, 403)
         self.assertEqual(self.client.put(f"/api/notices/{notice_id}", json={"is_important": True}).status_code, 403)
         self.assertEqual(self.client.delete(f"/api/notices/{notice_id}").status_code, 403)
+        self.assertEqual(self.client.post("/api/notices/crawl").status_code, 403)
         self.assertEqual(self.client.get("/api/notices/").status_code, 200)
+
+    def test_admin_crawl_starts_cloud_run_job(self):
+        with patch("app.routers.notice.start_notice_crawler_job", return_value="operations/test") as start:
+            response = self.client.post("/api/notices/crawl")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "started")
+        self.assertEqual(response.json()["operation"], "operations/test")
+        self.assertNotIn("count", response.json())
+        start.assert_called_once_with()
 
     def test_invalid_and_missing_notice(self):
         self.assertEqual(self.client.post("/api/notices/", json={"title": "", "content": "본문", "category": "학사"}).status_code, 422)

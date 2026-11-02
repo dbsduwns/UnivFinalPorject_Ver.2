@@ -6,13 +6,14 @@ const date = (v) => v ? new Date(v).toLocaleString("ko-KR") : "-";
 
 async function request(path, options = {}) {
   if (!API) throw new Error("관리자 API 주소가 설정되지 않았습니다.");
-  const headers = { Accept: "application/json", ...(options.headers || {}) };
+  const { timeoutMs = 15000, ...fetchOptions } = options;
+  const headers = { Accept: "application/json", ...(fetchOptions.headers || {}) };
   if (state.token) headers.Authorization = `Bearer ${state.token}`;
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), 15000);
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
   let r;
   try {
-    r = await fetch(`${API}${path}`, { ...options, headers, signal: controller.signal });
+    r = await fetch(`${API}${path}`, { ...fetchOptions, headers, signal: controller.signal });
   } catch (error) {
     if (error.name === "AbortError") throw new Error("서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.");
     throw new Error("서버에 연결하지 못했습니다. 관리자 API 주소와 네트워크 상태를 확인해 주세요.");
@@ -154,7 +155,7 @@ async function notices() {
         </select>
       </label>
       <button id="notice-new">공지 등록</button>
-      <button id="notice-crawl" class="secondary">학교 공지 크롤링</button>
+      <button id="notice-crawl" class="secondary">학교 공지 수집 시작</button>
     </div>
     <div class="card table-wrap">
       <table class="table">
@@ -176,10 +177,10 @@ async function notices() {
   $("#notice-crawl").onclick = async () => { 
     $("#notice-crawl").disabled=true; 
     try {
-      const r=await request("/api/notices/crawl",{method:"POST"}); 
-      
-      flash(`${r.count ?? 0}건의 학교 공지를 수집했습니다.`); 
-      load();
+      const r=await request("/api/notices/crawl",{method:"POST",timeoutMs:30000});
+      flash(r.message || "공지사항 크롤러 작업을 시작했습니다.");
+    } catch (e) {
+      flash(e.message, true);
     } finally {
         $("#notice-crawl").disabled=false; 
     } 
@@ -446,7 +447,7 @@ async function data() {
         <div class="actions">
           <button data-crawl="/api/shuttles/crawl">셔틀 시간표 수집</button>
           <button data-crawl="/api/daily-menus/crawl">학식 메뉴 수집</button>
-          <button data-crawl="/api/notices/crawl">학교 공지 수집</button>
+          <button data-crawl="/api/notices/crawl">학교 공지 수집 시작</button>
         </div>
         <div id="crawl-result"></div>
       </section>
@@ -477,12 +478,12 @@ async function data() {
       b.disabled=true; 
       
       try { 
-        const r=await request(b.dataset.crawl,{method:"POST"}); 
+        const r=await request(b.dataset.crawl,{method:"POST",timeoutMs:30000});
         
         $("#crawl-result").innerHTML=`<p class="result">
         ${esc(r.message || "완료")} 
         ${r.count != null ? `(${r.count}건)` : ""}</p>`; 
-        flash("크롤링 작업을 완료했습니다."); 
+        flash(r.status === "started" ? "크롤링 작업을 시작했습니다." : "크롤링 작업을 완료했습니다.");
       } catch(e) { 
         $("#crawl-result").innerHTML=`<p class="error">${esc(e.message)}</p>`; 
       } finally { b.disabled=false; } 

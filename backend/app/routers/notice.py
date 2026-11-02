@@ -7,6 +7,11 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.schemas.notice import NoticeResponse, NoticeUpdate, NoticeCreate
 from app.services import notice as notice_service
+from app.services.cloud_run_jobs import (
+	JobConfigurationError,
+	JobLaunchError,
+	start_notice_crawler_job,
+)
 from app.models.user import User
 from app.core.dependencies import get_current_admin_user
 
@@ -162,18 +167,19 @@ def get_notice(notice_id: int, db: Session = Depends(get_db)):
 
 @router.post("/crawl")
 def crawl_notices(
-		max_items: int | None = None,
 		current_admin: User = Depends(get_current_admin_user), # 관리자 검증
 	):
 	try:
-		# Playwright는 크롤링 요청이 실제로 들어올 때만 로드한다.
-		from app.crawlers.notice_crawler import crawl_notice_list, save_notices
-
-		notices = crawl_notice_list(max_items=max_items)
-		save_notices(notices)
-		return {"message": "Notice crawling completed", "count": len(notices)}
-	except Exception as e:
-		raise HTTPException(status_code=500, detail=str(e))
+		operation = start_notice_crawler_job()
+		return {
+			"status": "started",
+			"message": "공지사항 크롤러 작업을 시작했습니다. 완료 후 목록을 새로고침하세요.",
+			"operation": operation,
+		}
+	except JobConfigurationError as exc:
+		raise HTTPException(status_code=503, detail=str(exc)) from exc
+	except JobLaunchError as exc:
+		raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 @router.put("/{notice_id}", response_model=NoticeResponse)
 def update_notice(

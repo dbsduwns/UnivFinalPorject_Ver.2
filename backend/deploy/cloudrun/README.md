@@ -165,13 +165,36 @@ API 이미지로 일일 크롤러용 Cloud Run Job을 만듭니다. 실행 명�
 
 Cloud Scheduler는 관리자 전용 `/crawl` API 경로를 호출하는 대신 이 Job을 실행해야 합니다. Job은 공지사항, 식단, 셔틀 크롤러를 순서대로 실행합니다. 새 데이터나 변경된 데이터가 있을 때만 푸시 알림을 보내므로 변경이 없는 실행에서는 알림을 보내지 않습니다. Scheduler 서비스 계정에는 이 Job을 실행할 권한만 부여합니다.
 
+## 관리자 웹의 공지 수집 버튼
+
+관리자 웹의 공지 수집 버튼은 `POST /api/notices/crawl`을 호출합니다. API 서비스가 관리자 권한을 확인한 뒤 **공지 전용 Cloud Run Job**의 실행을 요청합니다. 이 요청의 성공은 Job이 시작되었다는 뜻이며, 공지 수집 완료를 뜻하지 않습니다. 완료 여부와 오류는 Cloud Run Job 실행 내역 및 로그에서 확인합니다. Vercel에는 Google Cloud 인증 정보를 넣지 않습니다.
+
+1. API 이미지로 공지 전용 Cloud Run Job을 만듭니다. 명령은 `python`, 인수는 `scripts/run_notice_crawler.py`입니다. 일일 크롤러 Job과 동일하게 데이터베이스, AI, Qdrant 환경변수와 비밀값을 설정합니다. 이 Job에는 Cloud Scheduler를 연결하지 않습니다.
+2. API **서비스**의 실행 서비스 계정에 공지 전용 Job에 대한 `Cloud Run Invoker`(`roles/run.invoker`) 권한을 부여합니다. 일일 크롤러 Job이나 프로젝트 전체에 권한을 줄 필요는 없습니다.
+3. API 서비스에 아래 일반 환경변수를 설정하고 새 버전을 배포합니다. `NOTICE_CRAWLER_JOB`에는 1단계에서 만든 Job의 실제 이름을 입력합니다.
+
+   ```text
+   GCP_PROJECT_ID=실제_프로젝트_ID
+   GCP_REGION=asia-northeast3
+   NOTICE_CRAWLER_JOB=notice-crawler
+   ```
+
+4. 관리자 웹에서 버튼을 눌러 시작 메시지가 표시되는지 확인하고, Cloud Run에서 해당 Job의 실행 및 로그를 확인합니다. API 서비스가 Google Cloud 안에서 실행되어야 서비스 계정의 액세스 토큰을 받을 수 있습니다.
+
 ## Supabase 학칙·규정 적재
 
 AI 챗봇은 학칙·규정 조항을 PostgreSQL에서 직접 읽습니다. 이 데이터는 Qdrant 인덱스 및 일일 공지사항·식단·셔틀 크롤러와 별도로 관리합니다. 대학의 공개 규정 페이지는 크롤러용 로그인 정보가 필요하지 않습니다.
 
 1. 위 5단계에 따라 업데이트된 `Dockerfile.cloudrun` 이미지를 빌드합니다.
 2. 해당 이미지에서 `alembic upgrade head` Cloud Run Job을 실행해 Supabase에 `regulation_articles` 테이블을 만듭니다.
-3. 같은 이미지로 일회성 Cloud Run Job을 만듭니다. 실행 명령은 `python`, 인수는 `-m,app.crawlers.rules_crawler,--dry-run`으로 설정합니다. Secret Manager의 `knu-database-url`만 `DATABASE_URL`에 연결합니다. Job을 실행해 규정 수, 조항 수, 현재 데이터베이스 크기, 보수적으로 계산한 추가 저장량을 확인합니다. 시험 실행에서는 DB 데이터를 변경하지 않습니다.
+3. 같은 이미지로 일회성 Cloud Run Job을 만듭니다. 실행 명령은 `python`이고, 인수는 아래의 세 값을 순서대로 각각 입력합니다. 모듈 이름은 `app.crawlers.rules_crawler`이며 `app.crawlers.rules.crawler`가 아닙니다. Secret Manager의 `knu-database-url`만 `DATABASE_URL`에 연결합니다. Job을 실행해 규정 수, 조항 수, 현재 데이터베이스 크기, 보수적으로 계산한 추가 저장량을 확인합니다. 시험 실행에서는 DB 데이터를 변경하지 않습니다.
+
+   ```text
+   -m
+   app.crawlers.rules_crawler
+   --dry-run
+   ```
+
 4. 시험 실행에 성공하면 Job 인수에서 `--dry-run`을 제거하고 한 번 실행합니다. 이 Job은 고정된 출처 키를 기준으로 조항을 추가하거나 갱신합니다. 대학의 규정이 개정되면 다시 실행할 수 있으며, 매일 실행하는 Scheduler 설정은 필요하지 않습니다.
 5. 업데이트된 API 이미지를 배포해 `ai_chat`이 새 테이블을 읽도록 합니다. "졸업에 관한 학칙 알려줘"라고 질문하고 Cloud Run 로그에 `Supabase 학칙·규정 Context 추가`가 기록되는지 확인합니다.
 
