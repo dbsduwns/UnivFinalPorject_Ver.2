@@ -1,4 +1,4 @@
-import { Text, View, TouchableOpacity, Switch, Alert, ScrollView, Modal, ActivityIndicator } from "react-native";
+import { Text, View, TouchableOpacity, Switch, Alert, ScrollView, Modal, ActivityIndicator, Linking } from "react-native";
 import { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
 import { 
@@ -260,7 +260,17 @@ export default function MyScreen() {
                 <SettingLink
                   icon={<ShieldCheck size={20} color="#2563eb" />}
                   title="관리자 페이지 접속"
-                  onPress={() => Alert.alert("관리자 페이지", "백엔드 대시보드로 이동합니다.")}
+                  onPress={async () => {
+                    const adminUrl = "https://univfinalporjectver2-admin-web.vercel.app";
+
+                    const supported = await Linking.canOpenURL(adminUrl);
+                    if (!supported) {
+                      Alert.alert("접속 실패", "관리자 웹페이지를 열 수 없습니다.");
+                      return;
+                    }
+
+                    await Linking.openURL(adminUrl);
+                  }}
                 />
               </View>
             </>

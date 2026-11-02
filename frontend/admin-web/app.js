@@ -8,7 +8,17 @@ async function request(path, options = {}) {
   if (!API) throw new Error("관리자 API 주소가 설정되지 않았습니다.");
   const headers = { Accept: "application/json", ...(options.headers || {}) };
   if (state.token) headers.Authorization = `Bearer ${state.token}`;
-  const r = await fetch(`${API}${path}`, { ...options, headers });
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 15000);
+  let r;
+  try {
+    r = await fetch(`${API}${path}`, { ...options, headers, signal: controller.signal });
+  } catch (error) {
+    if (error.name === "AbortError") throw new Error("서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.");
+    throw new Error("서버에 연결하지 못했습니다. 관리자 API 주소와 네트워크 상태를 확인해 주세요.");
+  } finally {
+    window.clearTimeout(timer);
+  }
   if (!r.ok) { const body = await r.json().catch(() => ({})); throw new Error(body.detail || "요청을 처리하지 못했습니다."); }
   if (r.status === 204) return null;
   return r.json().catch(() => null);
@@ -22,8 +32,21 @@ window.closeModal = closeModal;
 const menus = [
   ["dashboard", "▦", "대시보드"], ["notices", "▣", "공지사항"], ["community", "⚑", "커뮤니티"], ["data", "↻", "서비스 데이터"], ["users", "♙", "회원 관리"]
 ];
+const paths = { dashboard: "/dashboard", notices: "/notices", community: "/community", data: "/data", users: "/users" };
+function viewFromPath() {
+  const segment = window.location.pathname.split("/").filter(Boolean)[0];
+  return Object.hasOwn(paths, segment) ? segment : "dashboard";
+}
+function goTo(view, replace = false) {
+  const path = paths[view] || paths.dashboard;
+  if (window.location.pathname !== path) {
+    window.history[replace ? "replaceState" : "pushState"]({ view }, "", path);
+  }
+  renderView(view);
+}
 function renderNav() { $("#nav").innerHTML = menus.map(([key, icon, label]) => `<button class="${key === state.view ? "active" : ""}" data-view="${key}"><span>${icon}</span>${label}</button>`).join(""); $("#nav").onclick = e => { const b = e.target.closest("button[data-view]"); if (b) navigate(b.dataset.view); }; }
-async function navigate(view) { state.view = view; renderNav(); const label = menus.find(x => x[0] === view)[2]; $("#page-title").textContent = label; $("#content").innerHTML = `<div class="empty">불러오는 중…</div>`; try { await ({ dashboard, notices, community, data, users }[view])(); } catch (e) { $("#content").innerHTML = `<div class="card empty">${esc(e.message)}</div>`; } }
+async function renderView(view) { state.view = view; renderNav(); const label = menus.find(x => x[0] === view)[2]; $("#page-title").textContent = label; $("#content").innerHTML = `<div class="empty">불러오는 중…</div>`; try { await ({ dashboard, notices, community, data, users }[view])(); } catch (e) { $("#content").innerHTML = `<div class="card empty">${esc(e.message)}</div>`; } }
+function navigate(view) { goTo(view); }
 
 async function dashboard() {
   const d = await request("/api/admin/dashboard");
@@ -55,16 +78,31 @@ async function data() {
 }
 
 async function users() {
-  const load=async()=>{const q=$("#user-query").value.trim(), active=$("#active-filter").value, admin=$("#admin-filter").value;const params=new URLSearchParams({limit:"100"});if(q)params.set("keyword",q);if(active)params.set("is_active",active);if(admin)params.set("is_admin",admin);const rows=await request(`/api/admin/users?${params}`);$("#user-rows").innerHTML=rows.length?rows.map(u=>`<tr><td><b>${esc(u.name)}</b><br><span class="small">#${u.id}</span></td><td>${esc(u.email)}<br><span class="small">${esc(u.department || "학과 미입력")} · ${esc(u.student_id || "-")}</span></td><td>${u.is_active?'<span class="badge">활성</span>':'<span class="badge off">비활성</span>'}</td><td>${u.is_admin?'<span class="badge">관리자</span>':'-'}</td><td class="actions"><button data-detail="${u.id}">상세</button><button data-active="${u.id}" data-value="${!u.is_active}">${u.is_active?"비활성화":"활성화"}</button><button class="secondary" data-role="${u.id}" data-value="${!u.is_admin}" ${!u.is_active?"disabled":""}>${u.is_admin?"권한 해제":"관리자 지정"}</button></td></tr>`).join(""):`<tr><td colspan="5" class="empty">회원이 없습니다.</td></tr>`;$("#user-rows").onclick=async e=>{const b=e.target.closest("button");if(!b)return;try{if(b.dataset.detail)return userDetail(b.dataset.detail);if(b.dataset.active){await request(`/api/admin/users/${b.dataset.active}/active`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({is_active:b.dataset.value==="true"})});flash("계정 상태를 변경했습니다.");}if(b.dataset.role){await request(`/api/admin/users/${b.dataset.role}/role`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({is_admin:b.dataset.value==="true"})});flash("관리자 권한을 변경했습니다.");}load();}catch(err){flash(err.message,true);}};};
+  const load = async () =>{
+    const q=$("#user-query").value.trim(),
+    active=$("#active-filter").value,
+    admin=$("#admin-filter").value;
+    const params=new URLSearchParams({limit:"100"});
+    if(q)params.set("keyword",q);
+    if(active)params.set("is_active",active);
+    if(admin)params.set("is_admin",admin);
+    const rows=await request(`/api/admin/users?${params}`);
+    $("#user-rows").innerHTML=rows.length?rows.map(u=>
+      `<tr>
+        <td>
+          <b>${esc(u.name)}</b>
+          <br><span class="small">#${u.id}</span></td><td>${esc(u.email)}<br><span class="small">${esc(u.department || "학과 미입력")} · ${esc(u.student_id || "-")}</span></td><td>${u.is_active?'<span class="badge">활성</span>':'<span class="badge off">비활성</span>'}</td><td>${u.is_admin?'<span class="badge">관리자</span>':'-'}</td><td class="actions"><button data-detail="${u.id}">상세</button><button data-active="${u.id}" data-value="${!u.is_active}">${u.is_active?"비활성화":"활성화"}</button><button class="secondary" data-role="${u.id}" data-value="${!u.is_admin}" ${!u.is_active?"disabled":""}>${u.is_admin?"권한 해제":"관리자 지정"}</button></td></tr>`).join(""):`<tr><td colspan="5" class="empty">회원이 없습니다.</td></tr>`;$("#user-rows").onclick=async e=>{const b=e.target.closest("button");if(!b)return;try{if(b.dataset.detail)return userDetail(b.dataset.detail);if(b.dataset.active){await request(`/api/admin/users/${b.dataset.active}/active`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({is_active:b.dataset.value==="true"})});flash("계정 상태를 변경했습니다.");}if(b.dataset.role){await request(`/api/admin/users/${b.dataset.role}/role`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({is_admin:b.dataset.value==="true"})});flash("관리자 권한을 변경했습니다.");}load();}catch(err){flash(err.message,true);}};};
   $("#content").innerHTML=`<div class="toolbar"><input id="user-query" placeholder="이름, 이메일, 학번 검색"><select id="active-filter"><option value="">계정 상태 전체</option><option value="true">활성</option><option value="false">비활성</option></select><select id="admin-filter"><option value="">권한 전체</option><option value="true">관리자</option><option value="false">일반 회원</option></select><button id="user-search" class="secondary">검색</button><button id="user-blocks">차단 현황</button></div><div class="card table-wrap"><table class="table"><thead><tr><th>회원</th><th>연락처·정보</th><th>상태</th><th>권한</th><th></th></tr></thead><tbody id="user-rows"></tbody></table></div>`;$("#user-search").onclick=load;$("#user-blocks").onclick=blocks;load();
 }
 async function userDetail(id){const u=await request(`/api/admin/users/${id}`);openModal("회원 상세",`<div class="result"><b>${esc(u.name)} (#${u.id})</b><br>이메일: ${esc(u.email)}<br>학번: ${esc(u.student_id || "-")}<br>학과/학년: ${esc(u.department || "-")} / ${esc(u.grade || "-")}<br>가입일: ${date(u.created_at)}<br>계정: ${u.is_active?"활성":"비활성"} · ${u.is_admin?"관리자":"일반 회원"}</div><div class="modal-actions"><button class="secondary" onclick="closeModal()">닫기</button></div>`);}
 
 async function start() {
-  if (!state.token) return;
-  try { state.user=await request("/auth/me"); if(!state.user.is_admin) throw new Error("관리자 권한이 없는 계정입니다."); showApp(); } catch(e) { sessionStorage.removeItem("knu_admin_token"); state.token=null; $("#login-error").textContent=e.message; }
+  if (!state.token) return showLogin();
+  try { state.user=await request("/auth/me"); if(!state.user.is_admin) throw new Error("관리자 권한이 없는 계정입니다."); showApp(); } catch(e) { sessionStorage.removeItem("knu_admin_token"); state.token=null; showLogin(e.message); }
 }
-function showApp(){ $("#login-view").hidden=true;$("#app-view").hidden=false;$("#admin-name").textContent=`${state.user.name} 관리자`;renderNav();navigate("dashboard"); }
-$("#login-form").onsubmit=async e=>{e.preventDefault();const error=$("#login-error");error.textContent="";try{const r=await request("/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:$("#email").value.trim(),password:$("#password").value})});state.token=r.access_token;sessionStorage.setItem("knu_admin_token",state.token);state.user=await request("/auth/me");if(!state.user.is_admin)throw new Error("관리자 권한이 없는 계정입니다.");showApp();}catch(err){sessionStorage.removeItem("knu_admin_token");state.token=null;error.textContent=err.message;}};
-$("#logout").onclick=()=>{sessionStorage.removeItem("knu_admin_token");location.reload();};
+function showLogin(message = "") { $("#app-view").hidden=true; $("#login-view").hidden=false; $("#login-error").textContent=message; if (window.location.pathname !== "/login") window.history.replaceState({}, "", "/login"); }
+function showApp(){ $("#login-view").hidden=true;$("#app-view").hidden=false;$("#admin-name").textContent=`${state.user.name} 관리자`; const requested = viewFromPath(); goTo(requested, window.location.pathname === "/" || window.location.pathname === "/login"); }
+$("#login-form").onsubmit=async e=>{e.preventDefault();const error=$("#login-error"),submit=e.currentTarget.querySelector("button[type=submit], button:not([type])"),original=submit.textContent;error.textContent="";submit.disabled=true;submit.textContent="로그인 확인 중…";try{const r=await request("/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:$("#email").value.trim(),password:$("#password").value})});state.token=r.access_token;sessionStorage.setItem("knu_admin_token",state.token);state.user=await request("/auth/me");if(!state.user.is_admin)throw new Error("관리자 권한이 없는 계정입니다.");showApp();}catch(err){sessionStorage.removeItem("knu_admin_token");state.token=null;error.textContent=err.message;}finally{submit.disabled=false;submit.textContent=original;}};
+$("#logout").onclick=()=>{sessionStorage.removeItem("knu_admin_token");state.token=null;state.user=null;showLogin();};
+window.addEventListener("popstate", () => { if (!state.token) return showLogin(); goTo(viewFromPath(), true); });
 start();
