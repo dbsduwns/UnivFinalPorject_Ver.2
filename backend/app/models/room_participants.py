@@ -10,6 +10,7 @@ class RoomParticipant(Base):
     room_id = Column(Integer, ForeignKey("room_messengers.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     last_read = Column(TIMESTAMP, server_default=func.now())
+    last_read_message_id = Column(Integer, nullable=True)
     is_muted = Column(Boolean, nullable=False, default=False, server_default="false")
 
     user = relationship("User", back_populates="room_participants")

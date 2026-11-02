@@ -47,6 +47,7 @@ export interface ChatMessage {
   sender_id: number;
   content: string;
   created_at: string;
+  unread_count: number;
 }
 
 export interface ChatSendResponse {

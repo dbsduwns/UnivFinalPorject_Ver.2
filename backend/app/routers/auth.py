@@ -29,7 +29,7 @@ def verify_user_password(
     current_user: User = Depends(get_current_user),
 ):
     if not auth_service.verify_user_password(db, current_user.id, data.password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="비밀번호가 일치하지 않습니다.",)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="비밀번호가 일치하지 않습니다.")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

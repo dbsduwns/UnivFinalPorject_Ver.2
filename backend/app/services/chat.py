@@ -44,6 +44,14 @@ def _is_viewing_room(db: Session, user_id: int, room_id: int) -> bool:
     )
 
 
+def _unread_recipient_count(message: Messenger, participants: list[RoomParticipant]) -> int:
+    return sum(
+        participant.user_id != message.sender_id
+        and (participant.last_read_message_id or 0) < message.id
+        for participant in participants
+    )
+
+
 def create_room(db: Session, user: User, data: MessengerRoomCreate) -> RoomMessenger:
     participant_ids = set(data.participant_ids)
     participant_ids.add(user.id)
@@ -117,7 +125,7 @@ def get_my_rooms(db: Session, user: User) -> list[ChatRoomResponse]:
             .filter(
                 Messenger.room_messenger_id == room.id,
                 Messenger.sender_id != user.id,
-                Messenger.created_at > my_participant.last_read,
+                Messenger.id > (my_participant.last_read_message_id or 0),
             )
             .scalar()
         )
@@ -168,9 +176,13 @@ def get_room_messages(db: Session, user: User, room_id: int) -> list[Messenger]:
         .all()
     )
 
-    if messages:
+    if messages and (participant.last_read_message_id or 0) < messages[-1].id:
+        participant.last_read_message_id = messages[-1].id
         participant.last_read = messages[-1].created_at
         db.commit()
+
+    for message in messages:
+        message.unread_count = _unread_recipient_count(message, my_room.participants)
 
     return messages
 
@@ -187,6 +199,7 @@ def send_message(db: Session, user: User, room_id: int, data: ChatMessageCreate)
     room.updated_at = func.now()
     db.commit()
     db.refresh(message)
+    message.unread_count = _unread_recipient_count(message, room.participants)
 
     # 1:1 대화에서만 상대방에게 새 메시지 알림을 보낸다. 메시지 본문은 잠금 화면에 노출하지 않는다.
     if not room.is_group:

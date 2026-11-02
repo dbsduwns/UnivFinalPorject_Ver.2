@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsFocused } from "@react-navigation/native";
 import {
   ActivityIndicator,
   Alert,
@@ -53,6 +54,7 @@ const FriendAvatar = ({ friend, size = 48 }: { friend: FriendUser; size?: number
 );
 
 export const MessagesScreen = () => {
+  const isFocused = useIsFocused();
   const userId = useAuthStore((state) => state.user?.id);
   const queryClient = useQueryClient();
   const { width } = useWindowDimensions();
@@ -87,7 +89,7 @@ export const MessagesScreen = () => {
   const messagesQuery = useQuery({
     queryKey: ["chatMessages", userId, roomId],
     queryFn: async () => (await chatApi.getMessages(roomId!)).data,
-    enabled: !!userId && roomId !== undefined,
+    enabled: isFocused && !!userId && roomId !== undefined,
     refetchInterval: 5000,
   });
   const sendMutation = useMutation({
@@ -457,9 +459,14 @@ export const MessagesScreen = () => {
                                     {message.content}
                                   </Text>
                                 </View>
-                                <Text className="text-[10px] text-gray-400 mt-1 px-1">
-                                  {messageTime(message.created_at)}
-                                </Text>
+                                <View className="flex-row items-center mt-1 px-1" style={{ gap: 4 }}>
+                                  {mine && message.unread_count > 0 && (
+                                    <Text className="text-[10px] font-bold text-amber-600" accessibilityLabel={`읽지 않은 사람 ${message.unread_count}명`}>
+                                      {message.unread_count}
+                                    </Text>
+                                  )}
+                                  <Text className="text-[10px] text-gray-400">{messageTime(message.created_at)}</Text>
+                                </View>
                               </View>
                             </View>
                           );

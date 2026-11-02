@@ -2,12 +2,15 @@ import type { DimensionValue } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { Pressable, Text, View, useWindowDimensions } from "react-native";
-import { MessageCircle, Megaphone, Calendar, Users } from "lucide-react-native";
+import { Megaphone, Calendar, Users } from "lucide-react-native";
 
 import { getFriendRequests } from "@/features/friend/api/friend";
+import { ChatIconWithBadge } from "@/features/chat/components/ChatIconWithBadge";
+import { useUnreadChatCount } from "@/features/chat/hooks/useUnreadChatCount";
 
 export const QuickMenu = () => {
     const { width } = useWindowDimensions();
+    const unreadChatCount = useUnreadChatCount();
     const { data: friendRequests } = useQuery({
         queryKey: ["friendRequests"],
         queryFn: getFriendRequests,
@@ -53,6 +56,8 @@ export const QuickMenu = () => {
                     }}>
                     <Pressable 
                         style={{ alignItems: "center" }}
+                        accessibilityRole="button"
+                        accessibilityLabel={unreadChatCount > 0 ? `쪽지, 읽지 않은 메시지 ${unreadChatCount}개` : "쪽지"}
                         onPress={() => router.push("/(app)/(tabs)/messages")}>
                         <View 
                             className="items-center p-4"
@@ -60,9 +65,7 @@ export const QuickMenu = () => {
                                 backgroundColor: iconBgColor,
                                 borderRadius: 20,
                             }}>
-                            <MessageCircle
-                                size={iconSize}
-                                color={iconColor}/>
+                            <ChatIconWithBadge size={iconSize} color={iconColor} unreadCount={unreadChatCount} />
                         </View>
                         <View className="items-center pt-5">
                             <Text style={{ fontWeight: 'bold' }}>쪽지</Text>

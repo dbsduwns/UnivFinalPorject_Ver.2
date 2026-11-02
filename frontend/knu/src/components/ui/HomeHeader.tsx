@@ -1,13 +1,16 @@
 import { Pressable, Text, View } from "react-native";
-import { Menu, Bell, MessageCircle } from "lucide-react-native";
+import { Menu, Bell } from "lucide-react-native";
 
 import { useAppDrawer } from "@/components/ui/AppDrawer";
 import { router } from "expo-router";
+import { ChatIconWithBadge } from "@/features/chat/components/ChatIconWithBadge";
+import { useUnreadChatCount } from "@/features/chat/hooks/useUnreadChatCount";
 
 export const APP_HEADER_HEIGHT = 90;
 
 export const HomeHeader = () => {
     const { toggleDrawer } = useAppDrawer();
+    const unreadChatCount = useUnreadChatCount();
 
     const HomeHref = "/(app)/(tabs)";
 
@@ -53,7 +56,7 @@ export const HomeHeader = () => {
                 <Pressable
                     onPress={() => router.push("/(app)/(tabs)/messages")}
                     accessibilityRole="button"
-                    accessibilityLabel="쪽지 열기"
+                    accessibilityLabel={unreadChatCount > 0 ? `쪽지 열기, 읽지 않은 메시지 ${unreadChatCount}개` : "쪽지 열기"}
                     className="items-center justify-center"
                     style={{ 
                         width: 45,
@@ -61,9 +64,7 @@ export const HomeHeader = () => {
                         borderRadius: 32,
                         marginRight: 10,
                         backgroundColor: "#EAF8FC"}}>
-                    <MessageCircle  
-                    size={ 26 } color={ '#13708D' } strokeWidth={2.5}
-                    />
+                    <ChatIconWithBadge size={26} color="#13708D" strokeWidth={2.5} unreadCount={unreadChatCount} />
                 </Pressable>
                 {/* Notification */}
                 <Bell size={ 32 } color={ '#6B7280' } />

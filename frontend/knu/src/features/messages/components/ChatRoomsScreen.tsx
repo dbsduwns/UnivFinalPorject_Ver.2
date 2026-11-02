@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useIsFocused } from "@react-navigation/native";
 import {
   ActivityIndicator,
   Alert,
@@ -19,6 +20,7 @@ import { KeyboardAwareContent } from "@/components/ui/KeyboardAwareContent";
 import { getAxiosErrorMessage } from "@/api/errors";
 import { useAuthStore } from "@/features/auth/store/auth-store";
 import { chatApi } from "@/features/chat/api/chat-api";
+import { UnreadCountBadge } from "@/features/chat/components/UnreadCountBadge";
 import { presenceApi } from "@/features/presence/api/presence-api";
 import type { ChatRoom } from "@/features/chat/types";
 import { usePresenceStore } from "@/features/presence/store/presence-store";
@@ -31,6 +33,7 @@ const formatTime = (value: string) =>
   new Date(value).toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit" });
 
 export const ChatRoomsScreen = () => {
+  const isFocused = useIsFocused();
   const { friendId, roomId } = useLocalSearchParams<{ friendId?: string; roomId?: string }>();
   const requestedFriendId = Number(friendId);
   const requestedRoomId = Number(roomId);
@@ -52,8 +55,9 @@ export const ChatRoomsScreen = () => {
   const scrollRef = useRef<ScrollView>(null);
 
   const roomsQuery = useQuery({
-    queryKey: ["chatRooms"],
+    queryKey: ["chatRooms", userId],
     queryFn: async () => (await chatApi.getRooms()).data,
+    enabled: !!userId,
     refetchInterval: 10_000,
   });
 
@@ -102,14 +106,14 @@ export const ChatRoomsScreen = () => {
   const messagesQuery = useQuery({
     queryKey: ["chatMessages", selectedRoom?.id],
     queryFn: async () => (await chatApi.getMessages(selectedRoom!.id)).data,
-    enabled: !!selectedRoom,
+    enabled: isFocused && !!selectedRoom,
     refetchInterval: 5_000,
   });
 
   useEffect(() => {
     if (!selectedRoom || !messagesQuery.isSuccess) return;
 
-    client.setQueryData<ChatRoom[]>(["chatRooms"], (current) => current?.map((room) => (
+    client.setQueryData<ChatRoom[]>(["chatRooms", userId], (current) => current?.map((room) => (
       room.id === selectedRoom.id ? { ...room, unread_count: 0 } : room
     )));
   }, [client, messagesQuery.dataUpdatedAt, messagesQuery.isSuccess, selectedRoom?.id]);
@@ -164,7 +168,7 @@ export const ChatRoomsScreen = () => {
         : room;
       setSelectedRoom((current) => current ? applyMute(current) : current);
       setSettingsRoom((current) => current ? applyMute(current) : current);
-      client.setQueryData<ChatRoom[]>(["chatRooms"], (current) => current?.map(applyMute));
+      client.setQueryData<ChatRoom[]>(["chatRooms", userId], (current) => current?.map(applyMute));
       setSettingsError(null);
     },
     onError: (error) => setSettingsError(getAxiosErrorMessage(error, "알림 설정을 변경하지 못했습니다.")),
@@ -276,13 +280,7 @@ export const ChatRoomsScreen = () => {
                           {room.is_group ? "그룹 채팅" : "개인 채팅"}{room.is_muted ? " · 알림 꺼짐" : ""}
                         </Text>
                       </View>
-                      {room.unread_count > 0 ? (
-                        <View className="h-6 min-w-6 px-1.5 rounded-full bg-cyan-700 items-center justify-center">
-                          <Text className="text-xs font-extrabold text-white">
-                            {room.unread_count > 99 ? "99+" : room.unread_count}
-                          </Text>
-                        </View>
-                      ) : null}
+                      <UnreadCountBadge count={room.unread_count} size="room" />
                     </Pressable>;
                   })}
                 </ScrollView>
@@ -308,7 +306,14 @@ export const ChatRoomsScreen = () => {
                       <View className={`max-w-[78%] ${mine ? "items-end" : "items-start"}`}>
                         {showSenderProfile && <Text className="mb-1 text-xs font-bold text-gray-500">{senderName}</Text>}
                         <View className={`rounded-2xl px-3 py-2 ${mine ? "bg-cyan-700" : "bg-white border border-gray-200"}`}><Text className={mine ? "text-white" : "text-gray-800"}>{message.content}</Text></View>
-                        <Text className="text-[10px] text-gray-400 mt-1">{formatTime(message.created_at)}</Text>
+                        <View className="flex-row items-center mt-1" style={{ gap: 4 }}>
+                          {mine && message.unread_count > 0 && (
+                            <Text className="text-[10px] font-bold text-amber-600" accessibilityLabel={`읽지 않은 사람 ${message.unread_count}명`}>
+                              {message.unread_count}
+                            </Text>
+                          )}
+                          <Text className="text-[10px] text-gray-400">{formatTime(message.created_at)}</Text>
+                        </View>
                       </View>
                     </View>;
                   })}

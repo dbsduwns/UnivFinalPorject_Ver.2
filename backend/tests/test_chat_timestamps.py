@@ -10,6 +10,7 @@ def make_message(created_at: datetime) -> ChatMessageResponse:
         sender_id=3,
         content="hello",
         created_at=created_at,
+        unread_count=1,
     )
 
 

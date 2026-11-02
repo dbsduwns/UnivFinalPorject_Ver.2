@@ -83,6 +83,7 @@ class ChatMessageResponse(BaseModel):
     sender_id: int
     content: str
     created_at: datetime
+    unread_count: int
 
     model_config = ConfigDict(from_attributes=True)
 

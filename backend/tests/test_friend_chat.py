@@ -11,7 +11,7 @@ from app.models.room_messengers import RoomMessenger
 from app.models.room_participants import RoomParticipant
 from app.models.user import User
 from app.models.user_presence import UserPresence
-from app.schemas.chat import ChatMessageCreate, ChatRoomResponse, MessengerRoomCreate
+from app.schemas.chat import ChatMessageCreate, ChatMessageResponse, ChatRoomResponse, MessengerRoomCreate
 from app.services import chat
 
 
@@ -70,6 +70,28 @@ class FriendChatTest(unittest.TestCase):
         chat.delete_room(self.db, bob, group.id)
         self.assertIsNone(chat.get_my_room(self.db, bob, group.id))
         self.assertEqual(len(chat.get_room_messages(self.db, carol, group.id)), 1)
+
+    def test_group_message_unread_count_decreases_as_members_read(self):
+        alice, bob, carol, _ = self.users
+        group = chat.create_room(self.db, alice, MessengerRoomCreate(participant_ids=[bob.id, carol.id]))
+        message = chat.send_message(self.db, alice, group.id, ChatMessageCreate(content="hello"))
+
+        self.assertEqual(ChatMessageResponse.model_validate(message).unread_count, 2)
+        self.assertEqual(chat.get_room_messages(self.db, alice, group.id)[0].unread_count, 2)
+        self.assertEqual(chat.get_room_messages(self.db, bob, group.id)[0].unread_count, 1)
+        self.assertEqual(chat.get_room_messages(self.db, carol, group.id)[0].unread_count, 0)
+        self.assertEqual(chat.get_my_rooms(self.db, bob)[0].unread_count, 0)
+
+    @patch("app.services.chat.notify_users_by_type_sync")
+    def test_direct_message_unread_count_reaches_zero_after_read(self, notify):
+        alice, bob, _, _ = self.users
+        direct = chat.create_room(self.db, alice, MessengerRoomCreate(friend_id=bob.id))
+        message = chat.send_message(self.db, alice, direct.id, ChatMessageCreate(content="hello"))
+
+        self.assertEqual(message.unread_count, 1)
+        self.assertEqual(chat.get_my_rooms(self.db, bob)[0].unread_count, 1)
+        self.assertEqual(chat.get_room_messages(self.db, bob, direct.id)[0].unread_count, 0)
+        self.assertEqual(chat.get_room_messages(self.db, alice, direct.id)[0].unread_count, 0)
 
     def test_group_room_name_and_notification_settings_are_per_participant(self):
         alice, bob, carol, _ = self.users
