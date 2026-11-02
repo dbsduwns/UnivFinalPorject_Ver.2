@@ -1,5 +1,5 @@
-from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from datetime import datetime, timezone
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 class MessengerRoomCreate(BaseModel):
     participant_ids: list[int] = Field(default_factory=list)
@@ -85,6 +85,12 @@ class ChatMessageResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("created_at")
+    @classmethod
+    def attach_utc_timezone(cls, value: datetime) -> datetime:
+        # messengers.created_at is a UTC timestamp stored without timezone information.
+        return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
 
 
 class ChatRoomDetailResponse(ChatRoomResponse):
