@@ -18,6 +18,7 @@ from app.services.academic_calendar import (
 )
 from app.database import SessionLocal
 from app.services.timetable_context import is_timetable_only_query
+from app.services.regulations import build_regulation_context_from_db, is_regulation_query
 from app.core.retrieval_filters import infer_retrieval_filter
 
 if TYPE_CHECKING:
@@ -190,7 +191,7 @@ class CampusAIBot:
 제공된 Context를 근거로 사용자의 질문에 정확하고 친절하게 답변하세요.
 
 ### 지침
-1. Context에 있는 공지사항, 공식 학사일정, 셔틀 운행, 학생식당 메뉴 정보를 최우선 근거로 사용하세요.
+1. Context에 있는 공식 학칙·규정, 공지사항, 공식 학사일정, 셔틀 운행, 학생식당 메뉴 정보를 최우선 근거로 사용하세요.
 2. 공지사항은 제목, 카테고리, 게시일을 구분하고 서로 다른 공지의 내용을 합치지 마세요.
 3. 학사일정은 시작일과 종료일을 정확히 구분하세요.
 4. Context에 없는 날짜, 자격, 신청 방법이나 링크를 추측하지 마세요.
@@ -200,7 +201,7 @@ class CampusAIBot:
 8. 여러 항목은 '• ' 글머리표로 구분하고 같은 내용을 반복하지 마세요.
 9. 일정 정보는 날짜, 시간, 장소를 구분하고 Context의 표기를 정확히 유지하세요.
 10. 사용자가 해야 할 일이 있으면 '확인할 내용' 아래에 간단히 정리하세요.
-11. 근거가 되는 Context 문서 번호를 문장 끝에 [1], [2]처럼 표시하세요.
+11. 학칙·규정 답변에는 규정명과 조항을 표시하고, 번호가 있는 검색 문서는 [1], [2]처럼 표시하세요.
 12. 정보가 없는 항목의 제목은 만들지 마세요.
 13. 단순 질문은 짧게 답하고, 여러 일정이나 조건을 비교할 때만 항목을 나누세요.
 14. Markdown 굵게 문법이나 표는 사용하지 마세요.
@@ -436,10 +437,20 @@ class CampusAIBot:
         else:
             documents = await self._retrieve_documents(question, rewritten_question)
 
+        if is_regulation_query(question):
+            try:
+                with SessionLocal() as rules_db:
+                    rules_context = build_regulation_context_from_db(rules_db, question)
+                if rules_context:
+                    context_sections.append(rules_context)
+                    print("[AI Bot] Supabase 학칙·규정 Context 추가", flush=True)
+            except Exception as exc:
+                print(f"⚠️ [AI Bot] Supabase 학칙 조회 실패: {exc}", flush=True)
+
         if documents:
             context_sections.append(self._format_documents(documents))
 
-        if is_academic_calendar_query(question):
+        if is_academic_calendar_query(question) and not is_regulation_query(question):
             try:
                 with SessionLocal() as calendar_db:
                     academic_context = build_academic_calendar_context_from_db(

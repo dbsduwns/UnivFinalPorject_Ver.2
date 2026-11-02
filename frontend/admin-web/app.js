@@ -1,5 +1,5 @@
 const API = (window.ADMIN_API_URL || "").replace(/\/+$/, "");
-const state = { token: sessionStorage.getItem("knu_admin_token"), user: null, view: document.body.dataset.page || "dashboard" };
+const state = { token: sessionStorage.getItem("knu_admin_token"), user: null, view: document.body.dataset.page || "dashboard", noticeSort: "id_desc" };
 const $ = (s) => document.querySelector(s);
 const esc = (v = "") => String(v).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const date = (v) => v ? new Date(v).toLocaleString("ko-KR") : "-";
@@ -98,6 +98,15 @@ async function notices() {
   const load = async () => { 
     const keyword = $("#notice-query").value.trim(); 
     const rows = await request(`/api/notices/${keyword ? `?keyword=${encodeURIComponent(keyword)}` : ""}`); 
+    const sort = $("#notice-sort").value;
+    const publishedAt = n => Date.parse(n.published_at || n.crawled_at || "") || 0;
+    rows.sort((a, b) => {
+      if (sort === "id_asc") return a.id - b.id;
+      if (sort === "published_desc") return publishedAt(b) - publishedAt(a) || b.id - a.id;
+      if (sort === "published_asc") return publishedAt(a) - publishedAt(b) || a.id - b.id;
+      if (sort === "important") return Number(b.is_important) - Number(a.is_important) || publishedAt(b) - publishedAt(a) || b.id - a.id;
+      return b.id - a.id;
+    });
     
     $("#notice-rows").innerHTML = 
       rows.length ? rows.map(n=>
@@ -135,6 +144,15 @@ async function notices() {
     `<div class="toolbar">
       <input id="notice-query" placeholder="제목 또는 내용 검색">
       <button id="notice-search" class="secondary">검색</button>
+      <label class="sort-control">정렬
+        <select id="notice-sort" aria-label="공지사항 정렬 방식">
+          <option value="id_desc">ID 높은 순</option>
+          <option value="id_asc">ID 낮은 순</option>
+          <option value="published_desc">게시일 최신순</option>
+          <option value="published_asc">게시일 오래된 순</option>
+          <option value="important">중요 공지 우선</option>
+        </select>
+      </label>
       <button id="notice-new">공지 등록</button>
       <button id="notice-crawl" class="secondary">학교 공지 크롤링</button>
     </div>
@@ -151,6 +169,8 @@ async function notices() {
         <tbody id="notice-rows"></tbody>
       </table>
     </div>`;
+  $("#notice-sort").value = state.noticeSort;
+  $("#notice-sort").onchange = () => { state.noticeSort = $("#notice-sort").value; load(); };
   $("#notice-search").onclick = load; 
   $("#notice-new").onclick = () => noticeForm(); 
   $("#notice-crawl").onclick = async () => { 

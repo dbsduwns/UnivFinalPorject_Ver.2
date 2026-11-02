@@ -18,6 +18,7 @@ from .custom_schedule import CustomSchedule
 from .ai_chat_room import ChatRoom
 from .ai_message import Message
 from .graduation_standard import GraduationStandard
+from .regulation_article import RegulationArticle
 from .completed_course import CompletedCourse
 from .wizard_selection import WizardSelection
 from .friendship import Friendship
