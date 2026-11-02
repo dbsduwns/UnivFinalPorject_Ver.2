@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.schemas.user import (
@@ -17,9 +18,44 @@ from app.core.notification import send_push_notification
 from app.core.security import (
     create_access_token,
     create_refresh_token,
+    decode_token,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class RefreshResponse(BaseModel):
+    access_token: str
+
+
+@router.post("/refresh", response_model=RefreshResponse, status_code=status.HTTP_200_OK)
+def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
+    payload = decode_token(data.refresh_token)
+    if payload is None or payload.get("type") != "refresh":
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    try:
+        user_id = int(payload["sub"])
+    except (KeyError, TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if (
+        user is None
+        or not user.is_active
+        or payload.get("token_version") != user.token_version
+    ):
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    access_token = create_access_token({
+        "sub": str(user.id),
+        "token_version": user.token_version,
+    })
+    return RefreshResponse(access_token=access_token)
 
 
 @router.post("/verify-password", status_code=status.HTTP_204_NO_CONTENT)

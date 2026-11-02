@@ -28,14 +28,14 @@ def create_access_token(data: dict) -> str:
     """ 엑세스 토큰 생성 """
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
+    to_encode.update({"type": "access", "exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 def create_refresh_token(data: dict) -> str:
     """ 리프레시 토큰 생성 """
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"exp": expire})
+    to_encode.update({"type": "refresh", "exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 def decode_token(token: str) -> dict | None:
