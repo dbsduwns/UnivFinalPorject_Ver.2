@@ -215,7 +215,7 @@ async function community() {
     const rows=await request(`/api/admin/community/posts?limit=100${q?`&keyword=${encodeURIComponent(q)}`:""}`); 
     
     $("#post-rows").innerHTML=rows.length?rows.map(p=>
-      `<tr>
+      `<tr class="user-row" style="cursor:pointer" data-user="${u.id}" data-name="${esc(u.name)}">
         <td>${esc(p.board_slug)}</td>
         <td class="wrap">
           <b>${esc(p.title)}</b><br>
@@ -528,9 +528,9 @@ async function users() {
         <td>${u.is_active?'<span class="badge">활성</span>':'<span class="badge off">비활성</span>'}</td>
         <td>${u.is_admin?'<span class="badge">관리자</span>':'-'}</td>
         <td class="actions">
-          <button data-detail="${u.id}">상세</button>
           <button data-active="${u.id}" data-value="${!u.is_active}">${u.is_active?"비활성화":"활성화"}</button>
           <button class="secondary" data-role="${u.id}" data-value="${!u.is_admin}" ${!u.is_active?"disabled":""}>${u.is_admin?"권한 해제":"관리자 지정"}</button>
+          <button class="danger" data-delete="${u.id}" data-name="${esc(u.name)}">회원 삭제</button>
         </td>
       </tr>`).join("")
       :
@@ -540,12 +540,15 @@ async function users() {
       
     $("#user-rows").onclick=async e=>{
       const b=e.target.closest("button");
-      if(!b)
+      if(!b) {
+        const row=e.target.closest("tr[data-user]");
+        if (row) return userDetail(row.dataset.user);
         return;
+      }
       
       try{
-        if(b.dataset.detail)
-          return userDetail(b.dataset.detail);
+        if(b.dataset.delete)
+          return confirmUserDelete(b.dataset.delete, b.dataset.name, load);
         if(b.dataset.active) {
           await request(`/api/admin/users/${b.dataset.active}/active`,
             {
@@ -619,6 +622,32 @@ async function userDetail(id) {
       <button class="secondary" onclick="closeModal()">닫기</button>
     </div>`
   );
+}
+
+function confirmUserDelete(id, name, refresh) {
+  openModal("회원 삭제", `
+    <p class="muted"><b>${esc(name)}</b> 회원의 계정과 연결된 서비스 데이터가 영구 삭제됩니다.</p>
+    <p class="error">정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</p>
+    <div class="modal-actions">
+      <button class="secondary" type="button" onclick="closeModal()">취소</button>
+      <button id="confirm-user-delete" class="danger" type="button">회원 삭제</button>
+    </div>
+  `);
+  $("#confirm-user-delete").onclick = async () => {
+    const button = $("#confirm-user-delete");
+    button.disabled = true;
+    button.textContent = "삭제 중…";
+    try {
+      await request(`/api/admin/users/${id}`, { method: "DELETE" });
+      closeModal();
+      flash("회원 계정을 영구 삭제했습니다.");
+      await refresh();
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = "회원 삭제";
+      flash(error.message, true);
+    }
+  };
 }
 
 async function start() {

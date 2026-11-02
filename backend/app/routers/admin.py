@@ -56,6 +56,20 @@ def update_user_active(user_id: int, data: AdminUserActiveUpdate, db: Session = 
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user),
+):
+    try:
+        admin_service.delete_user_account(db, current_admin, user_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+
 @router.get("/user-blocks", response_model=list[AdminUserBlockResponse])
 def get_all_user_blocks(
     skip: int = Query(0, ge=0),
