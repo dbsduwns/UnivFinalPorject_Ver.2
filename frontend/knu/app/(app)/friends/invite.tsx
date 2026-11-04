@@ -41,7 +41,9 @@ export default function FriendInvitePage() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["friends"] });
       void queryClient.invalidateQueries({ queryKey: ["friendRequests"] });
-      void previewQuery.refetch();
+      // 수락 직후에는 초대 토큰이 accepted_at 처리되어 미리보기 재조회가
+      // 실패하므로, 사용된 토큰을 다시 조회하지 않고 친구 목록으로 이동한다.
+      router.replace("/(app)/(tabs)/friend");
     },
   });
 
