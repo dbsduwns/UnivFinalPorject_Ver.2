@@ -46,9 +46,13 @@ def crawl_notices_safely(max_pages: int = 1000):
     db = SessionLocal()
     try:
         # DB에 이미 저장된 모든 공지사항 제목을 가져옵니다.
-        titles = db.query(Notice.title).all()
-        saved_titles = {t[0] for t in titles}
-        print(f"이미 저장된 공지 수: {len(saved_titles)}개")
+        notices = db.query(Notice).all()
+        saved_source_keys = {notice.source_key for notice in notices if notice.source_key}
+        # source_key 도입 전 레거시 데이터와의 호환용 보조 키
+        legacy_by_title = {
+            notice.title: notice for notice in notices if not notice.source_key
+        }
+        print(f"이미 저장된 공지 수: {len(notices)}개")
 
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
@@ -77,16 +81,30 @@ def crawl_notices_safely(max_pages: int = 1000):
                     new_items = []
                     for link in links:
                         title = link.inner_text().strip()
-                        # 이미 저장된 제목이거나 이번 실행에서 방금 저장한 제목이면 건너뜁니다.
-                        if title in saved_titles:
-                            continue
-                        
                         data_params = json.loads(link.get_attribute("data-params"))
+                        source_key = (
+                            f"{data_params['encMenuSeq']}:{data_params['encMenuBoardSeq']}"
+                        )
+                        # 새 기준은 학교 홈페이지의 고유 식별자 조합이다.
+                        # source_key가 없는 기존 레거시 행만 제목을 보조 기준으로 사용한다.
+                        if source_key in saved_source_keys:
+                            continue
+                        legacy_notice = legacy_by_title.get(title)
+                        if legacy_notice is not None:
+                            # 기존 공지를 새 레코드로 만들지 않고 안정키를 보강한다.
+                            legacy_notice.source_key = source_key
+                            db.commit()
+                            saved_source_keys.add(source_key)
+                            del legacy_by_title[title]
+                            continue
                         new_items.append({
                             "title": title,
+                            "source_key": source_key,
                             "encMenuSeq": data_params["encMenuSeq"],
                             "encMenuBoardSeq": data_params["encMenuBoardSeq"]
                         })
+                        # 같은 크롤링 실행 안에서 중복 링크가 노출되어도 한 번만 처리한다.
+                        saved_source_keys.add(source_key)
 
                     if not new_items:
                         print("  ✨ 이 페이지의 모든 공지가 이미 DB에 있습니다.")
@@ -98,15 +116,14 @@ def crawl_notices_safely(max_pages: int = 1000):
                     
                     for item in new_items:
                         # 한 번 더 개별적으로 중복 체크 (세션 내 중복 방지)
-                        if item["title"] in saved_titles:
-                            continue
-
                         content, attachment_url, published_at = crawl_detail(page, item["encMenuSeq"], item["encMenuBoardSeq"])
                         
                         if content:
+                            rag_indexed = False
                             try:
                                 # 즉시 DB 저장 및 RAG 인덱싱
                                 notice = Notice(
+                                    source_key=item["source_key"],
                                     title=item["title"],
                                     content=content,
                                     category=category_name,
@@ -114,18 +131,22 @@ def crawl_notices_safely(max_pages: int = 1000):
                                     published_at=published_at
                                 )
                                 db.add(notice)
-                                db.commit()
+                                db.flush()
                                 
                                 # RAG 인덱싱
                                 doc = Document(
                                     page_content=f"제목: {item['title']}\n카테고리: {category_name}\n내용: {content}",
                                     metadata={
                                         "source": "공지사항",
+                                        "source_key": item["source_key"],
+                                        "notice_id": notice.id,
                                         "category": category_name,
                                         "title": item["title"]
                                     }
                                 )
                                 campus_ai_bot.add_documents([doc])
+                                rag_indexed = True
+                                db.commit()
                                 
                                 # 푸시 알림 전송
                                 notify_users_by_type_sync(
@@ -140,11 +161,18 @@ def crawl_notices_safely(max_pages: int = 1000):
                                 )
                                 
                                 # 캐시 업데이트
-                                saved_titles.add(item["title"])
                                 print(f"    ✅ 수집 및 저장 완료: {item['title'][:30]}... ({published_at})")
                             except Exception as e:
                                 print(f"    ❌ DB 저장 중 오류 발생 ({item['title'][:20]}): {e}")
                                 db.rollback()
+                                # RAG 저장 후 DB commit이 실패한 경우 고아 벡터를 정리한다.
+                                if rag_indexed:
+                                    try:
+                                        campus_ai_bot.delete_documents_by_metadata(
+                                            {"source_key": item["source_key"]}
+                                        )
+                                    except Exception as cleanup_error:
+                                        print(f"    ⚠️ RAG 롤백 실패 ({item['title'][:20]}): {cleanup_error}")
                         
                         time.sleep(random.uniform(1.0, 2.5))
 

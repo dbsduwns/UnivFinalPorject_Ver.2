@@ -254,6 +254,23 @@ class CampusAIBot:
             flush=True,
         )
 
+    def delete_documents_by_metadata(self, metadata: dict[str, object]) -> int:
+        """Remove indexed documents that belong to a deleted source."""
+        if not self.indexing_ready:
+            self.initialize()
+        if not self.vectorstore:
+            raise RuntimeError("벡터 DB가 준비되지 않아 문서를 삭제할 수 없습니다.")
+
+        if hasattr(self.vectorstore, "delete_documents_by_metadata"):
+            return int(self.vectorstore.delete_documents_by_metadata(metadata))
+
+        # Chroma fallback for local development and legacy deployments.
+        delete = getattr(self.vectorstore, "delete", None)
+        if delete is None:
+            raise RuntimeError("현재 벡터 DB가 문서 삭제를 지원하지 않습니다.")
+        delete(where=metadata)
+        return 1
+
     @staticmethod
     def _document_source(document: Document) -> str:
         return str(document.metadata.get("source") or "unknown")

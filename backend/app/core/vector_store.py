@@ -362,6 +362,47 @@ class QdrantDocumentStore:
             )
             batch_start = batch_end
 
+    def delete_documents_by_metadata(self, metadata: dict[str, Any]) -> int:
+        """Delete every Qdrant point whose metadata matches exactly."""
+        if not metadata or not self.client.collection_exists(self.collection_name):
+            return 0
+
+        from qdrant_client.models import FieldCondition, Filter, MatchValue, PointIdsList
+
+        conditions = [
+            FieldCondition(
+                key=f"metadata.{field}",
+                match=MatchValue(value=value),
+            )
+            for field, value in metadata.items()
+            if value is not None
+        ]
+        if not conditions:
+            return 0
+
+        point_ids: list[str] = []
+        offset = None
+        while True:
+            points, offset = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=Filter(must=conditions),
+                limit=256,
+                offset=offset,
+                with_payload=False,
+                with_vectors=False,
+            )
+            point_ids.extend(str(point.id) for point in points)
+            if offset is None:
+                break
+
+        if point_ids:
+            self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=PointIdsList(points=point_ids),
+                wait=True,
+            )
+        return len(point_ids)
+
     def replace_documents_by_source(
         self,
         documents: Sequence[Document],

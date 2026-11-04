@@ -54,6 +54,8 @@ def build_notice_records(notices: list[Notice]) -> list[tuple[str, Document]]:
                         ),
                         metadata={
                             "source": "공지사항",
+                            "source_key": notice.source_key,
+                            "notice_id": notice.id,
                             "source_document_id": f"notice:{notice.id}",
                             "chunk_index": chunk_index,
                             "chunk_count": len(chunks),
