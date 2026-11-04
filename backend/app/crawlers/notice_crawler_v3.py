@@ -133,7 +133,10 @@ def crawl_notices_safely(max_pages: int = 1000):
                                     "notice_alert", 
                                     f"📢 [{category_name}] 새로운 공지사항이 업데이트 됐습니다. 확인해보세요!",
                                     item["title"],
-                                    {"notice_id": notice.id}
+                                    {
+                                        "type": "notice",
+                                        "notice_id": notice.id
+                                    }
                                 )
                                 
                                 # 캐시 업데이트

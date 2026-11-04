@@ -52,6 +52,24 @@ CLOUDFLARE_EMBEDDING_MODEL=@cf/baai/bge-m3
 QDRANT_COLLECTION=knu-campus-bge-m3
 ```
 
+### SECRET_KEY 생성
+
+`SECRET_KEY`는 access token, refresh token, 친구 초대 JWT의 서명과 검증에
+사용되는 서버 전용 비밀값입니다. 사람이 직접 정한 문자열을 사용하지 말고,
+배포 전에 터미널에서 한 번만 무작위 값을 생성합니다.
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(64))"
+```
+
+생성된 값은 로컬 개발이나 migration 실행에 필요할 때만 `.env.cloudrun`에
+입력합니다. `.env.cloudrun`은 Git에 커밋하지 않으며, 실제 운영 서비스에는
+파일을 업로드하지 않고 아래 6단계의 Secret Manager 값을 연결합니다.
+
+키를 배포할 때마다 새로 생성하지 마세요. 키를 바꾸면 기존 access token,
+refresh token, 친구 초대 링크가 모두 무효화되어 사용자가 다시 로그인해야
+합니다. 유출이 의심될 때만 새 키를 생성해 교체합니다.
+
 ## 3. 기존 PostgreSQL 데이터 이전
 
 Render에서 애플리케이션의 `public` 스키마만 포함하는 덤프를 만듭니다.
@@ -94,7 +112,8 @@ asia-northeast3-docker.pkg.dev/PROJECT_ID/knu-campus/knu-campus-api:latest
 
 ## 6. 비밀값 저장
 
-Google Cloud Secret Manager에 다음 비밀값을 만듭니다. 값이 소스 코드에 포함되지 않도록 콘솔에서 직접 입력합니다.
+Google Cloud Secret Manager에 다음 비밀값을 만듭니다. 실제 값은 소스 코드,
+`.env.cloudrun.example`, 로그에 기록하지 않습니다.
 
 - `knu-database-url`
 - `knu-secret-key`
@@ -104,6 +123,51 @@ Google Cloud Secret Manager에 다음 비밀값을 만듭니다. 값이 소스 �
 서버에서 인증이 필요한 크롤링을 실행한다면 `knu-user-id`와 `knu-password`도 선택적으로 만듭니다.
 
 Cloud Run 실행 서비스 계정에는 필요한 비밀값에 대해서만 `Secret Manager Secret Accessor` 권한을 부여합니다.
+
+### `knu-secret-key` 생성 및 저장
+
+처음 한 번만 Secret Manager 항목을 생성합니다.
+
+```bash
+gcloud secrets create knu-secret-key \
+  --replication-policy="automatic"
+```
+
+이미 항목이 있으면 `create`를 다시 실행하지 않습니다. 터미널에서 생성한
+무작위 값을 바로 새 버전으로 저장할 수도 있습니다.
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(64), end='')" \
+  | gcloud secrets versions add knu-secret-key --data-file=-
+```
+
+또는 Google Cloud Console에서 `knu-secret-key`를 만든 뒤 생성된 값을 직접
+붙여 넣습니다. Cloud Run 실행 서비스 계정에는 다음 권한이 필요합니다.
+
+```text
+roles/secretmanager.secretAccessor
+```
+
+실제 서비스 계정에 권한을 부여한 뒤 Cloud Run 서비스의 환경변수 연결에서
+다음처럼 설정합니다.
+
+```text
+SECRET_KEY=knu-secret-key:latest
+```
+
+이 설정은 `SECRET_KEY`에 문자열 `knu-secret-key`를 넣는 것이 아니라,
+Secret Manager의 최신 버전 값을 Cloud Run 컨테이너의 `SECRET_KEY` 환경변수로
+주입한다는 뜻입니다. Cloud Run 콘솔의 **서비스 수정 → 변수 및 보안 비밀 →
+보안 비밀 참조**에서 연결하거나 다음 명령을 사용할 수 있습니다.
+
+```bash
+gcloud run services update knu-campus-api \
+  --region=asia-northeast3 \
+  --update-secrets=SECRET_KEY=knu-secret-key:latest
+```
+
+키를 교체할 때는 새 버전을 추가한 뒤 새 Cloud Run revision을 배포합니다.
+교체 직후 기존 사용자는 다시 로그인해야 합니다.
 
 ## 7. 데이터베이스 마이그레이션 실행
 

@@ -4,6 +4,7 @@ import {
   deleteMeRequest,
   googleLoginRequest,
   loginRequest,
+  logoutRequest,
   meRequest,
   signupRequest,
   updateMeRequest,
@@ -66,6 +67,14 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
+    const refreshToken = await tokenStorage.getRefreshToken();
+    if (refreshToken) {
+      try {
+        await logoutRequest(refreshToken);
+      } catch {
+        // Local logout must still complete when the server is unavailable.
+      }
+    }
     await tokenStorage.clearTokens();
     set({ user: null, ready: true });
   },

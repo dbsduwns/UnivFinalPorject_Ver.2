@@ -39,3 +39,13 @@ class User(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+    refresh_sessions = relationship(
+        "RefreshSession",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    identities = relationship(
+        "UserIdentity",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )

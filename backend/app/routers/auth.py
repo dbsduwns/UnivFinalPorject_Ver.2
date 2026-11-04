@@ -1,5 +1,7 @@
+import secrets
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.schemas.user import (
@@ -8,17 +10,21 @@ from app.schemas.user import (
     PushTokenUpdate, NotificationSettingResponse, NotificationSettingUpdate
 )
 from app.services import auth as auth_service
+from app.services import google_auth as google_auth_service
+from app.services import student_verification as student_verification_service
 from app.services import account as account_service
 from app.services import password_reset as password_reset_service
 from app.schemas.user import PasswordVerifyRequest, PasswordChangeRequest
 from app.models.user import User
 from app.models.notification_setting import NotificationSetting
+from app.models.refresh_session import RefreshSession
 from app.core.dependencies import get_current_user
 from app.core.notification import send_push_notification
 from app.core.security import (
     create_access_token,
     create_refresh_token,
     decode_token,
+    hash_jti
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -30,32 +36,102 @@ class RefreshRequest(BaseModel):
 
 class RefreshResponse(BaseModel):
     access_token: str
+    refresh_token: str
 
+class GoogleLoginRequest(BaseModel):
+    id_token: str
+
+
+class StudentVerificationConfirmRequest(BaseModel):
+    verification_id: int = Field(gt=0)
+    onboarding_token: str = Field(min_length=20, max_length=256)
+    otp: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+
+
+class StudentVerificationRequest(BaseModel):
+    onboarding_token: str = Field(min_length=20, max_length=256)
+    student_email: str = Field(min_length=5, max_length=320)
 
 @router.post("/refresh", response_model=RefreshResponse, status_code=status.HTTP_200_OK)
 def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
     payload = decode_token(data.refresh_token)
     if payload is None or payload.get("type") != "refresh":
-        raise HTTPException(status_code=401, detail="Invalid refresh token")
+        raise HTTPException(status_code=401, detail="유효하지 않은 리프레시 토큰입니다. 다시 로그인해주세요.")
+
+    required_claims = ("sub", "token_version", "session_id", "jti")
+    if any(not payload.get(claim) for claim in required_claims):
+        raise HTTPException(status_code=401, detail="유효하지 않은 리프레시 토큰입니다. 다시 로그인해주세요.")
+
+    session = db.query(RefreshSession).filter(
+        RefreshSession.session_id == payload["session_id"]
+    ).with_for_update().first()
+
+    if session is None or session.revoked_at is not None:
+        raise HTTPException(status_code=401, detail="리프레시 세션이 존재하지 않거나 만료되었습니다. 다시 로그인해주세요.")
+    now = datetime.now(timezone.utc)
+    expires_at = session.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at <= now:
+        session.revoked_at = now
+        db.commit()
+        raise HTTPException(status_code=401, detail="리프레시 세션이 만료되었습니다. 다시 로그인해주세요.")
+
+    if hash_jti(payload["jti"]) != session.current_jti_hash:
+        session.revoked_at = now
+        db.commit()
+        raise HTTPException(status_code=401, detail="리프레시 세션이 만료되었습니다. 다시 로그인해주세요.")
 
     try:
         user_id = int(payload["sub"])
-    except (KeyError, TypeError, ValueError):
-        raise HTTPException(status_code=401, detail="Invalid refresh token")
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="유효하지 않은 리프레시 토큰입니다. 다시 로그인해주세요.")
+
+    new_jti = secrets.token_urlsafe(32)
+
+    session.current_jti_hash = hash_jti(new_jti)
+    session.last_used_at = datetime.now(timezone.utc)
 
     user = db.query(User).filter(User.id == user_id).first()
-    if (
-        user is None
-        or not user.is_active
-        or payload.get("token_version") != user.token_version
-    ):
-        raise HTTPException(status_code=401, detail="Invalid refresh token")
+    if user is None or not user.is_active or user.token_version != payload["token_version"]:
+        session.revoked_at = now
+        db.commit()
+        raise HTTPException(status_code=401, detail="유효하지 않은 세션입니다. 다시 로그인해주세요.")
 
-    access_token = create_access_token({
+    new_refresh_token = create_refresh_token({
+        "sub": str(user.id),
+        "token_version": user.token_version,
+        "session_id": session.session_id,
+        "jti": new_jti,
+    })
+
+    new_access_token = create_access_token({
         "sub": str(user.id),
         "token_version": user.token_version,
     })
-    return RefreshResponse(access_token=access_token)
+
+    db.commit()
+
+    return RefreshResponse(
+        access_token=new_access_token,
+        refresh_token=new_refresh_token,
+    )
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(data: RefreshRequest, db: Session = Depends(get_db)):
+    """Revoke the refresh session associated with the current refresh token."""
+    payload = decode_token(data.refresh_token)
+    if payload is not None and payload.get("type") == "refresh":
+        session_id = payload.get("session_id")
+        if session_id:
+            session = db.query(RefreshSession).filter(
+                RefreshSession.session_id == session_id,
+            ).first()
+            if session is not None and session.revoked_at is None:
+                session.revoked_at = datetime.now(timezone.utc)
+                db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/verify-password", status_code=status.HTTP_204_NO_CONTENT)
@@ -94,32 +170,41 @@ def signup(data: UserSignup, db: Session = Depends(get_db)):
         raise HTTPException(status_code=409, detail=str(e)) from e
 
 @router.post("/google")
-async def google_login(data: dict, db: Session = Depends(get_db)):
-    token = data.get("id_token")
+def google_login(data: GoogleLoginRequest, db: Session = Depends(get_db)):
+    return google_auth_service.authenticate_google_user(db, data.id_token)
+
+@router.post("/student-verification/confirm")
+def confirm_student_verification(data: StudentVerificationConfirmRequest, db: Session = Depends(get_db)):
     try:
-        idinfo = id_token.verify_oauth2_token(token, requests.Request(), "433369528179-1ra3pg4pffr7iuupnabdnk588c0q1tga.apps.googleusercontent.com")
+        return student_verification_service.confirm_student_verification(
+            db,
+            verification_id=data.verification_id,
+            onboarding_token=data.onboarding_token,
+            input_otp=data.otp,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-        email = idinfo['email']
-        name = idinfo.get('name', 'Google User')
 
-        user = db.query(User).filter(User.email == email).first()
-        if not user:
-            user = User(email=email, name=name, password_hash="google_authenticated")
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-
-        token_data = {"sub": str(user.id), "token_version": user.token_version}
-        access_token = create_access_token(data=token_data)
-        refresh_token = create_refresh_token(data=token_data)
-
+@router.post("/student-verification/request", status_code=status.HTTP_202_ACCEPTED)
+def request_student_verification(
+    data: StudentVerificationRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        result = student_verification_service.request_student_verification(
+            db,
+            data.onboarding_token,
+            data.student_email,
+        )
         return {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer"
+            "status": "verification_code_sent",
+            **result,
         }
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid Google token")
+    except student_verification_service.StudentVerificationRateLimitError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     
 @router.post("/login", response_model=TokenResponse)
 def login(data: UserLogin, db: Session = Depends(get_db)):
@@ -127,7 +212,6 @@ def login(data: UserLogin, db: Session = Depends(get_db)):
         return auth_service.login(db, data)
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e)) from e
-
 
 @router.post("/password-reset/request", status_code=status.HTTP_202_ACCEPTED)
 def request_password_reset(

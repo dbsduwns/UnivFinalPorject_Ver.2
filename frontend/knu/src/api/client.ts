@@ -1,8 +1,39 @@
-import axios, { isAxiosError } from "axios";
+import axios, { isAxiosError, type InternalAxiosRequestConfig } from "axios";
 
 import * as tokenStorage from "@/features/auth/services/token-storage";
 import { API_BASE_URL } from "@/constants/config";
 import { hrefLogin } from "@/constants/routes";
+
+type RefreshResponse = {
+  access_token: string;
+  refresh_token: string;
+};
+
+type RetriableConfig = InternalAxiosRequestConfig & {
+  _retry?: boolean;
+};
+
+let refreshPromise: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = await tokenStorage.getRefreshToken();
+  if (!refreshToken) return null;
+
+  try {
+    // Do not use apiClient here: an expired access token must not trigger
+    // the response interceptor recursively while refreshing.
+    const { data } = await axios.post<RefreshResponse>(
+      `${API_BASE_URL}/auth/refresh`,
+      { refresh_token: refreshToken },
+      { headers: { "Content-Type": "application/json" } },
+    );
+    await tokenStorage.setTokens(data.access_token, data.refresh_token);
+    return data.access_token;
+  } catch {
+    await tokenStorage.clearTokens();
+    return null;
+  }
+}
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -35,16 +66,32 @@ apiClient.interceptors.response.use(
     if (__DEV__) {
       console.warn(`[API Error] ${error.config?.url}`, error.message);
     }
+    const config = isAxiosError(error)
+      ? (error.config as RetriableConfig | undefined)
+      : undefined;
     const hadAuthHeader = Boolean(
       isAxiosError(error) &&
         error.config?.headers &&
         typeof error.config.headers.Authorization === "string"
     );
+    const isRefreshRequest = config?.url?.includes("/auth/refresh") ?? false;
     if (
       isAxiosError(error) &&
       error.response?.status === 401 &&
-      hadAuthHeader
+      hadAuthHeader &&
+      config &&
+      !config._retry &&
+      !isRefreshRequest
     ) {
+      config._retry = true;
+      refreshPromise ??= refreshAccessToken().finally(() => {
+        refreshPromise = null;
+      });
+      const accessToken = await refreshPromise;
+      if (accessToken) {
+        config.headers.Authorization = `Bearer ${accessToken}`;
+        return apiClient(config as InternalAxiosRequestConfig);
+      }
       await tokenStorage.clearTokens();
       const { useAuthStore } = await import("@/features/auth/store/auth-store");
       useAuthStore.getState().clearSession();

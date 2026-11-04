@@ -16,10 +16,4 @@ class RefreshSession(Base):
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     last_used_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
-    refresh_sessions = relationship(
-        "RefreshSession",
-        back_populates="user",
-        cascade="all, delete-orphan",
-    )
-
     user = relationship("User", back_populates="refresh_sessions")

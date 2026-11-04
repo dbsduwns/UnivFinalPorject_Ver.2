@@ -5,8 +5,6 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
 
-
-SECRET_KEY = os.getenv("SECRET_KEY", "fallback-secret-key")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 REFRESH_TOKEN_EXPIRE_DAYS = 14
@@ -14,7 +12,32 @@ FRIEND_INVITE_EXPIRE_DAYS = 7
 RESET_TOKEN_EXPIRE_MINUTES = 15
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+
+def load_secret_key() -> str:
+    value = os.getenv("SECRET_KEY")
+
+    if not value:
+        raise RuntimeError("SECRET_KEY 환경 변수가 설정되지 않았습니다.")
+
+    value = value.strip()
+
+    invalid_values = {
+        "fallback-secret-key",
+        "replace_with_a_long_random_secret",
+        "changeme",
+        "your-secret-key",
+    }
+
+    if value in invalid_values:
+        raise RuntimeError("SECRET_KEY에 예시용 기본값을 사용할 수 없습니다.")
+
+    # token_urlsafe(32) 기준 약 43자 이상
+    if len(value) < 43:
+        raise RuntimeError("SECRET_KEY는 최소 32바이트 이상의 무작위값이어야 합니다.")
+
+    return value
+
+SECRET_KEY = load_secret_key()
 
 def hash_password(password: str) -> str:
     """비밀번호를 해싱해서 반환"""
@@ -27,15 +50,15 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def create_access_token(data: dict) -> str:
     """ 엑세스 토큰 생성 """
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"type": "access", "exp": expire})
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"type": "access", "exp": expires_at})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 def create_refresh_token(data: dict) -> str:
     """ 리프레시 토큰 생성 """
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"type": "refresh", "exp": expire})
+    expires_at = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode.update({"type": "refresh", "exp": expires_at})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 def decode_token(token: str) -> dict | None:
@@ -45,6 +68,9 @@ def decode_token(token: str) -> dict | None:
     except JWTError:
         return None
 
+def hash_jti(jti: str) -> str:
+    """ JTI를 해싱 """
+    return hashlib.sha256(jti.encode("utf-8")).hexdigest()
 
 def create_reset_token() -> str:
     """ 비밀번호 재설정 토큰 생성 (무작위 난수 32) """

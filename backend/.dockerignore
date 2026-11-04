@@ -1,7 +1,6 @@
 .env
 .env.*
 !.env.example
-!.env.oracle.example
 !.env.cloudrun.example
 .venv/
 .venv-migration/

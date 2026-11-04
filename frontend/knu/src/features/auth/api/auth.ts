@@ -38,6 +38,10 @@ export async function changePassword(body: PasswordChangeRequest): Promise<void>
   await apiClient.post("/auth/password/change", body);
 }
 
+export async function logoutRequest(refreshToken: string): Promise<void> {
+  await apiClient.post("/auth/logout", { refresh_token: refreshToken });
+}
+
 export async function meRequest() {
   console.log("ME START");
 
