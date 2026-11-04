@@ -351,7 +351,11 @@ def save_menus(menus: list):
                     db,
                     "cafeteria_alert",
                     "🍱 식단 크롤링 업데이트",
-                    "이번 주 새로운 식단표가 등록되었습니다. 지금 확인해보세요!"
+                    "이번 주 새로운 식단표가 등록되었습니다. 지금 확인해보세요!",
+                    {
+                        "type": "cafeteria",
+                        "menu_date": str(menu_date),
+                    }
                 )
             except Exception as exc:
                 print(f"⚠️ 학식 알림 전송 실패: {exc}")

@@ -134,7 +134,11 @@ def save_shuttle_schedule(schedule):
                     db,
                     "shuttle_alert",
                     "🚌 셔틀버스 크롤링 업데이트",
-                    f"[{schedule['semester']}] 시간표 파일이 갱신되었습니다."
+                    f"[{schedule['semester']}] 시간표 파일이 갱신되었습니다.",
+                    {
+                        "type": "shuttle",
+                        "semester": schedule["semester"],
+                    },
                 )
                 print(f"기존 시간표 갱신 및 알림 전송 완료: {schedule['title']}")
             else:
@@ -184,7 +188,11 @@ def save_shuttle_schedule(schedule):
             db, 
             "shuttle_alert", 
             "🚌 셔틀버스 크롤링 업데이트",
-            f"[{schedule['semester']}] 새로운 셔틀버스 시간표가 등록되었습니다."
+            f"[{schedule['semester']}] 새로운 셔틀버스 시간표가 등록되었습니다.",
+            {
+                "type": "shuttle",
+                "semester": schedule["semester"],
+            },
         )
 
         print(f"[{schedule['semester']}] {schedule['title']} 저장 및 인덱싱 완료!")

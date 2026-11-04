@@ -65,6 +65,22 @@ function handleNotificationResponse(response: Notifications.NotificationResponse
       params: { id: String(data.notice_id) },
     });
   }
+
+  if (data.type === "cafeteria") {
+    const menuDate = typeof data.menu_date === "string" ? data.menu_date : "";
+    router.push({
+      pathname: "/(app)/(tabs)/meal",
+      params: menuDate ? { date: menuDate } : undefined,
+    });
+  }
+
+  if (data.type === "shuttle") {
+    const semester = typeof data.semester === "string" ? data.semester : "";
+    router.push({
+      pathname: "/(app)/(tabs)/shuttle",
+      params: semester ? { semester } : undefined,
+    });
+  }
 };
 
 export const unstable_settings = {

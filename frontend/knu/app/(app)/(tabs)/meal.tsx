@@ -1,6 +1,7 @@
 import { Text, View, Image, TouchableOpacity, ActivityIndicator } from "react-native";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocalSearchParams } from "expo-router";
 import { format, addDays, startOfWeek, isSameDay } from "date-fns";
 import { ko } from "date-fns/locale";
 
@@ -161,9 +162,30 @@ function ZoomableImage({ uri }: { uri: string }) {
   );
 }
 
+const parseMenuDate = (value?: string) => {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = new Date(year, month - 1, day);
+  return parsed.getFullYear() === year
+    && parsed.getMonth() === month - 1
+    && parsed.getDate() === day
+    ? parsed
+    : null;
+};
+
 export default function MealScreen() {
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const { date } = useLocalSearchParams<{ date?: string | string[] }>();
+  const dateParam = Array.isArray(date) ? date[0] : date;
+
+  const [selectedDate, setSelectedDate] = useState(
+    () => parseMenuDate(dateParam) ?? new Date()
+  );
   const [isDownloading, setIsDownloading] = useState(false);
+
+  useEffect(() => {
+    const parsed = parseMenuDate(dateParam);
+    if (parsed) setSelectedDate(parsed);
+  }, [dateParam]);
 
   const weekDays = useMemo(() => {
     const start = startOfWeek(selectedDate, { weekStartsOn: 1 });

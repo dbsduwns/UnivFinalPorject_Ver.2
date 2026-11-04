@@ -2,6 +2,7 @@ import { Text, View, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useEffect, useState } from "react";
 
 import { useQuery } from "@tanstack/react-query";
+import { useLocalSearchParams } from "expo-router";
 import { getShuttles } from "@/features/shuttle/api/shuttle";
 import { getCurrentSemester } from "@/features/shuttle/utils/semester";
 import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
@@ -13,7 +14,12 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
 export default function ShuttleScreen() {
-  const semester = getCurrentSemester();
+  const { semester: semesterParam } = useLocalSearchParams<{
+    semester?: string | string[];
+  }>();
+  const semester = Array.isArray(semesterParam)
+    ? semesterParam[0]
+    : semesterParam || getCurrentSemester();
   const [isDownloading, setIsDownloading] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [previewUri, setPreviewUri] = useState<string | null>(null);
