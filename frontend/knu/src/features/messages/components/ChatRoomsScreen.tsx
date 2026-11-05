@@ -13,6 +13,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import { router } from "expo-router";
 import { ArrowLeft, Bell, BellOff, Check, Pencil, Plus, Send, Trash2, Users, X } from "lucide-react-native";
 
 import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
@@ -344,7 +345,14 @@ export const ChatRoomsScreen = () => {
 
             <ScrollView className="mt-4" contentContainerStyle={{ paddingBottom: 4 }}>
               {friendsQuery.isLoading ? <ActivityIndicator color={BRAND} className="my-8" /> : (friendsQuery.data ?? []).length === 0 ? (
-                <Text className="py-8 text-center text-sm text-gray-400">선택할 친구가 없습니다.</Text>
+                <View>
+                  <Text className="py-8 text-center text-sm text-gray-400">친구 초대로 대화를 시작하세요</Text>
+                  <Pressable
+                    className="mt-4 h-12 rounded-2xl items-center justify-center disabled:opacity-40" 
+                    onPress={() => router.push("/(app)/friends" as never)}
+                    style={{ backgroundColor: BRAND }}
+                  ><Text className="font-extrabold text-white">친구 초대</Text></Pressable>
+                </View>
               ) : (friendsQuery.data ?? []).map((friend: FriendUser) => {
                 const selected = selectedFriendIds.includes(friend.id);
                 return <Pressable key={friend.id} onPress={() => toggleFriend(friend.id)} className={`py-3 px-2 rounded-2xl flex-row items-center ${selected ? "bg-cyan-50" : "active:bg-gray-50"}`}>

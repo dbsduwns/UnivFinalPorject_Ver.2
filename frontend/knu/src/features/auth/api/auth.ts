@@ -6,6 +6,9 @@ import type {
   PasswordResetConfirmPayload,
   PasswordVerifyRequest,
   PasswordChangeRequest,
+  GoogleLoginResponse,
+  StudentVerificationRequestBody,
+  StudentVerificationConfirmBody,
 } from "@/features/auth/api/types";
 
 export async function loginRequest(body: UserLoginBody): Promise<TokenResponse> {
@@ -65,8 +68,18 @@ export async function sendNotificationTestRequest(): Promise<void> {
   await apiClient.post("/auth/notification-test");
 }
 
-export async function googleLoginRequest(idToken: string): Promise<TokenResponse> {
-  const { data } = await apiClient.post<TokenResponse>("/auth/google", { id_token: idToken });
+export async function googleLoginRequest(idToken: string): Promise<GoogleLoginResponse> {
+  const { data } = await apiClient.post<GoogleLoginResponse>("/auth/google", { id_token: idToken });
+  return data;
+}
+
+export async function requestStudentVerification(body: StudentVerificationRequestBody) {
+  const { data } = await apiClient.post("/auth/student-verification/request", body);
+  return data as { status: string; verification_id: number; student_email: string; expires_at: string };
+}
+
+export async function confirmStudentVerification(body: StudentVerificationConfirmBody): Promise<TokenResponse> {
+  const { data } = await apiClient.post<TokenResponse>("/auth/student-verification/confirm", body);
   return data;
 }
 

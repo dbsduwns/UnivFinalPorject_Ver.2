@@ -18,6 +18,16 @@
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "com.yeojun.knu",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "category": ["BROWSABLE", "DEFAULT"],
+          "data": {
+            "scheme": "com.yeojun.knu",
+            "pathPrefix": "/oauthredirect"
+          }
+        }
+      ],
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyAGTPEXTlA6MnwvUNXcrk2XEOBm2c37_VQ"

@@ -18,6 +18,23 @@ export type UserUpdateBody = {
 export type TokenResponse = {
   access_token: string;
   refresh_token: string;
+  token_type?: string;
+};
+
+export type GoogleLoginResponse =
+  | ({ status: "authenticated" } & TokenResponse)
+  | { status: "student_verification_required"; onboarding_token: string; expires_at: string }
+  | { status: "link_required"; email: string; message: string };
+
+export type StudentVerificationRequestBody = {
+  onboarding_token: string;
+  student_email: string;
+};
+
+export type StudentVerificationConfirmBody = {
+  verification_id: number;
+  onboarding_token: string;
+  otp: string;
 };
 
 export type UserLoginBody = {

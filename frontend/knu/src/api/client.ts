@@ -15,6 +15,28 @@ type RetriableConfig = InternalAxiosRequestConfig & {
 
 let refreshPromise: Promise<string | null> | null = null;
 
+function redactSensitiveData(data: unknown): unknown {
+  if (!data || typeof data !== "object") return data;
+  if (Array.isArray(data)) return data.map(redactSensitiveData);
+
+  const output: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if ([
+      "id_token",
+      "access_token",
+      "refresh_token",
+      "password",
+      "otp",
+      "onboarding_token",
+    ].includes(key)) {
+      output[key] = "[REDACTED]";
+    } else {
+      output[key] = redactSensitiveData(value);
+    }
+  }
+  return output;
+}
+
 async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = await tokenStorage.getRefreshToken();
   if (!refreshToken) return null;
@@ -46,7 +68,10 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.request.use(async (config) => {
   if (__DEV__) {
-    console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`, config.data || "");
+    console.log(
+      `[API Request] ${config.method?.toUpperCase()} ${config.url}`,
+      redactSensitiveData(config.data || ""),
+    );
   }
   const token = await tokenStorage.getAccessToken();
   if (token) {

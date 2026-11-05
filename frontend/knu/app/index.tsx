@@ -7,6 +7,7 @@ import { useAuthStore } from "@/features/auth/store/auth-store";
 export default function EntryScreen() {
   const ready = useAuthStore((s) => s.ready);
   const user = useAuthStore((s) => s.user);
+  const pendingOnboarding = useAuthStore((s) => s.pendingOnboarding);
 
   if (!ready) {
     return null;
@@ -14,6 +15,17 @@ export default function EntryScreen() {
 
   if (user) {
     return <Redirect href={hrefAppHome} />;
+  }
+
+  if (pendingOnboarding) {
+    return (
+      <Redirect
+        href={{
+          pathname: "/student-verification",
+          params: { onboardingToken: pendingOnboarding.onboardingToken },
+        }}
+      />
+    );
   }
 
   return <Redirect href={hrefLogin} />;

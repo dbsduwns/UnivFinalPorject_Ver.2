@@ -145,7 +145,9 @@ def authenticate_google_user(db: Session, raw_id_token: str) -> dict:
             "status": "link_required",
             "email": provider_email,
             "message": (
-                "기존 계정으로 로그인한 뒤 Google 계정 연결을 진행해야 합니다."
+                "이 Google 이메일은 이미 일반 계정으로 가입되어 있습니다. "
+                "자동 연결하지 않으므로 기존 이메일과 비밀번호로 먼저 로그인한 뒤 "
+                "계정 설정에서 Google 계정 연결을 진행해 주세요."
             ),
         }
 

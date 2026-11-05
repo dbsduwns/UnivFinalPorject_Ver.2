@@ -1,4 +1,5 @@
 import * as WebBrowser from 'expo-web-browser';
+import * as Google from "expo-auth-session/providers/google";
 import { Link, router, useLocalSearchParams } from "expo-router";
 
 import { hrefAppHome, hrefSignup } from "@/constants/routes";
@@ -30,10 +31,12 @@ export default function LoginScreen() {
   const user = useAuthStore((s) => s.user);
   const ready = useAuthStore((s) => s.ready);
   const login = useAuthStore((s) => s.login);
+  const googleLogin = useAuthStore((s) => s.googleLogin);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [emailMessage, setEmailMessage] = useState<string>('')
@@ -41,6 +44,15 @@ export default function LoginScreen() {
 
   const [isEmail, setIsEmail] = useState<boolean>(false)
   const [isPassword, setIsPassword] = useState<boolean>(false)
+
+  // On Android/iOS, use the authorization-code flow. Expo exchanges the code
+  // and exposes the resulting ID token in `authentication.idToken`.
+  const [googleRequest, googleResponse, promptGoogleAsync] = Google.useIdTokenAuthRequest({
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    scopes: ["openid", "profile", "email"],
+  });
 
   const loginDestination =
     typeof redirect === "string" && redirect.startsWith("/") && !redirect.startsWith("//")
@@ -89,6 +101,49 @@ export default function LoginScreen() {
     }
   }, [ready, user, loginDestination]);
 
+  useEffect(() => {
+    if (googleResponse) {
+      console.warn("[GoogleLogin] AuthSession response:", googleResponse.type);
+    }
+    if (googleResponse?.type === "error") {
+      setError("Google 로그인 요청이 취소되었거나 실패했습니다.");
+      return;
+    }
+    if (googleResponse?.type !== "success") return;
+
+    const idToken =
+      googleResponse.authentication?.idToken ??
+      googleResponse.params?.id_token;
+    if (!idToken) {
+      setError("Google ID token을 받지 못했습니다.");
+      return;
+    }
+
+    void (async () => {
+      setError(null);
+      setGoogleSubmitting(true);
+      try {
+        const result = await googleLogin(idToken);
+
+        if (result.status === "student_verification_required") {
+          router.push({
+            pathname: "/student-verification" as never,
+            params: { onboardingToken: result.onboarding_token },
+          });
+        } else if (result.status === "link_required") {
+          setError(result.message);
+        } else {
+          router.replace(loginDestination as never);
+        }
+      } catch (e) {
+        logDevAxiosError("google-login", e);
+        setError(getAxiosErrorMessage(e, "Google 로그인에 실패했습니다."));
+      } finally {
+        setGoogleSubmitting(false);
+      }
+    })();
+  }, [googleResponse, googleLogin, loginDestination]);
+
   if (!ready || user) {
     return null;
   }
@@ -114,7 +169,9 @@ export default function LoginScreen() {
     }
   }
 
+
   return (
+    
     <KeyboardAvoidingView
       className="flex-1 bg-white dark:bg-neutral-950"
       behavior={Platform.OS === "ios" ? "padding" : "padding"}
@@ -189,6 +246,29 @@ export default function LoginScreen() {
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text className="font-semibold text-white">로그인</Text>
+              )}
+            </Pressable>
+
+            <View className="my-5 flex-row items-center">
+              <View className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
+              <Text className="mx-3 text-xs text-neutral-400">또는</Text>
+              <View className="h-px flex-1 bg-neutral-200 dark:bg-neutral-700" />
+            </View>
+
+            <Pressable
+              className="items-center rounded-lg border border-neutral-300 bg-white py-3 active:opacity-90 disabled:opacity-50 dark:border-neutral-600 dark:bg-neutral-900"
+              disabled={!googleRequest || submitting || googleSubmitting}
+              onPress={() => {
+                console.warn("[GoogleLogin] button pressed");
+                void promptGoogleAsync();
+              }}
+            >
+              {googleSubmitting ? (
+                <ActivityIndicator color="#111827" />
+              ) : (
+                <Text className="font-semibold text-neutral-800 dark:text-white">
+                  Google로 로그인
+                </Text>
               )}
             </Pressable>
 
