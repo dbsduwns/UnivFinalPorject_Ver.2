@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -46,6 +47,7 @@ class UserResponse(BaseModel):
     department: str | None = None
     grade: int | None = None
     is_admin: bool = False
+    student_verified_at: datetime | None = None
 
     model_config = {
         "from_attributes": True

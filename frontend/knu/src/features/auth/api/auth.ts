@@ -83,6 +83,20 @@ export async function confirmStudentVerification(body: StudentVerificationConfir
   return data;
 }
 
+export async function requestAccountStudentVerification(student_email: string) {
+  const { data } = await apiClient.post("/auth/account/student-verification/request", { student_email });
+  return data as { status: string; verification_id: number; student_email: string; expires_at: string };
+}
+
+export async function confirmAccountStudentVerification(verification_id: number, otp: string): Promise<void> {
+  await apiClient.post("/auth/account/student-verification/confirm", { verification_id, otp });
+}
+
+export async function linkGoogleAccount(id_token: string) {
+  const { data } = await apiClient.post("/auth/google/link", { id_token });
+  return data as { status: string; provider: string; email: string };
+}
+
 export async function getNotificationSettingsRequest(): Promise<NotificationSettings> {
   const { data } = await apiClient.get<NotificationSettings>("/auth/notification-settings");
   return data;

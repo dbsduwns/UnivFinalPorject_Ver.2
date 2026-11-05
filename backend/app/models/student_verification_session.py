@@ -20,8 +20,9 @@ class StudentVerificationSession(Base):
     onboarding_session_id = Column(
         Integer,
         ForeignKey("oauth_onboarding_sessions.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
     )
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     student_email = Column(String(320), nullable=False)
     otp_hash = Column(String(255), nullable=False)
     attempt_count = Column(Integer, nullable=False, default=0, server_default="0")
@@ -40,11 +41,16 @@ class StudentVerificationSession(Base):
         "OauthOnboardingSession",
         back_populates="student_verification_sessions"
     )
+    user = relationship("User", back_populates="student_verification_sessions")
 
     __table_args__ = (
         CheckConstraint(
             "attempt_count >= 0",
             name="ch_student_verification_attempt_count_nonnegative",
+        ),
+        CheckConstraint(
+            "(onboarding_session_id IS NOT NULL) OR (user_id IS NOT NULL)",
+            name="ch_student_verification_owner_required",
         ),
         Index(
             "ix_student_verification_onboarding_session_id",

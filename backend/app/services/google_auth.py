@@ -162,3 +162,41 @@ def authenticate_google_user(db: Session, raw_id_token: str) -> dict:
         "onboarding_token": onboarding_token,
         "expires_at": onboarding_session.expires_at,
     }
+
+
+def link_google_identity(db: Session, user: User, raw_id_token: str) -> dict:
+    if user.student_verified_at is None:
+        raise HTTPException(status_code=403, detail="Google 계정 연결 전에 학생 인증을 완료해 주세요.")
+
+    info = verify_google_id_token(raw_id_token)
+    provider_subject = info["sub"]
+    provider_email = info["email"].strip().lower()
+    if provider_email != user.email.strip().lower():
+        raise HTTPException(status_code=400, detail="Google 이메일과 현재 계정 이메일이 일치하지 않습니다.")
+
+    existing = (
+        db.query(UserIdentity)
+        .filter(
+            UserIdentity.provider == "google",
+            UserIdentity.provider_subject == provider_subject,
+        )
+        .first()
+    )
+    if existing is not None:
+        if existing.user_id != user.id:
+            raise HTTPException(status_code=409, detail="이미 다른 계정에 연결된 Google 계정입니다.")
+        return {"status": "already_linked", "provider": "google", "email": provider_email}
+
+    if any(identity.provider == "google" for identity in user.identities):
+        raise HTTPException(status_code=409, detail="이미 Google 계정이 연결되어 있습니다.")
+
+    db.add(
+        UserIdentity(
+            user_id=user.id,
+            provider="google",
+            provider_subject=provider_subject,
+            provider_email=provider_email,
+        )
+    )
+    db.commit()
+    return {"status": "linked", "provider": "google", "email": provider_email}

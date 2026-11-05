@@ -52,6 +52,15 @@ class StudentVerificationRequest(BaseModel):
     onboarding_token: str = Field(min_length=20, max_length=256)
     student_email: str = Field(min_length=5, max_length=320)
 
+
+class AccountStudentVerificationRequest(BaseModel):
+    student_email: str = Field(min_length=5, max_length=320)
+
+
+class AccountStudentVerificationConfirmRequest(BaseModel):
+    verification_id: int = Field(gt=0)
+    otp: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+
 @router.post("/refresh", response_model=RefreshResponse, status_code=status.HTTP_200_OK)
 def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
     payload = decode_token(data.refresh_token)
@@ -172,6 +181,49 @@ def signup(data: UserSignup, db: Session = Depends(get_db)):
 @router.post("/google")
 def google_login(data: GoogleLoginRequest, db: Session = Depends(get_db)):
     return google_auth_service.authenticate_google_user(db, data.id_token)
+
+
+@router.post("/google/link")
+def link_google_account(
+    data: GoogleLoginRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return google_auth_service.link_google_identity(db, current_user, data.id_token)
+
+
+@router.post("/account/student-verification/request", status_code=status.HTTP_202_ACCEPTED)
+def request_account_student_verification(
+    data: AccountStudentVerificationRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        return {
+            "status": "verification_code_sent",
+            **student_verification_service.request_account_student_verification(
+                db, current_user, data.student_email
+            ),
+        }
+    except student_verification_service.StudentVerificationRateLimitError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/account/student-verification/confirm", status_code=status.HTTP_204_NO_CONTENT)
+def confirm_account_student_verification(
+    data: AccountStudentVerificationConfirmRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        student_verification_service.confirm_account_student_verification(
+            db, current_user, data.verification_id, data.otp
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 @router.post("/student-verification/confirm")
 def confirm_student_verification(data: StudentVerificationConfirmRequest, db: Session = Depends(get_db)):

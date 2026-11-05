@@ -19,6 +19,7 @@ class User(Base):
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
     is_admin = Column(Boolean, default=False, nullable=False)
     token_version = Column(Integer, default=0, server_default="0", nullable=False)
+    student_verified_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
     timetables = relationship("Timetable", back_populates="user")
     chat_rooms = relationship("ChatRoom", back_populates="user")
@@ -46,6 +47,11 @@ class User(Base):
     )
     identities = relationship(
         "UserIdentity",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    student_verification_sessions = relationship(
+        "StudentVerificationSession",
         back_populates="user",
         cascade="all, delete-orphan",
     )

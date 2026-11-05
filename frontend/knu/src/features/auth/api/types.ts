@@ -6,6 +6,7 @@ export type User = {
   grade: number | null;
   student_id: string | null;
   is_admin: boolean;
+  student_verified_at?: string | null;
 };
 
 export type UserUpdateBody = {

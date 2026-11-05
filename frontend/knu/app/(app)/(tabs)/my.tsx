@@ -27,6 +27,11 @@ import {
   updateNotificationSettingsRequest,
 } from "@/features/auth/api/auth";
 import { NotificationSettings } from "@/features/auth/api/types";
+import * as WebBrowser from "expo-web-browser";
+import * as Google from "expo-auth-session/providers/google";
+import { linkGoogleAccount } from "@/features/auth/api/auth";
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function MyScreen() {
   const insets = useSafeAreaInsets();
@@ -34,6 +39,13 @@ export default function MyScreen() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const deleteAccount = useAuthStore((s) => s.deleteAccount);
+  const [googleLinking, setGoogleLinking] = useState(false);
+  const [googleRequest, googleResponse, promptGoogleAsync] = Google.useIdTokenAuthRequest({
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    scopes: ["openid", "profile", "email"],
+  });
 
   // 모달 상태
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
@@ -52,6 +64,24 @@ export default function MyScreen() {
   useEffect(() => {
     fetchSettings();
   }, []);
+
+  useEffect(() => {
+    if (googleResponse?.type !== "success") return;
+    const idToken = googleResponse.authentication?.idToken ?? googleResponse.params?.id_token;
+    if (!idToken) {
+      Alert.alert("연결 실패", "Google 인증 토큰을 받지 못했습니다.");
+      return;
+    }
+    void (async () => {
+      setGoogleLinking(true);
+      try {
+        await linkGoogleAccount(idToken);
+        Alert.alert("연결 완료", "Google 계정이 연결되었습니다.");
+      } catch (error: any) {
+        Alert.alert("연결 실패", error?.response?.data?.detail ?? "Google 계정 연결에 실패했습니다.");
+      } finally { setGoogleLinking(false); }
+    })();
+  }, [googleResponse]);
 
   const fetchSettings = async () => {
     try {
@@ -241,6 +271,25 @@ export default function MyScreen() {
               icon={<Key size={20} color="#4B5563" />}
               title="비밀번호 변경"
               onPress={() => setIsPasswordChangeModalVisible(true)}
+            />
+            <View className="h-[1px] bg-gray-50 mx-4" />
+            <SettingLink
+              icon={<ShieldCheck size={20} color={user.student_verified_at ? "#16A34A" : "#4B5563"} />}
+              title={user.student_verified_at ? "학생 인증 완료" : "학생 인증"}
+              onPress={() => {
+                if (user.student_verified_at) {
+                  Alert.alert("학생 인증", "학생 인증이 완료된 계정입니다.");
+                } else {
+                  router.push("/(app)/account-student-verification");
+                }
+              }}
+            />
+            <View className="h-[1px] bg-gray-50 mx-4" />
+            <SettingLink
+              icon={<Mail size={20} color="#4B5563" />}
+              title={googleLinking ? "Google 연결 중..." : "Google 계정 연결"}
+              disabled={googleLinking || !googleRequest}
+              onPress={() => void promptGoogleAsync()}
             />
             <View className="h-[1px] bg-gray-50 mx-4" />
             <SettingLink
