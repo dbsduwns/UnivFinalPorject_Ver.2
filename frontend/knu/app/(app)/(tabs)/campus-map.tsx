@@ -414,6 +414,12 @@ function TransitStopAccordion({
     [data?.route_stops, data?.vehicles, isLiveError],
   );
   const arrivalMinutes = isLiveError ? null : data?.arrival_minutes ?? null;
+  const stopArrivalsByOrder = useMemo(
+    () => new Map(
+      (data?.stop_arrivals ?? []).map((item) => [item.stop_order, item]),
+    ),
+    [data?.stop_arrivals],
+  );
   const isSubway = step.vehicle_type?.includes("SUBWAY") ?? false;
   // 위치 API가 비어 있는 지하철은 정류장 선 위 아이콘 대신 탑승역 도착 예정만 표시한다.
   const subwayArrivals = isSubway && !isLiveError ? (data?.arrivals ?? []).slice(0, 2) : [];
@@ -537,6 +543,9 @@ function TransitStopAccordion({
               const isBeforeBoarding =
                 boardingOrder !== null && boardingOrder !== undefined &&
                 stop.stop_order < boardingOrder;
+              const nextStopArrival = !isSubway
+                ? stopArrivalsByOrder.get(stop.stop_order)?.arrivals[0]
+                : undefined;
               return (
                 <View key={`${stop.stop_id}-${stop.stop_order}`}>
                   <View style={styles.stopRow}>
@@ -558,6 +567,13 @@ function TransitStopAccordion({
                       </Text>
                       {isBoarding && <Text style={styles.stopCaption}>탑승</Text>}
                       {isArrival && <Text style={styles.stopCaption}>하차</Text>}
+                      {nextStopArrival && (
+                        <Text style={[styles.stopArrivalText, { color }]}>
+                          {nextStopArrival.arrival_minutes === 0
+                            ? "곧 도착"
+                            : `${nextStopArrival.arrival_minutes}분 후`}
+                        </Text>
+                      )}
                     </View>
                     {!isSubway && vehiclesAtStop.length > 0 && (
                       <View style={styles.vehiclePositionBadges}>
@@ -1942,6 +1958,7 @@ const styles = StyleSheet.create({
     paddingLeft: 5,
   },
   stopName: { flexShrink: 1, fontSize: 12, color: "#475569" },
+  stopArrivalText: { marginTop: 2, fontSize: 10, fontWeight: "800" },
   stopNameEmphasis: { fontWeight: "800", color: "#0F172A" },
   stopNameApproaching: { color: "#94A3B8" },
   stopCaption: { fontSize: 10, fontWeight: "800", color: "#13708D" },

@@ -148,13 +148,23 @@ class LiveBusPositionResponse(BaseModel):
 
 
 class TransitArrivalResponse(BaseModel):
-    """탑승 정류장 기준의 다음 대중교통 도착 예정 정보."""
+    """특정 정류장 기준의 다음 대중교통 도착 예정 정보."""
 
     vehicle_number: str
+    arrival_seconds: int | None = Field(default=None, ge=0)
     arrival_minutes: int = Field(ge=0)
     direction: str | None = None
     destination_name: str | None = None
     arrival_message: str | None = None
+
+
+class TransitStopArrivalResponse(BaseModel):
+    """노선의 특정 정류장 기준 실시간 도착 예정 정보."""
+
+    stop_order: int = Field(ge=0)
+    stop_id: str
+    stop_name: str
+    arrivals: list[TransitArrivalResponse] = Field(default_factory=list)
 
 
 class LiveBusPositionsResponse(BaseModel):
@@ -197,6 +207,7 @@ class TransitLiveResponse(BaseModel):
     boarding_stop_order: int | None = None
     alighting_stop_order: int | None = None
     route_stops: list[RouteStopResponse] = Field(default_factory=list)
+    stop_arrivals: list[TransitStopArrivalResponse] = Field(default_factory=list)
     vehicles: list[LiveBusPositionResponse] = Field(default_factory=list)
     arrivals: list[TransitArrivalResponse] = Field(default_factory=list)
 

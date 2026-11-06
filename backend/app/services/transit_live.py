@@ -25,7 +25,7 @@ from app.database import SessionLocal
 from app.models.subway_line_station import SubwayLineStation
 from app.schemas.commute import (
     LiveBusPositionResponse, RouteStopResponse, TransitArrivalResponse,
-    TransitLiveRequest, TransitLiveResponse,
+    TransitLiveRequest, TransitLiveResponse, TransitStopArrivalResponse,
 )
 from app.services.transit_cache import RequestCache
 
@@ -1631,6 +1631,75 @@ def _log_subway_realtime_stage(event, stage, *, level="info", **details):
     )
 
 
+def _gyeonggi_stop_arrivals(
+    route_id: str,
+    stops: list[RouteStopResponse],
+) -> list[TransitStopArrivalResponse]:
+    """경기 노선의 표시 정류장별 도착 예정 정보를 조회한다.
+
+    각 정류장 응답은 60초 캐시된 _request 결과를 사용한다. 개별 정류장
+    조회가 실패해도 전체 실시간 응답은 유지하고, 해당 정류장만 비운다.
+    """
+    stop_arrivals: list[TransitStopArrivalResponse] = []
+    for stop in stops:
+        try:
+            items = _request(
+                "gyeonggi",
+                "busarrivalservice",
+                "getBusArrivalItem",
+                {
+                    "routeId": route_id,
+                    "stationId": stop.stop_id,
+                    "staOrder": stop.stop_order,
+                },
+                "busArrivalItem",
+            )
+        except ProviderError as exc:
+            logger.warning(
+                "Gyeonggi stop arrival lookup skipped: route_id=%s stop_order=%s reason=%s",
+                route_id,
+                stop.stop_order,
+                exc.__cause__.__class__.__name__ if exc.__cause__ else type(exc).__name__,
+            )
+            stop_arrivals.append(
+                TransitStopArrivalResponse(
+                    stop_order=stop.stop_order,
+                    stop_id=stop.stop_id,
+                    stop_name=stop.stop_name,
+                )
+            )
+            continue
+
+        item = items[0] if items else {}
+        arrivals: list[TransitArrivalResponse] = []
+        if item.get("flag") not in {"STOP", "WAIT"}:
+            for index in (1, 2):
+                vehicle_number = _text(item.get(f"plateNo{index}"))
+                seconds = _number(item.get(f"predictTimeSec{index}"))
+                minutes = _number(item.get(f"predictTime{index}"))
+                if seconds is None and minutes is not None:
+                    seconds = max(0, minutes * 60)
+                if not vehicle_number or seconds is None or seconds < 0:
+                    continue
+                arrivals.append(
+                    TransitArrivalResponse(
+                        vehicle_number=vehicle_number,
+                        arrival_seconds=seconds,
+                        arrival_minutes=math.ceil(seconds / 60),
+                    )
+                )
+
+        stop_arrivals.append(
+            TransitStopArrivalResponse(
+                stop_order=stop.stop_order,
+                stop_id=stop.stop_id,
+                stop_name=stop.stop_name,
+                arrivals=arrivals,
+            )
+        )
+    return stop_arrivals
+
+
 def _read_arrival(provider, route_id, city_code, stops, start, end, route_info=None):
     """다음 도착정보와 제공기관이 제공하는 가장 정확한 위치 정밀도를 읽는다."""
     if provider == "gyeonggi":
@@ -2049,6 +2118,10 @@ def get_transit_live(request: TransitLiveRequest):
                            message="정류장 정보는 확인했지만 실시간 조회에 실패했습니다.",
                            vehicle_position_reason="arrival_api_failed",
                            vehicle_position_message="도착정보 API 권한 또는 연결 상태를 확인해주세요.")
+        stop_arrivals = (
+            _gyeonggi_stop_arrivals(route_id, displayed_stops)
+            if provider == "gyeonggi" else []
+        )
         _log_live_stage(
             "transit_provider_query_completed",
             "arrival_and_position_lookup",
@@ -2076,6 +2149,7 @@ def get_transit_live(request: TransitLiveRequest):
         return _result("ok" if minutes is not None or vehicles else "no_data", **common,
                        cached_at=fetched_at or datetime.now(timezone.utc),
                        arrival_minutes=minutes, arrival_message=message, vehicles=vehicles,
+                       stop_arrivals=stop_arrivals,
                        vehicle_number=vehicles[0].vehicle_number if len(vehicles) == 1 else None,
                        vehicle_position_status=position_status,
                        vehicle_position_reason=position_reason,
