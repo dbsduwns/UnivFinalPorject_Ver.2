@@ -7,6 +7,7 @@ export type User = {
   student_id: string | null;
   is_admin: boolean;
   student_verified_at?: string | null;
+  student_email?: string | null;
 };
 
 export type UserUpdateBody = {

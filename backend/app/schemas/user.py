@@ -34,6 +34,7 @@ class UserUpdate(BaseModel):
 
 class UserLogin(BaseModel):
     email: str
+    student_email: str | None = None
     password: str
 
 class TokenResponse(BaseModel):
@@ -48,6 +49,7 @@ class UserResponse(BaseModel):
     grade: int | None = None
     is_admin: bool = False
     student_verified_at: datetime | None = None
+    student_email: str | None = None
 
     model_config = {
         "from_attributes": True

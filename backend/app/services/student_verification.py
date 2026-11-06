@@ -2,6 +2,7 @@ import os
 import secrets
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.email import send_student_verification_email
@@ -35,6 +36,16 @@ def request_account_student_verification(db: Session, user: User, student_email:
     normalized_email = _validate_student_email(student_email)
     if user.student_verified_at is not None:
         raise ValueError("이미 학생 인증이 완료된 계정입니다.")
+    existing_student = (
+        db.query(User)
+        .filter(
+            or_(User.student_email == normalized_email, User.email == normalized_email),
+            User.id != user.id,
+        )
+        .first()
+    )
+    if existing_student is not None:
+        raise ValueError("이미 다른 계정에서 인증된 학생 이메일입니다.")
 
     active_sessions = (
         db.query(StudentVerificationSession)
@@ -116,6 +127,7 @@ def confirm_account_student_verification(
 
     session.verified_at = now
     user.student_verified_at = now
+    user.student_email = session.student_email
     db.commit()
 
 def request_student_verification(
@@ -252,7 +264,12 @@ def confirm_student_verification(
 
     existing_user = (
         db.query(User)
-        .filter(User.email == session.student_email)
+        .filter(
+            or_(
+                User.student_email == session.student_email,
+                User.email == session.student_email,
+            )
+        )
         .first()
     )
     if existing_user is not None:
@@ -260,6 +277,7 @@ def confirm_student_verification(
 
     user = User(
         email=session.student_email,
+        student_email=session.student_email,
         password_hash=hash_password(secrets.token_urlsafe(32)),
         name=onboarding.name,
         is_active=True,
