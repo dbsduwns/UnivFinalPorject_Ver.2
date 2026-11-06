@@ -10,6 +10,8 @@ from .menu_item import MenuItem
 from .notice import Notice
 from .notice_read import NoticeRead
 from .notification_setting import NotificationSetting
+from .user_notification import UserNotification
+from .app_release import AppRelease
 from .user_presence import UserPresence
 from app.models.shuttle import Shuttle
 from .timetable import Timetable

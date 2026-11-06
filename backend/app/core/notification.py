@@ -3,10 +3,40 @@ import logging
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session
 from app.models.notification_setting import NotificationSetting
+from app.models.user_notification import UserNotification
 
 logger = logging.getLogger(__name__)
 
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
+
+
+def save_in_app_notifications(
+    db: Session,
+    settings: list[NotificationSetting],
+    title: str,
+    body: str,
+    data: Dict[str, Any] | None = None,
+) -> None:
+    if not settings:
+        return
+
+    notification_data = dict(data or {})
+    notification_type = str(notification_data.get("type") or "notification")
+    try:
+        db.add_all([
+            UserNotification(
+                user_id=setting.user_id,
+                notification_type=notification_type,
+                title=title,
+                body=body,
+                data=dict(notification_data),
+            )
+            for setting in settings
+        ])
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to save in-app notifications")
 
 async def send_push_notification(tokens: List[str], title: str, body: str, data: Dict[str, Any] = None):
     if not tokens:
@@ -58,20 +88,29 @@ async def notify_users_by_type(
     recipient_ids: List[int] | None = None,
 ):
     """
-    alert_type: 'notice_alert', 'shuttle_alert', 'cafeteria_alert', 'direct_message'
+    alert_type: 'notice_alert', 'shuttle_alert', 'cafeteria_alert', 'message_alert'
     """
-    query = db.query(NotificationSetting).filter(
-        getattr(NotificationSetting, alert_type) == True,
-        NotificationSetting.expo_push_token != None
-    )
+    alert_setting = getattr(NotificationSetting, alert_type, None)
+    if alert_setting is None:
+        raise ValueError(f"지원하지 않는 알림 유형입니다: {alert_type}")
+
+    query = db.query(NotificationSetting).filter(alert_setting.is_(True))
     if recipient_ids is not None:
         query = query.filter(NotificationSetting.user_id.in_(recipient_ids))
     
     settings = query.all()
-    tokens = [s.expo_push_token for s in settings]
+    notification_data = dict(data or {})
+    notification_data.setdefault("type", alert_type)
+    save_in_app_notifications(db, settings, title, body, notification_data)
+
+    tokens = [s.expo_push_token for s in settings if s.expo_push_token]
 
     if not tokens:
-        logger.info("No opted-in push tokens for alert type: %s", alert_type)
+        logger.info(
+            "Saved %s in-app notification(s); no push tokens for alert type: %s",
+            len(settings),
+            alert_type,
+        )
         return None
 
     logger.info("Sending %s push notification(s) for alert type: %s", len(tokens), alert_type)

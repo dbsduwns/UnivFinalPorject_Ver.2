@@ -18,6 +18,7 @@ from app.models.friendship import Friendship
 from app.models.messenger import Messenger
 from app.models.notice_read import NoticeRead
 from app.models.notification_setting import NotificationSetting
+from app.models.user_notification import UserNotification
 from app.models.room_messengers import RoomMessenger
 from app.models.room_participants import RoomParticipant
 from app.models.timetable import Timetable
@@ -118,6 +119,9 @@ def delete_account(db: Session, user: User) -> None:
     )
     db.query(NoticeRead).filter(NoticeRead.user_id == user_id).delete(synchronize_session=False)
     db.query(NotificationSetting).filter(NotificationSetting.user_id == user_id).delete(
+        synchronize_session=False
+    )
+    db.query(UserNotification).filter(UserNotification.user_id == user_id).delete(
         synchronize_session=False
     )
     db.query(WizardSelection).filter(WizardSelection.user_id == user_id).delete(

@@ -1,10 +1,11 @@
 import { Pressable, Text, View } from "react-native";
-import { Menu, Bell } from "lucide-react-native";
+import { Menu } from "lucide-react-native";
 
 import { useAppDrawer } from "@/components/ui/AppDrawer";
 import { router } from "expo-router";
 import { ChatIconWithBadge } from "@/features/chat/components/ChatIconWithBadge";
 import { useUnreadChatCount } from "@/features/chat/hooks/useUnreadChatCount";
+import { NotificationCenterButton } from "@/features/notifications/components/NotificationCenter";
 
 export const APP_HEADER_HEIGHT = 90;
 
@@ -66,8 +67,7 @@ export const HomeHeader = () => {
                         backgroundColor: "#EAF8FC"}}>
                     <ChatIconWithBadge size={26} color="#13708D" strokeWidth={2.5} unreadCount={unreadChatCount} />
                 </Pressable>
-                {/* Notification */}
-                <Bell size={ 32 } color={ '#6B7280' } />
+                <NotificationCenterButton />
             </View>
         </View>
     )

@@ -1,7 +1,7 @@
 """지연 방식의 대중교통 실시간 정보 보강 모듈.
 
 경로 예측 서비스에서는 호출하지 않는다. 정적 노선 매칭은 6시간,
-실시간 조회 결과는 30초, 빈 응답은 2분, 실패 결과는 1분 동안 공유한다.
+실시간 조회 결과는 60초, 빈 응답은 2분, 실패 결과는 1분 동안 공유한다.
 정류장 목록이 펼쳐져 있을 때만 호출하며, 노선 단위 위치 API 결과를 캐시해
 화면에서 경로 전체 차량의 현재 정류장을 표시한다.
 """
@@ -13,7 +13,7 @@ import math
 import os
 import re
 from threading import Lock
-from time import monotonic
+from time import monotonic, sleep
 from urllib.parse import quote, unquote
 from zoneinfo import ZoneInfo
 from xml.etree import ElementTree
@@ -32,9 +32,13 @@ from app.services.transit_cache import RequestCache
 logger = logging.getLogger(__name__)
 STATIC_TTL = 6 * 3600
 SUBWAY_CATALOG_MINIMUM_ROWS = 100
-LIVE_TTL = 30
+LIVE_TTL = 60
 EMPTY_TTL = 120
 FAILURE_TTL = 60
+PROVIDER_CONNECT_TIMEOUT_SECONDS = 5
+PROVIDER_READ_TIMEOUT_SECONDS = 5
+PROVIDER_RETRY_DELAY_SECONDS = 0.25
+PROVIDER_MAX_ATTEMPTS = 2
 DISPLAY_BEFORE_BOARDING_STOP_COUNT = 5
 DISPLAY_AFTER_ALIGHTING_STOP_COUNT = 3
 POLYLINE_MATCH_DISTANCE_METERS = 120
@@ -714,7 +718,28 @@ def _request(provider, service, operation, params, item_key, static=False):
             url = f"https://apis.data.go.kr/1613000/{service}/{operation}"
             query.update(_type="json", numOfRows=300, pageNo=1)
         try:
-            response = requests.get(url, params=query, timeout=(2, 5))
+            for attempt in range(1, PROVIDER_MAX_ATTEMPTS + 1):
+                try:
+                    response = requests.get(
+                        url,
+                        params=query,
+                        timeout=(
+                            PROVIDER_CONNECT_TIMEOUT_SECONDS,
+                            PROVIDER_READ_TIMEOUT_SECONDS,
+                        ),
+                    )
+                    break
+                except requests.Timeout:
+                    if attempt >= PROVIDER_MAX_ATTEMPTS:
+                        raise
+                    logger.warning(
+                        "Transit provider timeout; retrying: provider=%s service=%s operation=%s attempt=%s",
+                        provider,
+                        service,
+                        operation,
+                        attempt + 1,
+                    )
+                    sleep(PROVIDER_RETRY_DELAY_SECONDS)
             response.raise_for_status()
             try:
                 data = response.json()

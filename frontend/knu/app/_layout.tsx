@@ -9,12 +9,13 @@ import * as Notifications from "expo-notifications";
 import { AppState, type AppStateStatus } from "react-native";
 import "react-native-reanimated";
 
-import { QueryProvider } from "@/components/providers/query-provider";
+import { QueryProvider, queryClient } from "@/components/providers/query-provider";
 import { useAuthStore } from "@/features/auth/store/auth-store";
 import { presenceApi } from "@/features/presence/api/presence-api";
 import { usePresenceStore } from "@/features/presence/store/presence-store";
 import { useAuthBootstrap } from "@/hooks/use-auth-bootstrap";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { AppUpdateManager } from "@/features/app-update/components/AppUpdateManager";
 
 // 앱 최상단에서 포그라운드 알림 핸들러 등록
 Notifications.setNotificationHandler({
@@ -94,6 +95,12 @@ function NavigationTree() {
   useEffect(() => {
     // 앱 실행 중 또는 백그라운드에서 알림을 누른 경우
     const subscription = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
+    const receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
+      const type = notification.request.content.data.type;
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      if (type === "notice") void queryClient.invalidateQueries({ queryKey: ["notices"] });
+      if (type === "direct_message") void queryClient.invalidateQueries({ queryKey: ["chatRooms"] });
+    });
     // 앱이 완전히 종료된 상태에서 알림을 눌러 시작된 경우
     void Notifications.getLastNotificationResponseAsync().then((response) => {
       if (response) {
@@ -101,7 +108,10 @@ function NavigationTree() {
       }
     });
 
-    return () => subscription.remove();
+    return () => {
+      subscription.remove();
+      receivedSubscription.remove();
+    };
   }, []);
 
   useAuthBootstrap();
@@ -158,6 +168,7 @@ export default function RootLayout() {
   return (
     <QueryProvider>
       <NavigationTree />
+      <AppUpdateManager />
     </QueryProvider>
   );
 }

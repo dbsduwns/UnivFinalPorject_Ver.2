@@ -472,6 +472,41 @@ async function data() {
       ></textarea>
       <p><button id="course-crawl">학과별 강의 크롤링 실행</button></p>
       <div id="department-result"></div>
+    </section>
+    <section class="card" style="margin-top:16px">
+      <h3>Android APK 버전 관리</h3>
+      <p class="muted">동일한 EAS 서명키로 빌드한 APK를 HTTPS 저장소에 업로드한 뒤 새 버전을 등록합니다. 활성 버전은 플랫폼당 하나만 유지됩니다.</p>
+      <form id="app-release-form" class="form-grid">
+        <div class="grid split">
+          <label>버전 이름
+            <input id="release-version-name" required placeholder="예: 1.2.0">
+          </label>
+          <label>versionCode
+            <input id="release-version-code" required type="number" min="1" placeholder="예: 3">
+          </label>
+        </div>
+        <label>최소 지원 versionCode
+          <input id="release-min-version-code" required type="number" min="1" value="1">
+        </label>
+        <label>APK HTTPS 주소
+          <input id="release-apk-url" required type="url" placeholder="https://downloads.example.com/knu-campus-1.2.0.apk">
+        </label>
+        <label>SHA-256 (선택)
+          <input id="release-sha256" maxlength="64" placeholder="64자리 SHA-256">
+        </label>
+        <label>릴리스 노트
+          <textarea id="release-notes" rows="4" placeholder="한 줄에 변경사항 하나씩 입력"></textarea>
+        </label>
+        <label><input id="release-mandatory" type="checkbox"> 모든 이전 버전에 필수 업데이트 적용</label>
+        <p><button type="submit">새 APK 버전 활성화</button></p>
+      </form>
+      <div id="release-result"></div>
+      <div class="table-wrap" style="margin-top:16px">
+        <table>
+          <thead><tr><th>버전</th><th>지원 기준</th><th>상태</th><th>등록일</th><th>작업</th></tr></thead>
+          <tbody id="release-rows"><tr><td colspan="5" class="empty">불러오는 중…</td></tr></tbody>
+        </table>
+      </div>
     </section>`;
   $("#content").querySelectorAll("[data-crawl]").forEach(b => 
     b.onclick = async () => { 
@@ -525,6 +560,74 @@ async function data() {
       $("#department-result").innerHTML=`<p class="error">${esc(e.message || "JSON 형식을 확인해 주세요.")}</p>`;
     }
   };
+
+  const loadReleases = async () => {
+    const rows = await request("/api/app-updates/releases");
+    $("#release-rows").innerHTML = rows.length ? rows.map(release => `
+      <tr>
+        <td><b>${esc(release.version_name)}</b><br><span class="small">versionCode ${release.version_code}</span></td>
+        <td>최소 ${release.minimum_version_code}<br>${release.mandatory ? '<span class="badge">필수</span>' : '<span class="small">선택</span>'}</td>
+        <td>${release.is_active ? '<span class="badge">활성</span>' : '<span class="badge off">비활성</span>'}</td>
+        <td>${date(release.published_at || release.created_at)}</td>
+        <td>${release.is_active ? '-' : `<button data-activate-release="${release.id}">활성화</button>`}</td>
+      </tr>`).join("") : '<tr><td colspan="5" class="empty">등록된 앱 버전이 없습니다.</td></tr>';
+    $("#release-rows").querySelectorAll("[data-activate-release]").forEach(button => {
+      button.onclick = async () => {
+        button.disabled = true;
+        try {
+          await request(`/api/app-updates/releases/${button.dataset.activateRelease}`, {
+            method: "PATCH",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({is_active: true}),
+          });
+          flash("선택한 APK 버전을 활성화했습니다.");
+          await loadReleases();
+        } catch (e) {
+          flash(e.message, true);
+          button.disabled = false;
+        }
+      };
+    });
+  };
+
+  $("#app-release-form").onsubmit = async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const submit = event.submitter;
+    if (submit) submit.disabled = true;
+    const body = {
+      platform: "android",
+      version_name: $("#release-version-name").value.trim(),
+      version_code: Number($("#release-version-code").value),
+      minimum_version_code: Number($("#release-min-version-code").value),
+      apk_url: $("#release-apk-url").value.trim(),
+      sha256: $("#release-sha256").value.trim() || null,
+      release_notes: $("#release-notes").value.split("\n").map(value => value.trim()).filter(Boolean),
+      mandatory: $("#release-mandatory").checked,
+      is_active: true,
+    };
+    try {
+      const release = await request("/api/app-updates/releases", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(body),
+      });
+      $("#release-result").innerHTML = `<p class="result">${esc(release.version_name)} 버전을 활성화했습니다.</p>`;
+      form.reset();
+      $("#release-min-version-code").value = "1";
+      await loadReleases();
+    } catch (e) {
+      $("#release-result").innerHTML = `<p class="error">${esc(e.message)}</p>`;
+    } finally {
+      if (submit) submit.disabled = false;
+    }
+  };
+
+  try {
+    await loadReleases();
+  } catch (e) {
+    $("#release-rows").innerHTML = `<tr><td colspan="5" class="error">${esc(e.message)}</td></tr>`;
+  }
 }
 
 async function users() {

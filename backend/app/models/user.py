@@ -26,6 +26,11 @@ class User(Base):
     chat_rooms = relationship("ChatRoom", back_populates="user")
     notice_reads = relationship("NoticeRead", back_populates="user")
     notification_setting = relationship("NotificationSetting", back_populates="user", uselist=False)
+    notifications = relationship(
+        "UserNotification",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
     presence = relationship(
         "UserPresence",
         back_populates="user",

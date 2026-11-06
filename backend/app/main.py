@@ -22,6 +22,8 @@ from app.models import (
     messenger,
     room_messengers,
     room_participants,
+    user_notification,
+    app_release,
 )
 from app.routers import (
     auth,
@@ -35,6 +37,8 @@ from app.routers import (
     chat as chat_router,
     presence as presence_router,
     admin as admin_router,
+    notification as notification_router,
+    app_update as app_update_router,
 )
 from app.routers.community import (
     post as post_router,
@@ -101,6 +105,8 @@ app.include_router(friend_router.router)
 app.include_router(chat_router.router)
 app.include_router(presence_router.router)
 app.include_router(admin_router.router)
+app.include_router(notification_router.router)
+app.include_router(app_update_router.router)
 app.include_router(post_router.router)
 app.include_router(post_router.admin_router)
 app.include_router(comment_router.router)

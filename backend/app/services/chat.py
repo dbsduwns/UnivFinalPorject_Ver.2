@@ -216,13 +216,12 @@ def send_message(db: Session, user: User, room_id: int, data: ChatMessageCreate)
             notify_users_by_type_sync(
                 db,
                 "message_alert",
-                f"{user.name}\n{message.content}",
-                message.content,
+                f"{user.name}님이 메시지를 보냈습니다.",
+                "새 메시지가 도착했습니다.",
                 {
                     "type": "direct_message",
                     "room_id": room.id,
                     "sender_id": user.id,
-                    "content": message.content,
                     "recipient_id": recipient_ids[0],
                 },
                 recipient_ids=recipient_ids,

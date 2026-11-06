@@ -471,7 +471,7 @@ def test_live_cache_expires_but_static_mapping_survives(monkeypatch):
     monkeypatch.setattr(transit_cache, "monotonic", lambda: clock[0])
     calls = gg_api(monkeypatch)
     live.get_transit_live(request())
-    clock[0] += 31
+    clock[0] += 61
     live.get_transit_live(request())
     assert len(calls) == 6
     assert "getBusLocationListv2" in calls[-1][0]
@@ -616,6 +616,28 @@ def test_daily_budget_blocks_additional_upstream_calls(monkeypatch):
     with pytest.raises(live.ProviderError):
         live._request("seoul", "busRouteInfo", "getBusRouteList", {"strSrch": "N61"}, "itemList")
     assert get.call_count == 1
+
+
+def test_provider_timeout_retries_once_with_five_second_timeout(monkeypatch):
+    monkeypatch.setenv("GYEONGGI_BUS_API_KEY", "test")
+    response = gg_response("busRouteList", {
+        "routeId": 500,
+        "routeName": "5000",
+    })
+    get = Mock(side_effect=[live.requests.Timeout(), response])
+    monkeypatch.setattr(live.requests, "get", get)
+
+    result = live._request(
+        "gyeonggi",
+        "busrouteservice",
+        "getBusRouteList",
+        {"keyword": "5000"},
+        "busRouteList",
+    )
+
+    assert result[0]["routeId"] == 500
+    assert get.call_count == 2
+    assert all(call.kwargs["timeout"] == (5, 5) for call in get.call_args_list)
 
 
 def test_match_requires_downstream_destination_and_rejects_distant_same_name():
@@ -858,4 +880,4 @@ def test_tago_fallback_and_location_failure_preserves_arrival(monkeypatch, posit
         assert result.vehicles[0].position_source == "gps"
         assert result.vehicles[0].latitude == 37.21
     live.get_transit_live(query)
-    assert len(calls) == 5
+    assert len(calls) == (6 if positions_fail else 5)

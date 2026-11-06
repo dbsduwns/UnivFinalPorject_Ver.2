@@ -121,7 +121,14 @@ export default function AllNotice() {
     const [managedNotice, setManagedNotice] = useState<Notice | null>(null);
     const [creating, setCreating] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState("전체");
-    const { data: notices = [], isLoading, isError, isFetching, refetch } = useNotices(keyword);
+    const {
+        data: notices = [],
+        isLoading,
+        isError,
+        isFetching,
+        isRefetching,
+        refetch,
+    } = useNotices(keyword);
     useEffect(() => {
         listRef.current?.scrollToOffset({ offset: 0, animated: false });
     }, [keyword, selectedCategory]);
@@ -165,6 +172,8 @@ export default function AllNotice() {
             keyboardDismissMode="on-drag"
             contentContainerStyle={{ paddingBottom: isAdmin ? 100 : 24 }}
             data={filteredNotices}
+            refreshing={isRefetching}
+            onRefresh={() => { void refetch(); }}
             renderItem={renderItem}
             keyExtractor={(item) => item.id.toString()}
             // ✅ 6. 안정적인 컴포넌트 참조 전달
