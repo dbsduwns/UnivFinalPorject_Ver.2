@@ -8,6 +8,7 @@ import { getCurrentSemester } from "@/features/shuttle/utils/semester";
 import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
 import { Download, FileText } from "lucide-react-native";
 import { API_BASE_URL } from "@/constants/config";
+import PdfPreview from "@/components/shuttle/PdfPreview";
 
 export default function ShuttleScreen() {
   const { semester: semesterParam } = useLocalSearchParams<{
@@ -42,6 +43,9 @@ export default function ShuttleScreen() {
     try {
       setIsOpening(true);
       await Linking.openURL(getFullUrl(shuttle.file_url));
+    } catch (error) {
+      console.error("셔틀 PDF 열기 실패:", error);
+      alert("PDF를 열 수 없습니다.");
     } finally {
       setIsOpening(false);
     }
@@ -60,12 +64,13 @@ export default function ShuttleScreen() {
         </View>
       ) : (
         <View className="flex-1 justify-center items-center bg-white p-6">
+          <PdfPreview sourceUrl={getFullUrl(shuttle.file_url)} />
           <FileText size={56} color="#2563eb" />
           <Text className="mt-5 text-lg font-bold text-gray-900 text-center">
             셔틀 시간표 PDF
           </Text>
           <Text className="mt-2 text-gray-500 text-center">
-            웹에서는 PDF를 새 탭에서 엽니다.
+            PDF를 외부 뷰어에서 엽니다.
           </Text>
           <TouchableOpacity
             className="mt-6 flex-row items-center gap-2 px-6 py-3 bg-blue-600 rounded-xl"
