@@ -2119,7 +2119,7 @@ def get_transit_live(request: TransitLiveRequest):
                            vehicle_position_reason="arrival_api_failed",
                            vehicle_position_message="도착정보 API 권한 또는 연결 상태를 확인해주세요.")
         stop_arrivals = (
-            _gyeonggi_stop_arrivals(route_id, displayed_stops)
+            _gyeonggi_stop_arrivals(route_id, [start])
             if provider == "gyeonggi" else []
         )
         _log_live_stage(

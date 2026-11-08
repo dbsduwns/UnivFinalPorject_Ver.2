@@ -224,10 +224,10 @@ def test_google_prediction_reuses_cache_and_returns_isolated_copies(monkeypatch)
     first = commute.get_transit_routes(37.2, 127.1, 37.3, 127.2, departure_time=timestamp)
     first[0].duration_minutes = 999
     second = commute.get_transit_routes(37.2, 127.1, 37.3, 127.2, departure_time=timestamp.replace(second=15))
-    assert post.call_count == 1
+    assert post.call_count == 3
     assert second[0].duration_minutes == 2
     commute.get_transit_routes(37.2, 127.1, 37.4, 127.2, departure_time=timestamp)
-    assert post.call_count == 2
+    assert post.call_count == 6
 
 
 def test_today_prediction_keeps_class_buffer_without_realtime_enrichment(monkeypatch):
@@ -250,7 +250,7 @@ def test_today_prediction_keeps_class_buffer_without_realtime_enrichment(monkeyp
     assert result.recommended_route.departure_time == time(9, 20)
     assert result.recommended_route.arrival_time == time(9, 50)
     assert result.recommended_route.buffer_minutes == 10
-    assert post.call_count == 1
+    assert post.call_count == 3
     get.assert_not_called()
     feasibility.assert_not_called()
 
@@ -477,11 +477,7 @@ def test_get_today_commute_returns_campus_travel_time_without_class(monkeypatch)
     assert result.recommended_route is not None
     assert result.recommended_route.route_category == "google_recommended"
     assert result.recommended_route.duration_minutes == 35
-    assert [item.route_category for item in result.alternatives] == [
-        "fastest",
-        "least_walking",
-        "fewest_transfers",
-    ]
+    assert result.alternatives == []
     assert route_request["end_latitude"] == commute.CAMPUS_DEFAULT_LATITUDE
     assert route_request["end_longitude"] == commute.CAMPUS_DEFAULT_LONGITUDE
     assert route_request["arrival_time"] is None

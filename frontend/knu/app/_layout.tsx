@@ -85,7 +85,7 @@ function handleNotificationResponse(response: Notifications.NotificationResponse
 };
 
 export const unstable_settings = {
-  initialRouteName: "(app)/(tabs)",
+  initialRouteName: "(app)",
 };
 
 function NavigationTree() {

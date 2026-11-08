@@ -543,7 +543,7 @@ function TransitStopAccordion({
               const isBeforeBoarding =
                 boardingOrder !== null && boardingOrder !== undefined &&
                 stop.stop_order < boardingOrder;
-              const nextStopArrival = !isSubway
+              const nextStopArrival = !isSubway && stop.stop_order === boardingOrder
                 ? stopArrivalsByOrder.get(stop.stop_order)?.arrivals[0]
                 : undefined;
               return (

@@ -568,46 +568,91 @@ def get_today_commute(
 def _select_route_options(
     routes: list[RouteSummaryResponse],
 ) -> tuple[RouteSummaryResponse, list[RouteSummaryResponse]]:
-    """Google 후보 경로를 사용자 선택 기준 네 가지로 구성한다."""
+    """후보를 중복 제거한 뒤 사용자 선택 기준별로 구성한다.
+
+    Google의 대중교통 응답은 같은 노선/같은 정류장 조합을 서로 다른
+    최적화 결과로 반복해서 반환할 수 있다. 이 상태에서 단순히 duration,
+    walking, transfer를 각각 min()으로 고르면 화면에 같은 버스가 세 번
+    표시된다. 먼저 실제 탑승 조합을 기준으로 중복을 제거한다.
+    """
     selectable_routes = [
         route for route in routes if route.realtime_status != "late"
     ] or routes
-    google_recommended = selectable_routes[0].model_copy(
+
+    unique_routes: list[RouteSummaryResponse] = []
+    seen_signatures: set[tuple[tuple[str | None, ...], ...]] = set()
+    for route in selectable_routes:
+        signature = _route_transit_signature(route)
+        if signature in seen_signatures:
+            continue
+        seen_signatures.add(signature)
+        unique_routes.append(route)
+
+    google_recommended = unique_routes[0].model_copy(
         update={
             "route_category": "google_recommended",
             "is_recommended": True,
         }
     )
-    fastest = min(
-        selectable_routes,
-        key=lambda route: (
-            route.duration_minutes,
-            route.transfer_count,
-            route.walking_minutes,
-        ),
-    ).model_copy(update={"route_category": "fastest", "is_recommended": False})
-    least_walking = min(
-        selectable_routes,
-        key=lambda route: (
-            route.walking_minutes,
-            route.duration_minutes,
-            route.transfer_count,
-        ),
-    ).model_copy(
-        update={"route_category": "least_walking", "is_recommended": False}
-    )
-    fewest_transfers = min(
-        selectable_routes,
-        key=lambda route: (
-            route.transfer_count,
-            route.duration_minutes,
-            route.walking_minutes,
-        ),
-    ).model_copy(
-        update={"route_category": "fewest_transfers", "is_recommended": False}
-    )
 
-    return google_recommended, [fastest, least_walking, fewest_transfers]
+    choices = (
+        (
+            "fastest",
+            lambda route: (
+                route.duration_minutes,
+                route.transfer_count,
+                route.walking_minutes,
+            ),
+        ),
+        (
+            "least_walking",
+            lambda route: (
+                route.walking_minutes,
+                route.duration_minutes,
+                route.transfer_count,
+            ),
+        ),
+        (
+            "fewest_transfers",
+            lambda route: (
+                route.transfer_count,
+                route.duration_minutes,
+                route.walking_minutes,
+            ),
+        ),
+    )
+    alternatives: list[RouteSummaryResponse] = []
+    selected_signatures = {_route_transit_signature(google_recommended)}
+    for category, key in choices:
+        candidate = min(unique_routes, key=key)
+        signature = _route_transit_signature(candidate)
+        if signature in selected_signatures:
+            continue
+        selected_signatures.add(signature)
+        alternatives.append(
+            candidate.model_copy(
+                update={"route_category": category, "is_recommended": False}
+            )
+        )
+
+    return google_recommended, alternatives
+
+
+def _route_transit_signature(
+    route: RouteSummaryResponse,
+) -> tuple[tuple[str | None, ...], ...]:
+    """같은 탑승 노선/정류장 조합을 식별하는 안정적인 서명."""
+    return tuple(
+        (
+            step.transit_line_name,
+            step.departure_stop_name,
+            step.arrival_stop_name,
+            step.transit_headsign,
+            step.transit_agency_name,
+        )
+        for step in route.route_steps
+        if step.travel_mode == "TRANSIT"
+    )
 
 
 def _apply_realtime_bus_feasibility(
@@ -1341,7 +1386,7 @@ def _request_google_routes(
             "departure_time과 arrival_time은 동시에 지정할 수 없습니다"
         )
 
-    request_body = {
+    base_request_body = {
         "origin": {
             "location": {
                 "latLng": {
@@ -1367,38 +1412,70 @@ def _request_google_routes(
     }
 
     if arrival_time is not None:
-        request_body["arrivalTime"] = _to_google_timestamp(arrival_time)
+        base_request_body["arrivalTime"] = _to_google_timestamp(arrival_time)
     elif departure_time is not None:
-        request_body["departureTime"] = _to_google_timestamp(departure_time)
+        base_request_body["departureTime"] = _to_google_timestamp(departure_time)
 
-    try:
-        response = requests.post(
-            GOOGLE_ROUTES_API_URL,
-            headers={
-                "Content-Type": "application/json",
-                "X-Goog-Api-Key": GOOGLE_MAPS_SERVER_API_KEY,
-                "X-Goog-FieldMask": GOOGLE_ROUTES_FIELD_MASK,
-            },
-            json=request_body,
-            timeout=10,
-        )
-        response.raise_for_status()
-        data = response.json()
-    except requests.RequestException as exc:
-        logger.warning(
-            "Google Routes request failed: status=%s response=%s",
-            exc.response.status_code if exc.response is not None else None,
-            exc.response.text[:500] if exc.response is not None else str(exc),
-        )
-        raise TransitRouteError("Google 대중교통 경로 요청에 실패했습니다.") from exc
-    except ValueError as exc:
-        raise TransitRouteError("Google 대중교통 응답을 해석할 수 없습니다.") from exc
+    # 대중교통 대체 경로는 computeAlternativeRoutes만으로 충분히 확장되지
+    # 않을 수 있으므로 서로 다른 승객 선호도로 후보군을 보강한다.
+    routing_preferences = (None, "LESS_WALKING", "FEWER_TRANSFERS")
+    parsed_routes: list[RouteSummaryResponse] = []
+    for routing_preference in routing_preferences:
+        request_body = dict(base_request_body)
+        if routing_preference is not None:
+            request_body["transitPreferences"] = {
+                "routingPreference": routing_preference,
+            }
+        try:
+            response = requests.post(
+                GOOGLE_ROUTES_API_URL,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Goog-Api-Key": GOOGLE_MAPS_SERVER_API_KEY,
+                    "X-Goog-FieldMask": GOOGLE_ROUTES_FIELD_MASK,
+                },
+                json=request_body,
+                timeout=10,
+            )
+            response.raise_for_status()
+            data = response.json()
+        except requests.RequestException as exc:
+            logger.warning(
+                "Google Routes request failed: preference=%s status=%s response=%s",
+                routing_preference,
+                exc.response.status_code if exc.response is not None else None,
+                exc.response.text[:500] if exc.response is not None else str(exc),
+            )
+            if routing_preference is None:
+                raise TransitRouteError("Google 대중교통 경로 요청에 실패했습니다.") from exc
+            continue
+        except ValueError as exc:
+            if routing_preference is None:
+                raise TransitRouteError("Google 대중교통 응답을 해석할 수 없습니다.") from exc
+            logger.warning(
+                "Google Routes response decode failed: preference=%s",
+                routing_preference,
+            )
+            continue
 
-    routes = data.get("routes", [])
-    if not routes:
+        parsed_routes.extend(
+            _parse_google_transit_route(route)
+            for route in data.get("routes", [])
+        )
+
+    unique_routes: list[RouteSummaryResponse] = []
+    seen_signatures: set[tuple[tuple[str | None, ...], ...]] = set()
+    for route in parsed_routes:
+        signature = _route_transit_signature(route)
+        if signature in seen_signatures:
+            continue
+        seen_signatures.add(signature)
+        unique_routes.append(route)
+
+    if not unique_routes:
         raise TransitRouteError("이용 가능한 대중교통 경로를 찾을 수 없습니다.")
 
-    return [_parse_google_transit_route(route) for route in routes]
+    return unique_routes
 
 
 def get_transit_route(
