@@ -167,6 +167,18 @@ class TransitStopArrivalResponse(BaseModel):
     arrivals: list[TransitArrivalResponse] = Field(default_factory=list)
 
 
+class TransitAlternativeArrivalResponse(BaseModel):
+    """같은 탑승·하차 구간에서 비교된 대체 노선의 도착 예정 정보."""
+
+    route_id: str
+    route_name: str
+    arrival_seconds: int | None = Field(default=None, ge=0)
+    arrival_minutes: int | None = Field(default=None, ge=0)
+    boarding_stop_name: str
+    alighting_stop_name: str
+    is_recommended: bool = False
+
+
 class LiveBusPositionsResponse(BaseModel):
     city_code: str
     route_id: str
@@ -208,6 +220,7 @@ class TransitLiveResponse(BaseModel):
     alighting_stop_order: int | None = None
     route_stops: list[RouteStopResponse] = Field(default_factory=list)
     stop_arrivals: list[TransitStopArrivalResponse] = Field(default_factory=list)
+    alternative_arrivals: list[TransitAlternativeArrivalResponse] = Field(default_factory=list)
     vehicles: list[LiveBusPositionResponse] = Field(default_factory=list)
     arrivals: list[TransitArrivalResponse] = Field(default_factory=list)
 

@@ -24,7 +24,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.database import SessionLocal
 from app.models.subway_line_station import SubwayLineStation
 from app.schemas.commute import (
-    LiveBusPositionResponse, RouteStopResponse, TransitArrivalResponse,
+    LiveBusPositionResponse, RouteStopResponse, TransitAlternativeArrivalResponse,
+    TransitArrivalResponse,
     TransitLiveRequest, TransitLiveResponse, TransitStopArrivalResponse,
 )
 from app.services.transit_cache import RequestCache
@@ -852,6 +853,44 @@ def _stops(provider, route_id, city_code=""):
     return sorted(stops, key=lambda stop: stop.stop_order)
 
 
+def _gyeonggi_station_route_matches(request, base_match):
+    """탑승 정류장을 경유하는 다른 경기 노선 중 같은 구간 후보를 찾는다."""
+    provider, base_route_id, city_code, _base_stops, base_start, _base_end, _base_info = base_match
+    items = _request(
+        "gyeonggi",
+        "busstationservice",
+        "getBusStationViaRouteList",
+        {"stationId": base_start.stop_id},
+        "busRouteList",
+        static=True,
+    )
+    matches = []
+    for item in items:
+        route_id = _text(item.get("routeId"))
+        if not route_id or route_id == base_route_id:
+            continue
+        stops = _stops(provider, route_id, city_code)
+        route_info = dict(item)
+        segment, segment_details = _match_segment_diagnostic(
+            stops,
+            request,
+            route_info=route_info,
+            # Google의 원래 폴리라인은 기준 노선의 경로이므로,
+            # 다른 노선 후보에는 폴리라인 검증을 적용하면 안 된다.
+            validate_path=False,
+        )
+        if segment:
+            matches.append((provider, route_id, city_code, stops, *segment, route_info))
+        logger.info(
+            "Gyeonggi station route candidate: route_id=%s route_name=%s matched=%s reason=%s",
+            route_id,
+            _text(item.get("routeName")) or None,
+            bool(segment),
+            segment_details.get("reason"),
+        )
+    return matches
+
+
 def _stop_score(stop, name, location):
     name_matches = _name(stop.stop_name) == _name(name)
     distance = None
@@ -1401,8 +1440,32 @@ def _resolve(request):
                 route_attempt.update(segment_details)
                 if segment:
                     matches.append((provider, route_id, city_code, stops, *segment, route_info))
-            if len(matches) == 1:
-                matched_provider, matched_route_id, matched_city_code, _, start, end, _ = matches[0]
+            if provider == "gyeonggi" and matches:
+                try:
+                    station_matches = _gyeonggi_station_route_matches(
+                        request,
+                        matches[0],
+                    )
+                    known_route_ids = {match[1] for match in matches}
+                    matches.extend(
+                        match for match in station_matches
+                        if match[1] not in known_route_ids
+                    )
+                    provider_attempt["station_route_candidates"] = len(station_matches)
+                    provider_attempt["matched_routes_after_station_search"] = len(matches)
+                except ProviderError as exc:
+                    # 정류장 전체 노선 조회는 보강 단계다. 이 호출이 실패해도
+                    # 기존 Google 노선 기반 실시간 조회는 계속 제공한다.
+                    provider_attempt["station_route_search_reason"] = exc.reason
+            if matches:
+                # 같은 노선명이더라도 동일한 탑승·하차 구간을 운행하는
+                # routeId가 여러 개일 수 있다. 기존에는 모호한 요청으로
+                # 버렸지만, 이후 도착시간을 비교할 수 있도록 후보를 함께
+                # 전달한다.
+                primary = matches[0]
+                matched_provider, matched_route_id, matched_city_code, _, start, end, route_info = primary
+                route_info = dict(route_info)
+                route_info["_alternative_matches"] = matches[1:]
                 _log_matched_segment(
                     request,
                     matched_provider,
@@ -1415,12 +1478,15 @@ def _resolve(request):
                         and route_attempt.get("reason") == "matched"
                     ),
                 )
-                return matches[0]
-            if len(matches) > 1:
-                provider_attempt["reason"] = "ambiguous_route_candidates"
-                provider_attempt["matched_routes"] = len(matches)
-                _log_unmatched(request, providers, attempts, "ambiguous_route_candidates")
-                return None
+                return (
+                    matched_provider,
+                    matched_route_id,
+                    matched_city_code,
+                    primary[3],
+                    start,
+                    end,
+                    route_info,
+                )
             provider_attempt["reason"] = "no_route_contains_requested_segment"
         except ProviderError:
             # 활성화된 제공기관에 연결할 수 없을 때 느린 요청이 연쇄적으로 발생하지 않도록 한다.
@@ -1698,6 +1764,69 @@ def _gyeonggi_stop_arrivals(
             )
         )
     return stop_arrivals
+
+
+def _gyeonggi_alternative_arrivals(matches, route_name: str):
+    """같은 구간을 운행하는 경기 노선 후보들의 도착시간을 비교한다."""
+    if not matches:
+        return [], None
+
+    station_id = matches[0][4].stop_id
+    try:
+        station_arrivals = _request(
+            "gyeonggi",
+            "busarrivalservice",
+            "getBusArrivalList",
+            {"stationId": station_id},
+            "busArrivalList",
+        )
+    except ProviderError as exc:
+        logger.warning(
+            "Gyeonggi station arrival lookup skipped: station_id=%s reason=%s",
+            station_id,
+            exc.reason,
+        )
+        return [], None
+
+    arrival_by_route_id = {
+        _text(item.get("routeId")): item
+        for item in station_arrivals
+        if _text(item.get("routeId"))
+    }
+    previews = []
+    for match in matches:
+        provider, route_id, _city_code, _stops, start, end, route_info = match
+        item = arrival_by_route_id.get(str(route_id), {})
+        if _number(item.get("staOrder")) not in (None, start.stop_order):
+            continue
+        if item.get("flag") in {"STOP", "WAIT"}:
+            continue
+        seconds = _number(item.get("predictTimeSec1"))
+        minutes = _number(item.get("predictTime1"))
+        if seconds is None and minutes is not None:
+            seconds = max(0, minutes * 60)
+        if seconds is None or seconds < 0:
+            continue
+        previews.append((seconds, match))
+
+    previews.sort(key=lambda item: item[0])
+    alternatives = [
+        TransitAlternativeArrivalResponse(
+            route_id=str(match[1]),
+            route_name=_text(
+                match[6].get("routeName")
+                or match[6].get("route_name")
+                or route_name
+            ),
+            arrival_seconds=seconds,
+            arrival_minutes=math.ceil(seconds / 60),
+            boarding_stop_name=match[4].stop_name,
+            alighting_stop_name=match[5].stop_name,
+            is_recommended=index == 0,
+        )
+        for index, (seconds, match) in enumerate(previews)
+    ]
+    return alternatives, previews[0][1] if previews else None
 
 
 def _read_arrival(provider, route_id, city_code, stops, start, end, route_info=None):
@@ -1993,6 +2122,43 @@ def get_transit_live(request: TransitLiveRequest):
                        message="이 구간의 정류장과 운행 방향을 확인하지 못했습니다.",
                        vehicle_position_reason="route_not_matched")
     provider, route_id, city_code, stops, start, end, route_info = resolved
+    alternative_arrivals = []
+    if provider == "gyeonggi":
+        alternative_matches = [
+            (provider, route_id, city_code, stops, start, end, route_info),
+            *route_info.pop("_alternative_matches", []),
+        ]
+        alternative_arrivals, fastest_match = _gyeonggi_alternative_arrivals(
+            alternative_matches,
+            request.route_name,
+        )
+        if fastest_match is not None:
+            (
+                provider,
+                route_id,
+                city_code,
+                stops,
+                start,
+                end,
+                route_info,
+            ) = fastest_match
+            _log_live_stage(
+                "transit_alternative_routes_compared",
+                "route_resolution_completed",
+                provider=provider,
+                route_name=request.route_name,
+                candidate_count=len(alternative_arrivals),
+                selected_route_id=route_id,
+                selected_arrival_seconds=alternative_arrivals[0].arrival_seconds,
+                candidates=[
+                    {
+                        "route_id": item.route_id,
+                        "arrival_seconds": item.arrival_seconds,
+                        "is_recommended": item.is_recommended,
+                    }
+                    for item in alternative_arrivals
+                ],
+            )
     displayed_stops = _display_stops(stops, start, end)
     direction_diagnostic = _route_direction_diagnostic(stops, start, end, route_info)
     _log_live_stage(
@@ -2088,7 +2254,8 @@ def get_transit_live(request: TransitLiveRequest):
 
     def load():
         common = dict(provider=provider, route_stops=displayed_stops,
-                      boarding_stop_order=start.stop_order, alighting_stop_order=end.stop_order)
+                      boarding_stop_order=start.stop_order, alighting_stop_order=end.stop_order,
+                      alternative_arrivals=alternative_arrivals)
         _log_live_stage(
             "transit_provider_query_started",
             "arrival_and_position_lookup",

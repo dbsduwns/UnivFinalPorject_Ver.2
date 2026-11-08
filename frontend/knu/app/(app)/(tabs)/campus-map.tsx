@@ -423,6 +423,9 @@ function TransitStopAccordion({
   const isSubway = step.vehicle_type?.includes("SUBWAY") ?? false;
   // 위치 API가 비어 있는 지하철은 정류장 선 위 아이콘 대신 탑승역 도착 예정만 표시한다.
   const subwayArrivals = isSubway && !isLiveError ? (data?.arrivals ?? []).slice(0, 2) : [];
+  const alternativeArrivals = !isSubway && !isLiveError
+    ? (data?.alternative_arrivals ?? [])
+    : [];
   const scheduledDeparture = step.scheduled_departure_time
     ? new Date(step.scheduled_departure_time).toLocaleTimeString("ko-KR", {
         hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Seoul",
@@ -502,6 +505,35 @@ function TransitStopAccordion({
             ]}>
               {data.vehicle_position_message}
             </Text>
+          )}
+          {alternativeArrivals.length > 1 && (
+            <View style={styles.alternativeArrivalList}>
+              <Text style={styles.alternativeArrivalTitle}>같은 구간 다른 버스</Text>
+              {alternativeArrivals.map((alternative) => (
+                <View
+                  key={alternative.route_id}
+                  style={styles.alternativeArrivalRow}
+                >
+                  <Text style={styles.alternativeArrivalRoute}>
+                    {alternative.route_name}
+                  </Text>
+                  <Text style={styles.alternativeArrivalStops} numberOfLines={1}>
+                    {alternative.boarding_stop_name} → {alternative.alighting_stop_name}
+                  </Text>
+                  <Text style={[
+                    styles.alternativeArrivalTime,
+                    alternative.is_recommended && { color },
+                  ]}>
+                    {alternative.arrival_minutes === null
+                      ? "정보 없음"
+                      : alternative.arrival_minutes === 0
+                        ? "곧 도착"
+                        : `${alternative.arrival_minutes}분 후`}
+                    {alternative.is_recommended ? " · 추천" : ""}
+                  </Text>
+                </View>
+              ))}
+            </View>
           )}
           {isSubway && subwayArrivals.length > 0 && (
             <View style={styles.subwayArrivalList}>
@@ -2019,6 +2051,22 @@ const styles = StyleSheet.create({
   subwayArrivalDestination: { fontSize: 12, fontWeight: "800", color: "#334155" },
   subwayArrivalDetail: { fontSize: 10, color: "#64748B" },
   subwayArrivalTime: { fontSize: 12, fontWeight: "900" },
+  alternativeArrivalList: {
+    marginHorizontal: 6,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 7,
+    borderWidth: 1,
+    borderColor: "#D8EAF0",
+    borderRadius: 12,
+    backgroundColor: "#F4FBFD",
+  },
+  alternativeArrivalTitle: { fontSize: 11, fontWeight: "800", color: "#475569" },
+  alternativeArrivalRow: { flexDirection: "row", alignItems: "center", gap: 7 },
+  alternativeArrivalRoute: { minWidth: 44, fontSize: 11, fontWeight: "900", color: "#0F172A" },
+  alternativeArrivalStops: { flex: 1, fontSize: 10, color: "#64748B" },
+  alternativeArrivalTime: { fontSize: 11, fontWeight: "800", color: "#475569" },
   stopEmptyText: {
     paddingVertical: 14,
     textAlign: "center",

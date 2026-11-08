@@ -188,6 +188,16 @@ export type TransitStopArrival = {
   arrivals: TransitArrival[];
 };
 
+export type TransitAlternativeArrival = {
+  route_id: string;
+  route_name: string;
+  arrival_seconds: number | null;
+  arrival_minutes: number | null;
+  boarding_stop_name: string;
+  alighting_stop_name: string;
+  is_recommended: boolean;
+};
+
 export type LiveBusPositions = {
   city_code: string;
   route_id: string;
@@ -213,6 +223,7 @@ export type TransitLive = {
   alighting_stop_order: number | null;
   route_stops: RouteStop[];
   stop_arrivals: TransitStopArrival[];
+  alternative_arrivals: TransitAlternativeArrival[];
   vehicles: LiveBusPosition[];
   arrivals: TransitArrival[];
 };
