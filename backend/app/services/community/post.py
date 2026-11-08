@@ -14,6 +14,7 @@ def get_posts(
         skip: int = 0,
         limit: int = 20,
         include_hidden: bool = False,
+        current_user: User | None = None,
     ) -> List[PostResponse]:
     query = db.query(Post).options(selectinload(Post.author))
     if not include_hidden:
@@ -37,7 +38,7 @@ def get_posts(
         .all()
     )
     return(
-        [to_post_response(post) for post in posts]
+        [to_post_response(post, current_user) for post in posts]
     )
 
 def get_post_by_slug(db: Session, post_slug: str):
@@ -110,7 +111,7 @@ def generate_post_slug(db: Session, title: str) -> str:
         if not get_post_by_slug(db, slug):
             return slug
 
-def to_post_response(post: Post) -> PostResponse:
+def to_post_response(post: Post, current_user: User | None = None) -> PostResponse:
     return PostResponse(
         id=post.id,
         slug=post.slug,
@@ -123,4 +124,5 @@ def to_post_response(post: Post) -> PostResponse:
         is_pinned=post.is_pinned,
         created_at=post.created_at,
         updated_at=post.updated_at,
+        is_mine=current_user is not None and post.author_id == current_user.id,
     )

@@ -8,6 +8,7 @@ from app.schemas.community import (
     AdminCommentReportResponse,
     CommentReportResponse,
     CreateCommentReport,
+    CreatePostReport,
     UpdateCommentReportStatus,
 )
 from app.services.community import comment_report as comment_report_service
@@ -63,6 +64,32 @@ def create_comment_report(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
+
+
+@router.post(
+    "/postreports",
+    response_model=CommentReportResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_post_report(
+    post_id: int,
+    data: CreatePostReport,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        return comment_report_service.create_post_report(
+            db,
+            current_user,
+            post_id,
+            data,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
 @admin_router.get("", response_model=list[AdminCommentReportResponse])

@@ -39,6 +39,10 @@ class CreateCommentReport(BaseModel):
         return self
 
 
+class CreatePostReport(CreateCommentReport):
+    pass
+
+
 class UpdateCommentReportStatus(BaseModel):
     status: CommentReportStatus
     resolution_note: str | None = Field(default=None, max_length=1000)
@@ -65,6 +69,7 @@ class UpdateCommentReportStatus(BaseModel):
 class CommentReportResponse(BaseModel):
     id: int
     comment_id: int | None
+    post_id: int | None = None
     reason: CommentReportReason
     description: str | None
     status: CommentReportStatus

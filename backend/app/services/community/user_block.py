@@ -2,6 +2,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.community.comment import Comment
+from app.models.community.post import Post
 from app.models.community.user_block import UserBlock
 from app.models.user import User
 
@@ -25,25 +26,35 @@ def get_user_blocks(
 def create_user_block(
     db: Session,
     user: User,
-    comment_id: int,
+    comment_id: int | None = None,
+    post_id: int | None = None,
 ) -> UserBlock:
-    comment = db.get(Comment, comment_id)
-    if comment is None:
-        raise LookupError("댓글을 찾을 수 없습니다")
+    if (comment_id is None) == (post_id is None):
+        raise ValueError("댓글 또는 게시글 중 하나가 필요합니다")
+    target_author_id: int
+    if comment_id is not None:
+        comment = db.get(Comment, comment_id)
+        if comment is None:
+            raise LookupError("댓글을 찾을 수 없습니다")
+        target_author_id = comment.author_id
+        if comment.is_hidden:
+            raise PermissionError("Comment is hidden. You do not have permission to block")
+    else:
+        post = db.get(Post, post_id)
+        if post is None:
+            raise LookupError("게시글을 찾을 수 없습니다")
+        target_author_id = post.author_id
+        if post.is_hidden:
+            raise PermissionError("숨김 처리된 게시글의 작성자는 차단할 수 없습니다")
 
-    if comment.author_id == user.id:
+    if target_author_id == user.id:
         raise PermissionError("자기 자신은 차단할 수 없습니다")
-
-    if comment.is_hidden:
-        raise PermissionError(
-            "Comment is hidden. You do not have permission to block"
-        )
 
     existing_block = (
         db.query(UserBlock)
         .filter(
             UserBlock.blocker_id == user.id,
-            UserBlock.blocked_user_id == comment.author_id,
+            UserBlock.blocked_user_id == target_author_id,
         )
         .first()
     )
@@ -52,7 +63,7 @@ def create_user_block(
 
     user_block = UserBlock(
         blocker_id=user.id,
-        blocked_user_id=comment.author_id,
+        blocked_user_id=target_author_id,
     )
 
     try:

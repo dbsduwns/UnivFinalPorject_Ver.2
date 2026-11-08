@@ -36,6 +36,11 @@ class CommentReport(Base):
         ForeignKey("comments.id", ondelete="SET NULL"),
         nullable=True,
     )
+    post_id = Column(
+        Integer,
+        ForeignKey("posts.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     reason = Column(String(50), nullable=False)
     description = Column(Text, nullable=True)
@@ -63,6 +68,7 @@ class CommentReport(Base):
     reporter = relationship("User", foreign_keys=[reporter_id])
     reported_user = relationship("User", foreign_keys=[reported_user_id])
     comment = relationship("Comment", foreign_keys=[comment_id])
+    post = relationship("Post", foreign_keys=[post_id])
     reviewed_by = relationship("User", foreign_keys=[reviewed_by_id])
 
     __table_args__ = (
@@ -70,6 +76,11 @@ class CommentReport(Base):
             "reporter_id",
             "comment_id",
             name="uq_comment_reports_reporter_comment",
+        ),
+        UniqueConstraint(
+            "reporter_id",
+            "post_id",
+            name="uq_comment_reports_reporter_post",
         ),
         CheckConstraint(
             "reason IN ('abuse', 'hate', 'sexual', 'spam', "
@@ -86,5 +97,6 @@ class CommentReport(Base):
             name="ck_comment_reports_not_self",
         ),
         Index("ix_comment_reports_comment_id", "comment_id"),
+        Index("ix_comment_reports_post_id", "post_id"),
         Index("ix_comment_reports_status_created_at", "status", "created_at"),
     )

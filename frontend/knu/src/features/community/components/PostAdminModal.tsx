@@ -6,14 +6,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getAxiosErrorMessage } from "@/api/errors";
 import { useAuthStore } from "@/features/auth/store/auth-store";
 import { manageCommunityPost, type ManagePostBody } from "@/features/community/api/admin";
-import { deleteCommunityPost } from "@/features/community/api/community";
+import { deleteCommunityPost, updateCommunityPost } from "@/features/community/api/community";
 import type { CommunityPost } from "@/features/community/api/types";
 
 const BRAND = "#13708D";
-type Props = { post: CommunityPost; onClose: () => void; onDeleted?: () => void };
+type Props = { post: CommunityPost; onClose: () => void; onDeleted?: () => void; allowOwner?: boolean };
 
-export function PostAdminModal({ post, onClose, onDeleted }: Props) {
+export function PostAdminModal({ post, onClose, onDeleted, allowOwner = false }: Props) {
   const isAdmin = useAuthStore(s => s.user?.is_admin === true);
+  const canManage = isAdmin || (allowOwner && post.is_mine);
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<"menu" | "edit" | "delete">("menu");
@@ -22,8 +23,18 @@ export function PostAdminModal({ post, onClose, onDeleted }: Props) {
   const [error, setError] = useState("");
   const mutation = useMutation({
     mutationFn: async (body: ManagePostBody | "delete") => {
-      if (!useAuthStore.getState().user?.is_admin) throw new Error("관리자 권한이 필요합니다.");
-      return body === "delete" ? deleteCommunityPost(post.slug) : manageCommunityPost(post.slug, body);
+      const currentUser = useAuthStore.getState().user;
+      if (!currentUser || (!currentUser.is_admin && !(allowOwner && post.is_mine))) {
+        throw new Error("게시글 관리 권한이 필요합니다.");
+      }
+      return body === "delete"
+        ? deleteCommunityPost(post.slug)
+        : currentUser.is_admin
+          ? manageCommunityPost(post.slug, body)
+          : updateCommunityPost(post.slug, {
+            title: body.title,
+            content: body.content,
+          });
     },
     onSuccess: async (updated, body) => {
       await queryClient.cancelQueries({ queryKey: ["community", "posts"] });
@@ -47,13 +58,18 @@ export function PostAdminModal({ post, onClose, onDeleted }: Props) {
     if (mode === "edit" && (!title.trim() || !content.trim())) { setError("제목과 내용을 입력해 주세요."); return; }
     mutation.mutate(mode === "delete" ? "delete" : { title: title.trim(), content: content.trim() });
   };
-  if (!isAdmin) return null;
-  const options = [
-    { label: "수정", Icon: Pencil, action: () => setMode("edit"), color: BRAND },
-    { label: post.is_hidden ? "숨김 해제" : "숨김 처리", Icon: post.is_hidden ? Eye : EyeOff, action: () => mutation.mutate({ is_hidden: !post.is_hidden }), color: BRAND },
-    { label: post.is_pinned ? "상단 고정 해제" : "상단 고정", Icon: post.is_pinned ? PinOff : Pin, action: () => mutation.mutate({ is_pinned: !post.is_pinned }), color: BRAND },
-    { label: "삭제", Icon: Trash2, action: () => setMode("delete"), color: "#DC2626" },
-  ];
+  if (!canManage) return null;
+  const options = isAdmin
+    ? [
+      { label: "수정", Icon: Pencil, action: () => setMode("edit"), color: BRAND },
+      { label: post.is_hidden ? "숨김 해제" : "숨김 처리", Icon: post.is_hidden ? Eye : EyeOff, action: () => mutation.mutate({ is_hidden: !post.is_hidden }), color: BRAND },
+      { label: post.is_pinned ? "상단 고정 해제" : "상단 고정", Icon: post.is_pinned ? PinOff : Pin, action: () => mutation.mutate({ is_pinned: !post.is_pinned }), color: BRAND },
+      { label: "삭제", Icon: Trash2, action: () => setMode("delete"), color: "#DC2626" },
+    ]
+    : [
+      { label: "수정", Icon: Pencil, action: () => setMode("edit"), color: BRAND },
+      { label: "삭제", Icon: Trash2, action: () => setMode("delete"), color: "#DC2626" },
+    ];
   return (
     <Modal visible transparent animationType="fade" onRequestClose={close}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, justifyContent: "center", paddingHorizontal: 20, paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }}>

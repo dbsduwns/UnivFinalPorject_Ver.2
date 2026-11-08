@@ -7,6 +7,7 @@ from .comment_report import (
     CommentReportResponse,
     CommentReportStatus,
     CreateCommentReport,
+    CreatePostReport,
     UpdateCommentReportStatus,
 )
 from .user_block import (
@@ -30,6 +31,7 @@ __all__ = [
     "CommentReportResponse",
     "CommentReportStatus",
     "CreateCommentReport",
+    "CreatePostReport",
     "UpdateCommentReportStatus",
     "CreateUserBlock",
     "UserBlockListItem",

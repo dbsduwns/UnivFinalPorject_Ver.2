@@ -129,7 +129,7 @@ export default function CommunityAdminScreen() {
                                         </View>
                                         <Text className="text-gray-700 mt-3" numberOfLines={3}>{item.content_snapshot}</Text>
                                         <Text className="text-xs font-bold text-[#13708D] mt-3">누적 {item.report_count}건 · 미처리 {item.pending_report_count}건</Text>
-                                        <Text className="text-xs text-gray-400 mt-3">신고 #{item.id} · {date(item.created_at)}</Text></Pressable>} />
+                                        <Text className="text-xs text-gray-400 mt-3">{item.post_id != null ? "게시글 신고" : "댓글 신고"} #{item.id} · {date(item.created_at)}</Text></Pressable>} />
         : <FlatList
             key="blocks" 
             data={blocks.data?.pages.flat() ?? []} 
@@ -180,7 +180,7 @@ function ReportReview({ report, onClose }: { report: AdminReport; onClose: () =>
         <Pressable accessibilityLabel="닫기" onPress={close} style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.5)" }} />
           <View className="bg-white rounded-2xl p-6" style={{ maxHeight: "90%", width: "100%", maxWidth: 720, alignSelf: "center" }}>
             <View className="flex-row items-center justify-between mb-4">
-              <Text className="text-lg font-bold text-gray-900">댓글 신고 #{report.id}</Text>
+              <Text className="text-lg font-bold text-gray-900">{report.post_id != null ? "게시글" : "댓글"} 신고 #{report.id}</Text>
               <Pressable disabled={mutation.isPending} accessibilityLabel="닫기" onPress={close} className="p-2"><X size={22} color="#6B7280" /></Pressable>
             </View>
           <ScrollView 
@@ -194,7 +194,7 @@ function ReportReview({ report, onClose }: { report: AdminReport; onClose: () =>
             <Text className="text-xs text-gray-400 mt-1">{date(report.created_at)}</Text>
             <Text className="bg-gray-50 rounded-xl p-4 text-gray-800 my-4">{report.content_snapshot}</Text>
             {!!report.description && <Text className="text-gray-600 mb-4">신고 설명: {report.description}</Text>}
-            <Text className="text-xs text-gray-500 mb-4">신고 당시 댓글 내용입니다. 처리 상태 변경만으로 댓글이 삭제되거나 사용자가 정지되지는 않습니다.</Text>
+            <Text className="text-xs text-gray-500 mb-4">신고 당시 {report.post_id != null ? "게시글" : "댓글"} 내용입니다. 처리 상태 변경만으로 원본이 삭제되거나 사용자가 정지되지는 않습니다.</Text>
             {report.reviewed_at && <Text className="text-xs text-gray-400 mb-3">최근 처리: {date(report.reviewed_at)} · 관리자 #{report.reviewed_by_id ?? "삭제됨"}</Text>}
             <View className="flex-row mb-4">
               {(["reviewing", "resolved", "dismissed"] as const)
@@ -212,7 +212,7 @@ function ReportReview({ report, onClose }: { report: AdminReport; onClose: () =>
                 </Pressable>
               )}
               </View>
-              <ReportCommentActions report={report} note={note} />
+              {report.comment_id != null && <ReportCommentActions report={report} note={note} />}
               <TextInput 
                 accessibilityLabel="신고 처리 메모" 
                 editable={!mutation.isPending} 

@@ -27,12 +27,13 @@ def get_user_blocks(
     status_code=status.HTTP_201_CREATED,
 )
 def create_user_block(
-    comment_id: int,
+    comment_id: int | None = Query(default=None, gt=0),
+    post_id: int | None = Query(default=None, gt=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     try:
-        return user_block_service.create_user_block(db, current_user, comment_id)
+        return user_block_service.create_user_block(db, current_user, comment_id, post_id)
     except LookupError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

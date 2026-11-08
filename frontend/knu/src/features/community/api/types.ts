@@ -10,6 +10,7 @@ export type CommunityPost = {
   is_pinned: boolean;
   created_at: string;
   updated_at: string;
+  is_mine: boolean;
 };
 
 export type CreatePostBody = {
@@ -61,6 +62,7 @@ export type CreateCommentReportBody = {
 export type CommentReport = {
   id: number;
   comment_id: number | null;
+  post_id: number | null;
   reason: CommentReportReason;
   description: string | null;
   status: "pending" | "reviewing" | "resolved" | "dismissed";

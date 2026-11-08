@@ -47,12 +47,13 @@ import type {
 import { useCommunityPost } from "@/features/community/hooks/use-community";
 import { useAuthStore } from "@/features/auth/store/auth-store";
 import { PostAdminModal } from "@/features/community/components/PostAdminModal";
+import { PostUserActionsModal } from "@/features/community/components/PostUserActionsModal";
 
 const BRAND = "#13708D";
-const REPORT_REASONS: ReadonlyArray<{
+const REPORT_REASONS: readonly {
   value: CommentReportReason;
   label: string;
-}> = [
+}[] = [
   { value: "abuse", label: "욕설 및 괴롭힘" },
   { value: "hate", label: "혐오 표현" },
   { value: "sexual", label: "성적 콘텐츠" },
@@ -66,6 +67,7 @@ const REPORT_REASONS: ReadonlyArray<{
 export default function CommunityPostScreen() {
   const isAdmin = useAuthStore(s => s.user?.is_admin === true);
   const [managingPost, setManagingPost] = useState(false);
+  const [postActionsOpen, setPostActionsOpen] = useState(false);
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const params = useLocalSearchParams<{ slug?: string | string[] }>();
@@ -302,7 +304,8 @@ export default function CommunityPostScreen() {
         <View className="flex-1 ml-1 justify-center h-11">
           <Text className="text-xl font-extrabold text-gray-900">게시물</Text>
         </View>
-        {isAdmin && <Pressable accessibilityLabel="게시글 관리" onPress={() => setManagingPost(true)} className="h-11 px-3 items-center justify-center rounded-xl bg-cyan-50"><Text className="font-bold text-[#13708D]">관리</Text></Pressable>}
+        {(isAdmin || post.is_mine) && <Pressable accessibilityLabel="게시글 관리" onPress={() => setManagingPost(true)} className="h-11 px-3 items-center justify-center rounded-xl bg-cyan-50"><Text className="font-bold text-[#13708D]">{isAdmin ? "관리" : "메뉴"}</Text></Pressable>}
+        {!isAdmin && !post.is_mine && <Pressable accessibilityLabel="게시글 메뉴" onPress={() => setPostActionsOpen(true)} className="w-11 h-11 items-center justify-center"><EllipsisVertical size={22} color="#64748B" /></Pressable>}
       </View>
 
       <KeyboardAvoidingView
@@ -504,7 +507,8 @@ export default function CommunityPostScreen() {
         </Pressable>
       </Modal>
 
-      {isAdmin && managingPost && <PostAdminModal post={post} onClose={() => setManagingPost(false)} onDeleted={() => router.replace({ pathname: "/(app)/community/[board]", params: { board: post.board_slug } })} />}
+      {(isAdmin || post.is_mine) && managingPost && <PostAdminModal allowOwner post={post} onClose={() => setManagingPost(false)} onDeleted={() => router.replace({ pathname: "/(app)/community/[board]", params: { board: post.board_slug } })} />}
+      {postActionsOpen && <PostUserActionsModal post={post} onClose={() => setPostActionsOpen(false)} />}
 
       <Modal
         visible={Boolean(reportingComment)}

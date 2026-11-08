@@ -23,6 +23,7 @@ class PostResponse(BaseModel):
     is_pinned: bool = False
     created_at: datetime
     updated_at: datetime
+    is_mine: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 

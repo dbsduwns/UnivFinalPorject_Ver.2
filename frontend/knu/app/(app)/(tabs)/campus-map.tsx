@@ -864,6 +864,10 @@ export default function CampusMapScreen() {
     }).start();
   }, [sheetTranslateY]);
 
+  const toggleSheet = useCallback(() => {
+    snapSheet(isSheetExpanded ? SHEET_COLLAPSED_Y : 0);
+  }, [isSheetExpanded, snapSheet]);
+
   const sheetPanResponder = useMemo(
     () => PanResponder.create({
       onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 5,
@@ -1367,9 +1371,7 @@ export default function CampusMapScreen() {
               <TouchableOpacity
                 style={styles.sheetTitleRow}
                 activeOpacity={0.7}
-                onPress={() => snapSheet(
-                  sheetPositionRef.current > SHEET_HALF_Y ? 0 : SHEET_COLLAPSED_Y,
-                )}
+                onPress={toggleSheet}
               >
                 <View>
                   <Text style={styles.sheetEyebrow}>등교 경로</Text>
@@ -1377,7 +1379,11 @@ export default function CampusMapScreen() {
                     {isDetailView ? "상세 이동 안내" : `${routeOptions.length}개 경로 비교`}
                   </Text>
                 </View>
-                <ChevronUp size={22} color="#64748B" />
+                {isSheetExpanded ? (
+                  <ChevronDown size={22} color="#64748B" />
+                ) : (
+                  <ChevronUp size={22} color="#64748B" />
+                )}
               </TouchableOpacity>
             </View>
 

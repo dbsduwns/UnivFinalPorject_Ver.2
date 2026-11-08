@@ -25,7 +25,7 @@ def get_admin_posts(
     db: Session = Depends(get_db),
     admin: User = Depends(get_current_admin_user),
 ):
-    return post_service.get_posts(db, board_slug, keyword, skip, limit, include_hidden=True)
+    return post_service.get_posts(db, board_slug, keyword, skip, limit, include_hidden=True, current_user=admin)
 
 
 @admin_router.get("/{post_slug}", response_model=PostResponse)
@@ -37,7 +37,7 @@ def get_admin_post(
     post = post_service.get_post_by_slug(db, post_slug)
     if post is None:
         raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다")
-    return post_service.to_post_response(post)
+    return post_service.to_post_response(post, admin)
 
 
 @admin_router.patch("/{post_slug}", response_model=PostResponse)
@@ -64,15 +64,20 @@ def get_posts(
     keyword: str | None = None,
     skip: int = 0,
     limit: int = 20,
+    user: User = Depends(get_current_user),
 ):
-    return post_service.get_posts(db, board_slug,  keyword, skip, limit)
+    return post_service.get_posts(db, board_slug, keyword, skip, limit, current_user=user)
 
 @router.get("/slug", response_model=PostResponse)
-def get_post_by_slug(post_slug: str, db: Session = Depends(get_db)):
+def get_post_by_slug(
+    post_slug: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     post = post_service.get_post_by_slug(db, post_slug)
     if not post or post.is_hidden:
         raise HTTPException(status_code=404, detail="Post not found")
-    return post_service.to_post_response(post)
+    return post_service.to_post_response(post, user)
 
 @router.post("/posts", response_model=PostResponse)
 def create_post(
@@ -83,7 +88,7 @@ def create_post(
 ):
     try:
         post = post_service.create_post(db, user, board_slug, data)
-        return post_service.to_post_response(post)
+        return post_service.to_post_response(post, user)
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:
@@ -98,7 +103,7 @@ def update_post(
 ):
     try:
         post = post_service.update_post(db, user, post_slug, data)
-        return post_service.to_post_response(post)
+        return post_service.to_post_response(post, user)
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:

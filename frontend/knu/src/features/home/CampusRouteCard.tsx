@@ -195,6 +195,15 @@ export const CampusRouteCard = () => {
     router.push("/(app)/commute-settings");
   };
 
+  const openCampusMap = () => {
+    const hasCalculatedRoute = commuteQuery.data?.status === "ready"
+      && Boolean(commuteQuery.data.recommended_route);
+    router.push({
+      pathname: "/(app)/(tabs)/campus-map",
+      ...(hasCalculatedRoute ? { params: { mode: "commute" } } : {}),
+    } as never);
+  };
+
   return (
     <View style={styles.section}>
       <View style={styles.card}>
@@ -206,12 +215,7 @@ export const CampusRouteCard = () => {
           <TouchableOpacity
             style={styles.headerLink}
             activeOpacity={0.6}
-            onPress={() => router.push({
-              pathname: "/(app)/(tabs)/campus-map",
-              params: {
-                mode: "commute",
-              },
-            })}
+            onPress={openCampusMap}
           >
             <Text style={styles.moreText}>캠퍼스맵</Text>
             <ChevronRight size={16} color="#13708D" />

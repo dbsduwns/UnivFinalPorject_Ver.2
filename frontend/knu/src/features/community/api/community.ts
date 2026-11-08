@@ -112,11 +112,32 @@ export const reportComment = async (
   return data;
 };
 
+export const reportPost = async (
+  postId: number,
+  body: CreateCommentReportBody,
+): Promise<CommentReport> => {
+  const { data } = await apiClient.post<CommentReport>(
+    "/api/community/postreports",
+    body,
+    { params: { post_id: postId } },
+  );
+  return data;
+};
+
 export const blockCommentAuthor = async (commentId: number): Promise<UserBlock> => {
   const { data } = await apiClient.post<UserBlock>(
     "/api/community/userblocks",
     undefined,
     { params: { comment_id: commentId } }
+  );
+  return data;
+};
+
+export const blockPostAuthor = async (postId: number): Promise<UserBlock> => {
+  const { data } = await apiClient.post<UserBlock>(
+    "/api/community/userblocks",
+    undefined,
+    { params: { post_id: postId } },
   );
   return data;
 };
