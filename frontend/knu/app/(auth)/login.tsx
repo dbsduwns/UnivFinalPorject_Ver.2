@@ -3,7 +3,7 @@ import * as Google from "expo-auth-session/providers/google";
 import { Link, router, useLocalSearchParams } from "expo-router";
 
 import { hrefAppHome, hrefSignup } from "@/constants/routes";
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   ActivityIndicator,
   Keyboard,
@@ -44,6 +44,7 @@ export default function LoginScreen() {
 
   const [isEmail, setIsEmail] = useState<boolean>(false)
   const [isPassword, setIsPassword] = useState<boolean>(false)
+  const showLoginSuccessRef = useRef(false);
 
   // On Android/iOS, use the authorization-code flow. Expo exchanges the code
   // and exposes the resulting ID token in `authentication.idToken`.
@@ -96,7 +97,7 @@ export default function LoginScreen() {
   }, [])
 
   useEffect(() => {
-    if (ready && user) {
+    if (ready && user && !showLoginSuccessRef.current) {
       router.replace(loginDestination as never);
     }
   }, [ready, user, loginDestination]);
@@ -122,6 +123,7 @@ export default function LoginScreen() {
     void (async () => {
       setError(null);
       setGoogleSubmitting(true);
+      showLoginSuccessRef.current = true;
       try {
         const result = await googleLogin(idToken);
 
@@ -133,7 +135,10 @@ export default function LoginScreen() {
         } else if (result.status === "link_required") {
           setError(result.message);
         } else {
-          router.replace(loginDestination as never);
+          router.replace({
+            pathname: "/(auth)/login-success" as never,
+            params: { redirect: loginDestination },
+          });
         }
       } catch (e) {
         logDevAxiosError("google-login", e);
@@ -156,9 +161,13 @@ export default function LoginScreen() {
 
     setError(null);
     setSubmitting(true);
+    showLoginSuccessRef.current = true;
     try {
       await login({ email: email.trim(), password });
-      router.replace(loginDestination as never);
+      router.replace({
+        pathname: "/(auth)/login-success" as never,
+        params: { redirect: loginDestination },
+      });
     } catch (e) {
       logDevAxiosError("login", e);
         setError(getAxiosErrorMessage(e, "로그인에 실패했습니다."));
