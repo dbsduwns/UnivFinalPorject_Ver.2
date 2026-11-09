@@ -137,7 +137,24 @@ export default function NoticeDetail() {
     const { id } = useLocalSearchParams();
     const noticeId = typeof id === "string" ? parseInt(id, 10) : null;
 
-    const { data: notice, isLoading } = useNotice(noticeId);    
+    console.log("[NoticeDetail] route params", {
+        rawId: id,
+        noticeId,
+        valid: noticeId !== null && Number.isInteger(noticeId),
+    });
+
+    const { data: notice, isLoading, isError, error } = useNotice(noticeId);
+
+    useEffect(() => {
+        console.log("[NoticeDetail] query state", {
+            noticeId,
+            isLoading,
+            isError,
+            error: error instanceof Error ? error.message : error ?? null,
+            found: Boolean(notice),
+        });
+    }, [error, isError, isLoading, notice, noticeId]);
+
     const [imageItems, setImageItems] = useState<ImageItem[]>([]);
     
     const handleOpenURL = async (url: string | null | undefined) => {

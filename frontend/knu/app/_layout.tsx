@@ -53,7 +53,18 @@ Notifications.setNotificationHandler({
 function handleNotificationResponse(response: Notifications.NotificationResponse) {
   const data = response.notification.request.content.data;
 
+  console.log("[Notification] response received", {
+    identifier: response.notification.request.identifier,
+    data,
+    appState: AppState.currentState,
+  });
+
   if (data.type === "direct_message") {
+    console.log("[Notification] navigating", {
+      type: data.type,
+      roomId: data.room_id,
+      route: "/(app)/(tabs)/messages",
+    });
     router.push({
       pathname: "/(app)/(tabs)/messages",
       params: { roomId: String(data.room_id) },
@@ -61,14 +72,29 @@ function handleNotificationResponse(response: Notifications.NotificationResponse
   }
 
   if (data.type === "notice") {
+    const noticeId = data.notice_id;
+    console.log("[Notification] navigating", {
+      type: data.type,
+      noticeId,
+      route: "/(app)/notice/[id]",
+    });
+    if (noticeId === undefined || noticeId === null) {
+      console.warn("[Notification] notice_id is missing", { data });
+      return;
+    }
     router.push({
       pathname: "/(app)/notice/[id]",
-      params: { id: String(data.notice_id) },
+      params: { id: String(noticeId) },
     });
   }
 
   if (data.type === "cafeteria") {
     const menuDate = typeof data.menu_date === "string" ? data.menu_date : "";
+    console.log("[Notification] navigating", {
+      type: data.type,
+      menuDate,
+      route: "/(app)/(tabs)/meal",
+    });
     router.push({
       pathname: "/(app)/(tabs)/meal",
       params: menuDate ? { date: menuDate } : undefined,
@@ -77,6 +103,11 @@ function handleNotificationResponse(response: Notifications.NotificationResponse
 
   if (data.type === "shuttle") {
     const semester = typeof data.semester === "string" ? data.semester : "";
+    console.log("[Notification] navigating", {
+      type: data.type,
+      semester,
+      route: "/(app)/(tabs)/shuttle",
+    });
     router.push({
       pathname: "/(app)/(tabs)/shuttle",
       params: semester ? { semester } : undefined,
@@ -100,6 +131,11 @@ function NavigationTree() {
   const enqueueNotificationResponse = useCallback((response: Notifications.NotificationResponse) => {
     const notificationId = response.notification.request.identifier;
     if (handledNotificationIds.current.has(notificationId)) return;
+    console.log("[Notification] queued", {
+      identifier: notificationId,
+      data: response.notification.request.content.data,
+      appState: AppState.currentState,
+    });
     setPendingNotification(response);
   }, []);
 
@@ -127,11 +163,22 @@ function NavigationTree() {
 
   useEffect(() => {
     const navigationReady = Boolean(rootNavigationState?.key);
+    console.log("[Notification] pending check", {
+      pending: pendingNotification?.notification.request.content.data ?? null,
+      authReady,
+      userId: user?.id ?? null,
+      navigationReady,
+      navigationKey: rootNavigationState?.key ?? null,
+    });
     if (!pendingNotification || !authReady || !user || !navigationReady) return;
 
     const notificationId = pendingNotification.notification.request.identifier;
     handledNotificationIds.current.add(notificationId);
     setPendingNotification(null);
+    console.log("[Notification] processing queued response", {
+      identifier: notificationId,
+      data: pendingNotification.notification.request.content.data,
+    });
     handleNotificationResponse(pendingNotification);
   }, [authReady, pendingNotification, rootNavigationState?.key, user]);
 

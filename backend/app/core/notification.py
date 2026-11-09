@@ -62,6 +62,16 @@ async def send_push_notification(tokens: List[str], title: str, body: str, data:
     if not messages:
         return
 
+    # Push token은 개인정보·자격증명 성격이 있으므로 로그에 남기지 않고,
+    # 실제 전송 대상 수와 앱이 수신할 data payload만 기록한다.
+    logger.info(
+        "[Push] Expo payload prepared: recipient_count=%d title=%r body=%r data=%s",
+        len(messages),
+        title,
+        body,
+        data or {},
+    )
+
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(EXPO_PUSH_URL, json=messages)
