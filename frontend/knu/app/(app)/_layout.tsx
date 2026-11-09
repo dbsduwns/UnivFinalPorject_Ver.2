@@ -30,9 +30,6 @@ export default function AppGroupLayout() {
         <Stack.Screen name="community/new" />
         <Stack.Screen name="admin/community" />
         <Stack.Screen name="community/post/[slug]" />
-        <Stack.Screen name="shuttle" />
-        <Stack.Screen name="meal" />
-        <Stack.Screen name="campus-map" />
       </Stack>
     </AppDrawerProvider>
   );

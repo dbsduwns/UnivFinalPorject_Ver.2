@@ -26,6 +26,9 @@ from qdrant_client.models import PayloadSchemaType  # noqa: E402
 
 INDEX_SPECS = {
     "metadata.source": PayloadSchemaType.KEYWORD,
+    # 공지사항 삭제 시 source_key/title 기준으로 벡터 문서를 찾는다.
+    "metadata.source_key": PayloadSchemaType.KEYWORD,
+    "metadata.title": PayloadSchemaType.KEYWORD,
     "metadata.category": PayloadSchemaType.KEYWORD,
     "metadata.academic_year": PayloadSchemaType.INTEGER,
     "metadata.date": PayloadSchemaType.KEYWORD,

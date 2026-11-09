@@ -133,9 +133,13 @@ async function notices() {
         if (!id) return;
         if (e.target.dataset.delete) {
             if (confirm("이 공지를 삭제할까요?")) { 
-              await request(`/api/notices/${id}`, {method:"DELETE"});
-              flash("공지를 삭제했습니다."); 
-              load(); 
+              try {
+                await request(`/api/notices/${id}`, {method:"DELETE"});
+                flash("공지를 삭제했습니다.");
+                await load();
+              } catch (error) {
+                flash(`공지 삭제에 실패했습니다: ${error.message}`, true);
+              }
             } return; 
         } 
         const n = rows.find(x=>x.id === Number(id)); noticeForm(n); 

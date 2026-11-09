@@ -110,7 +110,15 @@ async def notify_users_by_type(
     
     settings = query.all()
     notification_data = dict(data or {})
-    notification_data.setdefault("type", alert_type)
+    notification_data.setdefault(
+        "type",
+        {
+            "notice_alert": "notice",
+            "shuttle_alert": "shuttle",
+            "cafeteria_alert": "cafeteria",
+            "message_alert": "direct_message",
+        }.get(alert_type, alert_type),
+    )
     save_in_app_notifications(db, settings, title, body, notification_data)
 
     tokens = [s.expo_push_token for s in settings if s.expo_push_token]
@@ -124,7 +132,9 @@ async def notify_users_by_type(
         return None
 
     logger.info("Sending %s push notification(s) for alert type: %s", len(tokens), alert_type)
-    return await send_push_notification(tokens, title, body, data)
+    # 인앱 알림과 동일한 정규화 payload를 푸시에도 전달해야
+    # 클라이언트가 type에 따라 올바른 화면으로 이동할 수 있다.
+    return await send_push_notification(tokens, title, body, notification_data)
 
 def notify_users_by_type_sync(
     db: Session,
