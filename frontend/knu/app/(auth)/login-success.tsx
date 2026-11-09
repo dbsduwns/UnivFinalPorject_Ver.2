@@ -52,6 +52,7 @@ export default function LoginSuccessScreen() {
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: "생체 인증 로그인을 설정합니다",
         cancelLabel: "취소",
+        biometricsSecurityLevel: "weak",
         disableDeviceFallback: false,
       });
 
