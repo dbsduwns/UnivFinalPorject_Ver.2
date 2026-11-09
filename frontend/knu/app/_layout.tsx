@@ -1,9 +1,9 @@
 import "react-native-gesture-handler";
 import "../global.css";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
-import { Stack, router } from "expo-router";
+import { Stack, router, useRootNavigationState } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as Notifications from "expo-notifications";
 import { AppState, type AppStateStatus } from "react-native";
@@ -90,11 +90,22 @@ export const unstable_settings = {
 
 function NavigationTree() {
   const userId = useAuthStore((state) => state.user?.id);
+  const authReady = useAuthStore((state) => state.ready);
+  const user = useAuthStore((state) => state.user);
+  const rootNavigationState = useRootNavigationState();
   const appState = useRef<AppStateStatus>(AppState.currentState);
+  const handledNotificationIds = useRef(new Set<string>());
+  const [pendingNotification, setPendingNotification] = useState<Notifications.NotificationResponse | null>(null);
+
+  const enqueueNotificationResponse = useCallback((response: Notifications.NotificationResponse) => {
+    const notificationId = response.notification.request.identifier;
+    if (handledNotificationIds.current.has(notificationId)) return;
+    setPendingNotification(response);
+  }, []);
 
   useEffect(() => {
     // 앱 실행 중 또는 백그라운드에서 알림을 누른 경우
-    const subscription = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
+    const subscription = Notifications.addNotificationResponseReceivedListener(enqueueNotificationResponse);
     const receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
       const type = notification.request.content.data.type;
       void queryClient.invalidateQueries({ queryKey: ["notifications"] });
@@ -104,7 +115,7 @@ function NavigationTree() {
     // 앱이 완전히 종료된 상태에서 알림을 눌러 시작된 경우
     void Notifications.getLastNotificationResponseAsync().then((response) => {
       if (response) {
-        handleNotificationResponse(response);
+        enqueueNotificationResponse(response);
       }
     });
 
@@ -112,7 +123,17 @@ function NavigationTree() {
       subscription.remove();
       receivedSubscription.remove();
     };
-  }, []);
+  }, [enqueueNotificationResponse]);
+
+  useEffect(() => {
+    const navigationReady = Boolean(rootNavigationState?.key);
+    if (!pendingNotification || !authReady || !user || !navigationReady) return;
+
+    const notificationId = pendingNotification.notification.request.identifier;
+    handledNotificationIds.current.add(notificationId);
+    setPendingNotification(null);
+    handleNotificationResponse(pendingNotification);
+  }, [authReady, pendingNotification, rootNavigationState?.key, user]);
 
   useAuthBootstrap();
   const colorScheme = useColorScheme();

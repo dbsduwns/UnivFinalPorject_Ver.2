@@ -2,7 +2,7 @@ import { router } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 
-import { hrefLogin } from "@/constants/routes";
+import { hrefAppHome, hrefLogin } from "@/constants/routes";
 import { useAuthStore } from "@/features/auth/store/auth-store";
 
 export default function BiometricLoginScreen() {
@@ -32,6 +32,12 @@ export default function BiometricLoginScreen() {
     attempted.current = true;
     void unlock();
   }, [ready, user, biometricRequired, unlock]);
+
+  useEffect(() => {
+    if (user) {
+      router.replace(hrefAppHome);
+    }
+  }, [user]);
 
   if (user) return null;
 

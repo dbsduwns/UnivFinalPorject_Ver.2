@@ -97,7 +97,17 @@ export default function LoginScreen() {
   }, [])
 
   useEffect(() => {
-    if (ready && user && !showLoginSuccessRef.current) {
+    if (!ready || !user) return;
+
+    if (showLoginSuccessRef.current) {
+      router.replace({
+        pathname: "/(auth)/login-success" as never,
+        params: { redirect: loginDestination },
+      });
+      return;
+    }
+
+    if (ready && user) {
       router.replace(loginDestination as never);
     }
   }, [ready, user, loginDestination]);
@@ -134,11 +144,6 @@ export default function LoginScreen() {
           });
         } else if (result.status === "link_required") {
           setError(result.message);
-        } else {
-          router.replace({
-            pathname: "/(auth)/login-success" as never,
-            params: { redirect: loginDestination },
-          });
         }
       } catch (e) {
         logDevAxiosError("google-login", e);
@@ -164,10 +169,6 @@ export default function LoginScreen() {
     showLoginSuccessRef.current = true;
     try {
       await login({ email: email.trim(), password });
-      router.replace({
-        pathname: "/(auth)/login-success" as never,
-        params: { redirect: loginDestination },
-      });
     } catch (e) {
       logDevAxiosError("login", e);
         setError(getAxiosErrorMessage(e, "로그인에 실패했습니다."));
