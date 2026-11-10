@@ -304,8 +304,13 @@ export default function CommunityPostScreen() {
         <View className="flex-1 ml-1 justify-center h-11">
           <Text className="text-xl font-extrabold text-gray-900">게시물</Text>
         </View>
-        {(isAdmin || post.is_mine) && <Pressable accessibilityLabel="게시글 관리" onPress={() => setManagingPost(true)} className="h-11 px-3 items-center justify-center rounded-xl bg-cyan-50"><Text className="font-bold text-[#13708D]">{isAdmin ? "관리" : "메뉴"}</Text></Pressable>}
-        {!isAdmin && !post.is_mine && <Pressable accessibilityLabel="게시글 메뉴" onPress={() => setPostActionsOpen(true)} className="w-11 h-11 items-center justify-center"><EllipsisVertical size={22} color="#64748B" /></Pressable>}
+        <Pressable
+          accessibilityLabel="게시글 메뉴"
+          onPress={() => (isAdmin || post.is_mine ? setManagingPost(true) : setPostActionsOpen(true))}
+          className="w-11 h-11 items-center justify-center"
+        >
+          <EllipsisVertical size={22} color="#64748B" />
+        </Pressable>
       </View>
 
       <KeyboardAvoidingView

@@ -10,6 +10,7 @@ import { AppState, type AppStateStatus } from "react-native";
 import "react-native-reanimated";
 
 import { QueryProvider, queryClient } from "@/components/providers/query-provider";
+import { hrefBiometricLogin } from "@/constants/routes";
 import { useAuthStore } from "@/features/auth/store/auth-store";
 import { presenceApi } from "@/features/presence/api/presence-api";
 import { usePresenceStore } from "@/features/presence/store/presence-store";
@@ -119,6 +120,8 @@ export const unstable_settings = {
   initialRouteName: "(app)",
 };
 
+const BIOMETRIC_REAUTH_BACKGROUND_MS = 5 * 60 * 1000;
+
 function NavigationTree() {
   const userId = useAuthStore((state) => state.user?.id);
   const authReady = useAuthStore((state) => state.ready);
@@ -213,6 +216,32 @@ function NavigationTree() {
       clearInterval(heartbeat);
     };
   }, [userId]);
+
+  useEffect(() => {
+    let backgroundedAt: number | null = null;
+
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState !== "active") {
+        if (backgroundedAt === null) backgroundedAt = Date.now();
+        return;
+      }
+
+      const elapsed = backgroundedAt === null ? 0 : Date.now() - backgroundedAt;
+      backgroundedAt = null;
+      if (elapsed < BIOMETRIC_REAUTH_BACKGROUND_MS) return;
+
+      console.log("[Auth] Background timeout reached", {
+        elapsedMs: elapsed,
+        thresholdMs: BIOMETRIC_REAUTH_BACKGROUND_MS,
+      });
+      void useAuthStore.getState().lockForBiometric().then((locked) => {
+        if (!locked) return;
+        router.replace(hrefBiometricLogin as never);
+      });
+    });
+
+    return () => subscription.remove();
+  }, []);
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>

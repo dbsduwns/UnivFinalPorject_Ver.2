@@ -18,119 +18,123 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
 function ZoomableImage({ uri }: { uri: string }) {
+  const MIN_SCALE = 1;
+  const MAX_SCALE = 5;
+  const DOUBLE_TAP_SCALE = 2.5;
 
-  // 변수들
-  const scale = useSharedValue(1);          // 배율
-  const savedScale = useSharedValue(1);
-
-  const translateX = useSharedValue(0);     // X, Y 위치
-  const translateY = useSharedValue(0);     
+  const scale = useSharedValue(MIN_SCALE);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
   const savedTranslateX = useSharedValue(0);
   const savedTranslateY = useSharedValue(0);
-
-  const containerWidth = useSharedValue(0);  // 콘텐츠 컨테이너 넓이, 높이
+  const containerWidth = useSharedValue(0);
   const containerHeight = useSharedValue(0);
 
-  const pintchStartScale = useSharedValue(1);
-  const pintchStartTranslateX = useSharedValue(0);
-  const pintchStartTranslateY = useSharedValue(0);
-  const pintchStartFocalX = useSharedValue(0);
-  const pintchStartFocalY = useSharedValue(0);
+  const pinchStartScale = useSharedValue(MIN_SCALE);
+  const pinchStartTranslateX = useSharedValue(0);
+  const pinchStartTranslateY = useSharedValue(0);
+  const pinchStartFocalX = useSharedValue(0);
+  const pinchStartFocalY = useSharedValue(0);
+  const panStartTranslateX = useSharedValue(0);
+  const panStartTranslateY = useSharedValue(0);
 
-  const pinchGesture = Gesture.Pinch()
-    .onStart((e) => {
-      pintchStartScale.value = scale.value;
+  // 같은 이미지를 다시 그리는 리렌더링에서는 줌을 유지하고,
+  // 날짜가 바뀌어 이미지 URI가 바뀐 경우에만 초기화한다.
+  useEffect(() => {
+    scale.value = MIN_SCALE;
+    translateX.value = 0;
+    translateY.value = 0;
+    savedTranslateX.value = 0;
+    savedTranslateY.value = 0;
+  }, [uri, scale, translateX, translateY, savedTranslateX, savedTranslateY]);
 
-      pintchStartTranslateX.value = translateX.value;
-      pintchStartTranslateY.value = translateY.value;
-
-      pintchStartFocalX.value = e.focalX - containerWidth.value / 2;
-      pintchStartFocalY.value = e.focalY - containerHeight.value / 2;
+  const pinchGesture = useMemo(() => Gesture.Pinch()
+    .onStart((event) => {
+      pinchStartScale.value = scale.value;
+      pinchStartTranslateX.value = translateX.value;
+      pinchStartTranslateY.value = translateY.value;
+      pinchStartFocalX.value = event.focalX - containerWidth.value / 2;
+      pinchStartFocalY.value = event.focalY - containerHeight.value / 2;
     })
-    .onUpdate((e) => {
-      
-      const nextScale = Math.min(Math.max(savedScale.value * e.scale, 1), 5);
-
-      const scaleRatio = nextScale / pintchStartScale.value;
-
-      const currentFocalX = e.focalX - containerWidth.value / 2;
-
-      const currentFocalY = e.focalY - containerHeight.value / 2;
+    .onUpdate((event) => {
+      const nextScale = clamp(
+        pinchStartScale.value * event.scale,
+        MIN_SCALE,
+        MAX_SCALE,
+      );
+      const scaleRatio = nextScale / pinchStartScale.value;
+      const currentFocalX = event.focalX - containerWidth.value / 2;
+      const currentFocalY = event.focalY - containerHeight.value / 2;
 
       scale.value = nextScale;
-
-      translateX.value = currentFocalX - scaleRatio * (pintchStartFocalX.value - pintchStartTranslateX.value);
-      translateY.value = currentFocalY - scaleRatio * (pintchStartFocalY.value - pintchStartTranslateY.value);
-
-      if (nextScale <= 1) {
+      translateX.value = currentFocalX - scaleRatio * (
+        pinchStartFocalX.value - pinchStartTranslateX.value
+      );
+      translateY.value = currentFocalY - scaleRatio * (
+        pinchStartFocalY.value - pinchStartTranslateY.value
+      );
+    })
+    .onEnd(() => {
+      if (scale.value <= MIN_SCALE) {
+        scale.value = MIN_SCALE;
         translateX.value = 0;
         translateY.value = 0;
         savedTranslateX.value = 0;
         savedTranslateY.value = 0;
+        return;
       }
-    })
-    .onEnd(() => {
-      savedScale.value = scale.value;
-      
-      if (scale.value <= 1) {
-        translateX.value = 0;
-        translateY.value = 0;
-        savedTranslateX.value = 0;
-        savedTranslateY.value = 0;
-      } 
-      else {
-        savedTranslateX.value = translateX.value;
-        savedTranslateY.value = translateY.value;
-      }
-    });
-
-  const doubleTap = Gesture.Tap()
-    .numberOfTaps(2)
-    .onEnd(() => {
-      if (scale.value > 1) {
-
-        scale.value = withTiming(1);        // 부드러운 복귀를 위한 애니매이션
-        translateX.value = withTiming(0);
-        translateY.value = withTiming(0);
-
-        scale.value = 1;
-        savedScale.value = 1;
-
-        translateX.value = 0;       // 위치 초기화
-        translateY.value = 0;
-        savedTranslateX.value = 0;
-        savedTranslateY.value = 0;
-
-      } else {
-        scale.value = 2.5;
-        savedScale.value = 2.5;
-      }
-    });
-
-  const panGesture = Gesture.Pan()
-    .onUpdate((e) => {
-      if (scale.value <= 1) return;
-
-      const maxX = (containerWidth.value * (scale.value -1)) / 2;
-      const maxY = (containerHeight.value * (scale.value - 1)) / 2;
-
-      translateX.value = clamp(
-        savedTranslateX.value + e.translationX, -maxX, maxX
-      );
-
-      translateY.value = clamp(
-        savedTranslateY.value + e.translationY, -maxY, maxY
-      );
-    })
-    .onEnd(() => {
-      if (scale.value <= 1) return;
 
       savedTranslateX.value = translateX.value;
       savedTranslateY.value = translateY.value;
-    });
-      
+    }), [containerHeight, containerWidth, pinchStartFocalX, pinchStartFocalY,
+      pinchStartScale, pinchStartTranslateX, pinchStartTranslateY, scale,
+      savedTranslateX, savedTranslateY, translateX, translateY]);
 
-  const composed = Gesture.Simultaneous(pinchGesture, doubleTap, panGesture);
+  const panGesture = useMemo(() => Gesture.Pan()
+    .maxPointers(1)
+    .onStart(() => {
+      panStartTranslateX.value = translateX.value;
+      panStartTranslateY.value = translateY.value;
+    })
+    .onUpdate((event) => {
+      if (scale.value <= MIN_SCALE) return;
+
+      const maxX = (containerWidth.value * (scale.value - 1)) / 2;
+      const maxY = (containerHeight.value * (scale.value - 1)) / 2;
+      translateX.value = clamp(
+        panStartTranslateX.value + event.translationX,
+        -maxX,
+        maxX,
+      );
+      translateY.value = clamp(
+        panStartTranslateY.value + event.translationY,
+        -maxY,
+        maxY,
+      );
+    })
+    .onEnd(() => {
+      savedTranslateX.value = translateX.value;
+      savedTranslateY.value = translateY.value;
+    }), [containerHeight, containerWidth, panStartTranslateX,
+      panStartTranslateY, scale, savedTranslateX, savedTranslateY,
+      translateX, translateY]);
+
+  const doubleTap = useMemo(() => Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      const nextScale = scale.value > MIN_SCALE ? MIN_SCALE : DOUBLE_TAP_SCALE;
+      scale.value = withTiming(nextScale);
+      translateX.value = withTiming(0);
+      translateY.value = withTiming(0);
+      savedTranslateX.value = 0;
+      savedTranslateY.value = 0;
+    }), [savedTranslateX, savedTranslateY, scale, translateX, translateY]);
+
+  // 핀치와 팬만 동시에 허용하고, 더블탭은 별도 우선순위로 처리한다.
+  const composed = useMemo(
+    () => Gesture.Exclusive(doubleTap, Gesture.Simultaneous(pinchGesture, panGesture)),
+    [doubleTap, panGesture, pinchGesture],
+  );
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [

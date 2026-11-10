@@ -134,6 +134,8 @@ export const FriendManagementModal = ({ visible, onClose }: Props) => {
       Alert.alert("완료", "친구 관계가 해제되었습니다.");
       queryClient.invalidateQueries({ queryKey: ["friends"] });
       queryClient.invalidateQueries({ queryKey: ["searchFriends"] });
+      queryClient.invalidateQueries({ queryKey: ["chatRooms"] });
+      queryClient.invalidateQueries({ queryKey: ["directChatRoom"] });
     },
     onError: (err: any) => {
       Alert.alert("오류", err?.response?.data?.detail || "친구 삭제 중 오류가 발생했습니다.");

@@ -5,7 +5,7 @@ from collections import Counter
 from datetime import datetime
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 
 from dotenv import load_dotenv
 from pydantic import ValidationError
@@ -339,6 +339,62 @@ class CampusAIBot:
             lines.append(document.page_content)
         return "\n".join(lines)
 
+    @staticmethod
+    def _build_navigation_targets(
+        question: str,
+        documents: list[Document],
+    ) -> list[dict[str, Any]]:
+        """검색된 공식 문서에서 앱 내부 이동 목적지를 만든다."""
+        requested_sources: set[str] = set()
+        if any(keyword in question for keyword in NOTICE_QUERY_KEYWORDS):
+            requested_sources.add("공지사항")
+        if any(keyword in question for keyword in MEAL_QUERY_KEYWORDS):
+            requested_sources.add("학식")
+        if any(keyword in question for keyword in SHUTTLE_QUERY_KEYWORDS):
+            requested_sources.add("셔틀시간표")
+
+        targets: list[dict[str, Any]] = []
+        seen: set[tuple[str, tuple[tuple[str, str], ...]]] = set()
+        for document in documents:
+            metadata = document.metadata
+            source = CampusAIBot._document_source(document)
+            if source not in requested_sources:
+                continue
+
+            target: dict[str, Any] | None = None
+            if source == "공지사항" and metadata.get("notice_id") is not None:
+                target = {
+                    "type": "notice",
+                    "label": "공지 보기",
+                    "params": {"id": str(metadata["notice_id"])},
+                }
+            elif source == "학식" and metadata.get("date"):
+                date = str(metadata["date"])
+                target = {
+                    "type": "meal",
+                    "label": f"{date} 식단표 보기",
+                    "params": {"date": date},
+                }
+            elif source == "셔틀시간표" and metadata.get("semester"):
+                semester = str(metadata["semester"])
+                target = {
+                    "type": "shuttle",
+                    "label": f"{semester} 셔틀표 보기",
+                    "params": {"semester": semester},
+                }
+
+            if target is None:
+                continue
+            identity = (
+                str(target["type"]),
+                tuple(sorted((str(key), str(value)) for key, value in target["params"].items())),
+            )
+            if identity not in seen:
+                seen.add(identity)
+                targets.append(target)
+
+        return targets[:3]
+
     async def _retrieve_documents(
         self,
         question: str,
@@ -444,7 +500,8 @@ class CampusAIBot:
         question: str,
         rewritten_question: str | None = None,
         personal_context: str | None = None,
-    ) -> str:
+        include_navigation_targets: bool = False,
+    ) -> str | tuple[str, list[dict[str, Any]]]:
         """Qdrant 검색 결과를 우선 사용하고 정적 학사일정은 fallback으로만 사용합니다."""
         context_sections: list[str] = []
         timetable_only_query = bool(personal_context) and is_timetable_only_query(question)
@@ -501,16 +558,20 @@ class CampusAIBot:
         if personal_context:
             context_sections.append(personal_context)
 
-        return (
+        context = (
             "\n\n".join(context_sections)
             if context_sections
             else "검색된 정보가 없습니다."
         )
+        if include_navigation_targets:
+            return context, self._build_navigation_targets(question, documents)
+        return context
 
     async def astream_answer(
         self,
         question: str,
         personal_context: str | None = None,
+        on_navigation_targets: Callable[[list[dict[str, Any]]], None] | None = None,
     ) -> AsyncIterator[str]:
         """RAG 검색을 수행하고 LLM 답변을 문자열 조각 단위로 반환합니다."""
         if not self.is_initialized:
@@ -535,11 +596,15 @@ class CampusAIBot:
                 rewritten_question = question
             print(f"🔄 [AI Bot] 검색 질문: {rewritten_question}", flush=True)
 
-            context = await self.build_context(
+            context_result = await self.build_context(
                 question,
                 rewritten_question,
                 personal_context=personal_context,
+                include_navigation_targets=True,
             )
+            context, navigation_targets = context_result
+            if on_navigation_targets is not None:
+                on_navigation_targets(navigation_targets)
             print(
                 f"📚 [AI Bot] Context 구성 완료: {len(context)}자",
                 flush=True,
@@ -586,6 +651,7 @@ class CampusAIBot:
         self,
         question: str,
         personal_context: str | None = None,
+        on_navigation_targets: Callable[[list[dict[str, Any]]], None] | None = None,
     ) -> str:
         """기존 호출자를 위해 스트림을 모아 완성된 답변 문자열로 반환합니다."""
         try:
@@ -593,6 +659,7 @@ class CampusAIBot:
             async for chunk in self.astream_answer(
                 question,
                 personal_context=personal_context,
+                on_navigation_targets=on_navigation_targets,
             ):
                 chunks.append(chunk)
             return "".join(chunks)

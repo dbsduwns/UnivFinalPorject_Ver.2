@@ -12,6 +12,13 @@ export interface ChatMessage {
     role: 'user' | 'assistant';
     content: string;
     created_at: string;
+    navigation_targets?: ChatNavigationTarget[];
+}
+
+export interface ChatNavigationTarget {
+    type: 'notice' | 'meal' | 'shuttle';
+    label: string;
+    params: Record<string, string>;
 }
 
 export interface ChatSendResponse {
@@ -35,6 +42,10 @@ export type ChatStreamEvent =
     | {
         type: 'delta';
         content: string;
+    }
+    | {
+        type: 'navigation';
+        targets: ChatNavigationTarget[];
     }
     | {
         type: 'done';

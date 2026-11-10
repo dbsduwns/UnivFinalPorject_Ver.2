@@ -33,9 +33,10 @@ type AuthState = {
   googleLogin: (idToken: string) => Promise<GoogleLoginResponse>;
   completeGoogleLogin: (tokens: { access_token: string; refresh_token: string }) => Promise<void>;
   unlockWithBiometric: () => Promise<boolean>;
+  lockForBiometric: () => Promise<boolean>;
 };
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   pendingOnboarding: null,
   ready: false,
@@ -162,6 +163,14 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     const user = await meRequest();
     set({ user, ready: true, biometricRequired: false });
+    return true;
+  },
+
+  lockForBiometric: async () => {
+    if (!get().user || !(await biometricStorage.isBiometricLoginEnabled())) return false;
+
+    console.log("[AuthStore] Locking session after background timeout");
+    set({ user: null, ready: true, biometricRequired: true });
     return true;
   },
 }));

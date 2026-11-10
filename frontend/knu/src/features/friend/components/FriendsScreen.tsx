@@ -29,6 +29,8 @@ export const FriendsScreen = () => {
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["friends"] });
       void client.invalidateQueries({ queryKey: ["friendRequests"] });
+      void client.invalidateQueries({ queryKey: ["chatRooms"] });
+      void client.invalidateQueries({ queryKey: ["directChatRoom"] });
     },
     onError: (error) => Alert.alert("삭제 실패", getAxiosErrorMessage(error, "친구 삭제에 실패했습니다.")),
   });

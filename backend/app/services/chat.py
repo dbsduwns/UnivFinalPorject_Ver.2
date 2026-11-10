@@ -77,6 +77,12 @@ def create_room(db: Session, user: User, data: MessengerRoomCreate) -> RoomMesse
             .first()
         )
         if existing_room is not None:
+            was_hidden = False
+            for participant in existing_room.participants:
+                was_hidden = was_hidden or participant.hidden_at is not None
+                participant.hidden_at = None
+            if was_hidden:
+                db.commit()
             return _with_my_notification_setting(existing_room, user.id)
 
     room = RoomMessenger(is_group=is_group, name=data.name if is_group else None, direct_key=direct_key)
@@ -107,7 +113,7 @@ def get_my_rooms(db: Session, user: User) -> list[ChatRoomResponse]:
         db.query(RoomMessenger)
         .join(RoomParticipant, RoomParticipant.room_id == RoomMessenger.id)
         .options(selectinload(RoomMessenger.participants).selectinload(RoomParticipant.user))
-        .filter(RoomParticipant.user_id == user.id)
+        .filter(RoomParticipant.user_id == user.id, RoomParticipant.hidden_at.is_(None))
         .order_by(RoomMessenger.updated_at.desc(), RoomMessenger.id.desc())
         .all()
     )
@@ -152,7 +158,11 @@ def get_my_room(db: Session, user: User, room_id: int) -> RoomMessenger | None:
         db.query(RoomMessenger)
         .join(RoomParticipant, RoomParticipant.room_id == RoomMessenger.id)
         .options(selectinload(RoomMessenger.participants).selectinload(RoomParticipant.user))
-        .filter(RoomMessenger.id == room_id, RoomParticipant.user_id == user.id)
+        .filter(
+            RoomMessenger.id == room_id,
+            RoomParticipant.user_id == user.id,
+            RoomParticipant.hidden_at.is_(None),
+        )
         .first()
     )
     return _with_my_notification_setting(room, user.id) if room is not None else None

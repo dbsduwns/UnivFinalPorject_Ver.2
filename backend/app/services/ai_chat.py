@@ -125,13 +125,20 @@ async def send_message(db: Session, user: User, room_id: int, data: ChatMessageC
     print(f"DEBUG: [chat_service] Calling AI bot for room {room_id}...")
     personal_context = _build_personal_context(db, user, data.content)
 
+    navigation_targets: list[dict[str, Any]] = []
     reply = await campus_ai_bot.ask(
         data.content,
         personal_context=personal_context,
+        on_navigation_targets=navigation_targets.extend,
     )
     print(f"DEBUG: [chat_service] AI bot replied. Saving assistant message...")
 
-    assistant_message = Message(chat_room_id=room.id, role="assistant", content=reply)
+    assistant_message = Message(
+        chat_room_id=room.id,
+        role="assistant",
+        content=reply,
+        navigation_targets=navigation_targets,
+    )
     db.add(assistant_message)
 
     # 채팅방 제목이 기본값이면 첫 질문으로 업데이트 (최대 20자)
@@ -188,12 +195,20 @@ async def stream_message(
     yield encode_stream_event({"type": "status", "status": "searching"})
 
     chunks: list[str] = []
+    navigation_targets: list[dict[str, Any]] = []
+    navigation_event_sent = False
     generation_started = False
     try:
         async for chunk in campus_ai_bot.astream_answer(
             question,
             personal_context=personal_context,
+            on_navigation_targets=navigation_targets.extend,
         ):
+            if navigation_targets and not navigation_event_sent:
+                navigation_event_sent = True
+                yield encode_stream_event(
+                    {"type": "navigation", "targets": navigation_targets}
+                )
             if not generation_started:
                 generation_started = True
                 yield encode_stream_event(
@@ -211,6 +226,7 @@ async def stream_message(
                 chat_room_id=room.id,
                 role="assistant",
                 content=reply,
+                navigation_targets=navigation_targets,
             )
             stream_db.add(assistant_message)
             stream_db.commit()

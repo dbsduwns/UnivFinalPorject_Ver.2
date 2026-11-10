@@ -12,6 +12,8 @@ from app.models.timetable import Timetable
 from app.models.timetable_course import TimetableCourse
 from app.models.course import Course
 from app.models.custom_schedule import CustomSchedule
+from app.models.room_messengers import RoomMessenger
+from app.models.room_participants import RoomParticipant
 
 
 FRIEND_INVITE_EXPIRE_DAYS = 7
@@ -386,6 +388,23 @@ def delete_friend(db: Session, current_user: User, friend_id: int) -> None:
     )
     if not friendship:
         raise ValueError("친구 관계가 존재하지 않습니다.")
+
+    # 친구 관계 해제와 함께 두 사용자의 1:1 채팅방을 목록에서 숨긴다.
+    # 방과 메시지는 물리적으로 삭제하지 않아 대화 기록을 보존한다.
+    direct_key = ":".join(str(user_id) for user_id in sorted((current_user.id, friend_id)))
+    direct_room = (
+        db.query(RoomMessenger)
+        .filter(RoomMessenger.direct_key == direct_key, RoomMessenger.is_group.is_(False))
+        .first()
+    )
+    if direct_room is not None:
+        db.query(RoomParticipant).filter(
+            RoomParticipant.room_id == direct_room.id,
+            RoomParticipant.user_id.in_([current_user.id, friend_id]),
+        ).update(
+            {RoomParticipant.hidden_at: datetime.now(timezone.utc).replace(tzinfo=None)},
+            synchronize_session=False,
+        )
 
     db.delete(friendship)
     db.commit()

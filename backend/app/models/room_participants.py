@@ -12,6 +12,7 @@ class RoomParticipant(Base):
     last_read = Column(TIMESTAMP, server_default=func.now())
     last_read_message_id = Column(Integer, nullable=True)
     is_muted = Column(Boolean, nullable=False, default=False, server_default="false")
+    hidden_at = Column(TIMESTAMP, nullable=True)
 
     user = relationship("User", back_populates="room_participants")
     room = relationship("RoomMessenger", back_populates="participants")

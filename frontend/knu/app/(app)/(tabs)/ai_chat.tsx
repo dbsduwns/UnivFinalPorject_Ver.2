@@ -5,6 +5,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  Pressable,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
@@ -14,11 +15,11 @@ import {
   Animated,
   Alert,
 } from "react-native";
-import { Send, Bot, User, Inbox, Plus, MessageSquare, X, Trash2, Edit3, Square } from "lucide-react-native";
+import { Send, Bot, User, Inbox, Plus, MessageSquare, X, Trash2, Edit3, Square, ExternalLink } from "lucide-react-native";
 
 import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
 import { chatApi } from "@/features/ai_chat/api/ai_chat";
-import type { ChatMessage, ChatRoom, ChatStreamStatus } from "@/features/ai_chat/api/types";
+import type { ChatMessage, ChatNavigationTarget, ChatRoom, ChatStreamStatus } from "@/features/ai_chat/api/types";
 
 const DRAWER_WIDTH = 300;
 
@@ -261,6 +262,17 @@ export default function AIChatScreen() {
             return;
           }
 
+          if (event.type === "navigation") {
+            setMessages((previous) =>
+              previous.map((message) =>
+                message.id === tempAssistantId
+                  ? { ...message, navigation_targets: event.targets }
+                  : message,
+              ),
+            );
+            return;
+          }
+
           if (event.type === "done") {
             setCurrentRoom(event.room);
             setStreamStatus(null);
@@ -387,6 +399,29 @@ export default function AIChatScreen() {
     void onSend(question);
   }, [pendingQuestion, isChatInitialized, isLoading, isStreaming]);
 
+  const openAssistantTarget = (target: ChatNavigationTarget) => {
+    if (target.type === "notice" && target.params.id) {
+      router.push({
+        pathname: "/(app)/notice/[id]",
+        params: { id: target.params.id },
+      });
+      return;
+    }
+    if (target.type === "meal" && target.params.date) {
+      router.push({
+        pathname: "/(app)/(tabs)/meal",
+        params: { date: target.params.date },
+      });
+      return;
+    }
+    if (target.type === "shuttle" && target.params.semester) {
+      router.push({
+        pathname: "/(app)/(tabs)/shuttle",
+        params: { semester: target.params.semester },
+      });
+    }
+  };
+
   const renderEmptyComponent = () => (
     <View className="flex-1 items-center justify-center pt-20 px-10">
       <View className="w-20 h-20 bg-blue-50 rounded-full items-center justify-center mb-6">
@@ -452,6 +487,22 @@ export default function AIChatScreen() {
           >
             {displayedContent}
           </Text>
+          {isAssistant && (item.navigation_targets?.length ?? 0) > 0 && (
+            <View className="mt-3 border-t border-gray-300 pt-2">
+              {item.navigation_targets?.map((target) => (
+                <Pressable
+                  key={`${target.type}-${JSON.stringify(target.params)}`}
+                  onPress={() => openAssistantTarget(target)}
+                  className="mt-1 flex-row items-center rounded-xl bg-white px-3 py-2 active:opacity-70"
+                >
+                  <ExternalLink size={15} color="#2563EB" />
+                  <Text className="ml-2 flex-1 text-sm font-bold text-blue-700">
+                    {target.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
         </View>
         {!isAssistant && (
           <View className="w-8 h-8 rounded-full bg-gray-400 items-center justify-center ml-2">

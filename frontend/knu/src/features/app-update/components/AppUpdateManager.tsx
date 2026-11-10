@@ -15,6 +15,7 @@ import * as IntentLauncher from "expo-intent-launcher";
 import * as SecureStore from "expo-secure-store";
 import * as Updates from "expo-updates";
 import { Download, RefreshCw, ShieldCheck, Smartphone } from "lucide-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { checkAndroidAppUpdate } from "@/features/app-update/api/app-update";
 import type { AppRelease } from "@/features/app-update/types";
@@ -41,6 +42,7 @@ function installedVersionName() {
 }
 
 export function AppUpdateManager() {
+  const insets = useSafeAreaInsets();
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
@@ -191,10 +193,14 @@ export function AppUpdateManager() {
       visible
       animationType="fade"
       statusBarTranslucent
+      navigationBarTranslucent={false}
       onRequestClose={() => { if (!mandatory) void closeOptionalUpdate(); }}
     >
       <View className="flex-1 bg-black/50 justify-end sm:justify-center sm:items-center">
-        <View className="bg-white rounded-t-[28px] sm:rounded-[28px] px-6 pt-7 pb-8 sm:w-[440px] sm:max-w-[90%]">
+        <View
+          className="bg-white rounded-t-[28px] sm:rounded-[28px] px-6 pt-7 sm:w-[440px] sm:max-w-[90%]"
+          style={{ paddingBottom: Math.max(insets.bottom + 16, 32) }}
+        >
           <View className="w-14 h-14 rounded-2xl bg-cyan-50 items-center justify-center">
             {isBinary ? <Download size={28} color={BRAND} /> : <RefreshCw size={28} color={BRAND} />}
           </View>

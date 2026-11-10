@@ -13,6 +13,7 @@ from app.models.user import User
 from app.models.user_presence import UserPresence
 from app.schemas.chat import ChatMessageCreate, ChatMessageResponse, ChatRoomResponse, MessengerRoomCreate
 from app.services import chat
+from app.services import friend as friend_service
 
 
 class FriendChatTest(unittest.TestCase):
@@ -169,6 +170,38 @@ class FriendChatTest(unittest.TestCase):
 
         replacement = chat.create_room(self.db, alice, MessengerRoomCreate(friend_id=bob.id))
         self.assertNotEqual(original.id, replacement.id)
+
+    @patch("app.services.chat.notify_users_by_type_sync")
+    def test_deleting_friend_hides_direct_room_but_preserves_messages(self, notify):
+        alice, bob, _, _ = self.users
+        direct = chat.create_room(self.db, alice, MessengerRoomCreate(friend_id=bob.id))
+        direct_id = direct.id
+        message = chat.send_message(self.db, alice, direct.id, ChatMessageCreate(content="보존할 대화"))
+
+        friend_service.delete_friend(self.db, alice, bob.id)
+
+        self.assertIsNotNone(self.db.get(RoomMessenger, direct_id))
+        preserved = self.db.get(Messenger, message.id)
+        self.assertIsNotNone(preserved)
+        self.assertEqual(preserved.room_messenger_id, direct_id)
+        self.assertEqual(chat.get_my_rooms(self.db, alice), [])
+        self.assertEqual(chat.get_my_rooms(self.db, bob), [])
+        self.assertFalse(
+            self.db.query(Friendship)
+            .filter(
+                Friendship.status == "ACCEPTED",
+                Friendship.requester_id == alice.id,
+                Friendship.addressee_id == bob.id,
+            )
+            .count()
+        )
+
+        # 다시 친구가 되면 기존 방과 대화를 복구한다.
+        self.db.add(Friendship(requester_id=alice.id, addressee_id=bob.id, status="ACCEPTED"))
+        self.db.commit()
+        reopened = chat.create_room(self.db, alice, MessengerRoomCreate(friend_id=bob.id))
+        self.assertEqual(reopened.id, direct_id)
+        self.assertEqual(len(chat.get_room_messages(self.db, alice, direct_id)), 1)
 
 
 if __name__ == "__main__":
