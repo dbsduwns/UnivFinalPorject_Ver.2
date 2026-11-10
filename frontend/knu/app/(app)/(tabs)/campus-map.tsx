@@ -403,7 +403,7 @@ function TransitStopAccordion({
   }, [data, onLiveDataChange, realtimeQueryEnabled, stepIndex]);
   useEffect(() => {
     if (!data || !realtimeQueryEnabled) return;
-    console.log("[Transit] live response", {
+    const diagnostics = {
       route: step.transit_line_name,
       departure: step.departure_stop_name,
       arrival: step.arrival_stop_name,
@@ -438,7 +438,14 @@ function TransitStopAccordion({
       vehiclePositionStatus: data.vehicle_position_status,
       vehiclePositionReason: data.vehicle_position_reason,
       cachedAt: data.cached_at,
-    });
+    };
+    // React Native의 객체 pretty-printer는 중첩 값이 많으면
+    // formatValueCalls 제한으로 실제 정류장 ID를 [TOO BIG]으로 바꾼다.
+    // JSON 문자열로 출력해 진단 필드를 그대로 보존한다.
+    const { routeStops, vehicles, ...summary } = diagnostics;
+    console.log("[Transit] live summary", JSON.stringify(summary));
+    console.log("[Transit] route stops", JSON.stringify(routeStops));
+    console.log("[Transit] vehicles", JSON.stringify(vehicles));
   }, [data, realtimeQueryEnabled, step.arrival_stop_name, step.departure_stop_name, step.transit_line_name]);
   // 응답에는 탑승 전 5개부터 하차 후 3개까지의 연속 정류장 구간이 포함된다.
   const visibleStops = data?.route_stops ?? [];

@@ -1516,7 +1516,17 @@ def _coordinates(item, latitude_keys, longitude_keys):
     return latitude, longitude
 
 
-def _vehicle(number, order, stops, *, latitude=None, longitude=None, position_source="stop"):
+def _vehicle(
+    number,
+    order,
+    stops,
+    *,
+    latitude=None,
+    longitude=None,
+    position_source="stop",
+    direction=None,
+    destination_name=None,
+):
     stop = next((stop for stop in stops if stop.stop_order == order), None)
     if not number or number == "0" or (not stop and (latitude is None or longitude is None)):
         return []
@@ -1524,6 +1534,8 @@ def _vehicle(number, order, stops, *, latitude=None, longitude=None, position_so
         latitude, longitude = stop.latitude, stop.longitude
     return [LiveBusPositionResponse(
         vehicle_number=number,
+        direction=direction,
+        destination_name=destination_name,
         latitude=latitude,
         longitude=longitude,
         position_source=position_source,
@@ -1648,14 +1660,22 @@ def _gyeonggi_arrival_for_log(item):
     """GBIS 도착 응답에서 방향·예측 오차 진단에 필요한 공개 운행 필드만 남긴다."""
     return {
         "flag": _text(item.get("flag")) or None,
+        "route_id": _text(item.get("routeId")) or None,
+        "station_id": _text(item.get("stationId")) or None,
+        "station_order": _number(item.get("staOrder")),
+        "destination_id": _text(item.get("routeDestId")) or None,
+        "destination_name": _text(item.get("routeDestName")) or None,
+        "turn_order": _number(item.get("turnSeq")),
         "first_vehicle": {
             "number": _text(item.get("plateNo1")) or None,
+            "vehicle_id": _text(item.get("vehId1")) or None,
             "predict_minutes": _number(item.get("predictTime1")),
             "predict_seconds": _number(item.get("predictTimeSec1")),
             "remaining_stops": _number(item.get("locationNo1")),
         },
         "second_vehicle": {
             "number": _text(item.get("plateNo2")) or None,
+            "vehicle_id": _text(item.get("vehId2")) or None,
             "predict_minutes": _number(item.get("predictTime2")),
             "predict_seconds": _number(item.get("predictTimeSec2")),
             "remaining_stops": _number(item.get("locationNo2")),
@@ -1884,14 +1904,35 @@ def _read_arrival(provider, route_id, city_code, stops, start, end, route_info=N
         item = items[0] if items else {}
         minutes = _number(item.get("predictTime1"))
         seconds = _number(item.get("predictTimeSec1"))
-        number = _text(item.get("plateNo1"))
+        destination_name = _text(item.get("routeDestName")) or None
+        arrival_vehicle_ids = {
+            vehicle_id
+            for vehicle_id in (_text(item.get("vehId1")), _text(item.get("vehId2")))
+            if vehicle_id
+        }
+        arrival_vehicle_numbers = {
+            vehicle_number
+            for vehicle_number in (_text(item.get("plateNo1")), _text(item.get("plateNo2")))
+            if vehicle_number
+        }
+        number = _text(item.get("plateNo1")) or _text(item.get("vehId1"))
         has_arrival = bool(number and item.get("flag") not in {"STOP", "WAIT"}
                            and (minutes is not None or seconds is not None))
         if seconds is not None and seconds >= 0:
             minutes = math.ceil(seconds / 60)
         remaining = _number(item.get("locationNo1"))
         order = start.stop_order - remaining if remaining is not None and remaining >= 0 else None
-        arrival_vehicle = _vehicle(number, order, stops, position_source="stop") if has_arrival else []
+        arrival_vehicle = (
+            _vehicle(
+                number,
+                order,
+                stops,
+                position_source="stop",
+                direction=destination_name,
+                destination_name=destination_name,
+            )
+            if has_arrival else []
+        )
         _log_live_stage(
             "gyeonggi_bus_arrival_received",
             "provider_arrival_response",
@@ -1919,8 +1960,30 @@ def _read_arrival(provider, route_id, city_code, stops, start, end, route_info=N
             position_count=len(positions),
             positions=_gyeonggi_positions_for_log(positions, stops),
         )
+        direction_verified_positions = [
+            position
+            for position in positions
+            if (
+                (_text(position.get("vehId")) in arrival_vehicle_ids)
+                or _text(position.get("plateNo")) in arrival_vehicle_numbers
+            )
+        ]
+        _log_live_stage(
+            "gyeonggi_bus_direction_filter",
+            "vehicle_direction_filter",
+            provider=provider,
+            route_id=route_id,
+            destination_id=_text(item.get("routeDestId")) or None,
+            destination_name=destination_name,
+            arrival_vehicle_ids=sorted(arrival_vehicle_ids),
+            arrival_vehicle_numbers=sorted(arrival_vehicle_numbers),
+            input_position_count=len(positions),
+            matched_position_count=len(direction_verified_positions),
+            unmatched_position_count=len(positions) - len(direction_verified_positions),
+            policy="arrival_vehicle_id_or_plate_only",
+        )
         vehicles = []
-        for position in positions:
+        for position in direction_verified_positions:
             stop_id = _text(position.get("stationId"))
             stop_order = _number(position.get("stationSeq"))
             if stop_order is None and stop_id:
@@ -1931,6 +1994,8 @@ def _read_arrival(provider, route_id, city_code, stops, start, end, route_info=N
                 stop_order,
                 stops,
                 position_source="stop",
+                direction=destination_name,
+                destination_name=destination_name,
             ))
         known_numbers = {vehicle.vehicle_number for vehicle in vehicles}
         vehicles.extend(vehicle for vehicle in arrival_vehicle
@@ -1938,11 +2003,15 @@ def _read_arrival(provider, route_id, city_code, stops, start, end, route_info=N
         if vehicles:
             return (minutes if minutes is not None and minutes >= 0 else None, None,
                     vehicles, positions[0].get("_fetched_at") if positions else item.get("_fetched_at"),
-                    "fallback", "provider_stop_level_only",
-                    "경기도 버스 위치정보 API의 차량별 정류장을 표시합니다.")
+                    "fallback", "arrival_vehicle_direction_verified",
+                    "도착정보 API의 차량 ID와 일치하는 같은 방향 차량만 표시합니다.")
         if positions and not vehicles:
-            reason = "vehicle_location_records_unmatched_to_route_stops"
-            message = "차량 위치 응답은 받았지만 정류장 순번·ID가 노선 정류장과 일치하지 않습니다."
+            if arrival_vehicle_ids or arrival_vehicle_numbers:
+                reason = "no_direction_verified_vehicle_positions"
+                message = "노선 차량은 확인했지만 도착정보와 차량 ID가 일치하는 방향 확인 차량이 없습니다."
+            else:
+                reason = "vehicle_location_records_unmatched_to_route_stops"
+                message = "차량 위치 응답은 받았지만 정류장 순번·ID가 노선 정류장과 일치하지 않습니다."
         elif has_arrival and not arrival_vehicle:
             reason = "arrival_position_fields_missing"
             message = "도착 차량은 확인했지만 해당 위치를 노선 정류장과 연결하지 못했습니다."
