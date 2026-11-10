@@ -12,7 +12,7 @@ import { ReportCommentActions } from "@/features/community/components/ReportComm
 import { AppScreenLayout } from "@/components/ui/AppScreenLayout"
 
 const BRAND = "#13708D";
-const STATUSES = { pending: "접수", reviewing: "검토 중", resolved: "처리 완료", dismissed: "기각" };
+const STATUSES = { pending: "접수", reviewing: "검토중", resolved: "처리 완료", dismissed: "기각" };
 const REASONS: Record<CommentReportReason, string> = { abuse: "욕설·비방", hate: "혐오·차별", sexual: "음란성", spam: "광고·도배", personal_info: "개인정보 노출", impersonation: "사칭", illegal: "불법 정보", other: "기타" };
 const date = (value: string) => new Date(value).toLocaleString("ko-KR");
 
@@ -129,7 +129,7 @@ export default function CommunityAdminScreen() {
                                         </View>
                                         <Text className="text-gray-700 mt-3" numberOfLines={3}>{item.content_snapshot}</Text>
                                         <Text className="text-xs font-bold text-[#13708D] mt-3">누적 {item.report_count}건 · 미처리 {item.pending_report_count}건</Text>
-                                        <Text className="text-xs text-gray-400 mt-3">{item.post_id != null ? "게시글 신고" : "댓글 신고"} #{item.id} · {date(item.created_at)}</Text></Pressable>} />
+                                        <Text className="text-xs text-gray-400 mt-3">{item.comment_id != null ? "댓글 신고" : "게시글 신고"} #{item.id} · {date(item.created_at)}</Text></Pressable>} />
         : <FlatList
             key="blocks" 
             data={blocks.data?.pages.flat() ?? []} 
@@ -192,9 +192,26 @@ function ReportReview({ report, onClose }: { report: AdminReport; onClose: () =>
             <Text className="font-bold text-[#13708D]">{REASONS[report.reason]} · {STATUSES[report.status]}</Text>
             <Text className="text-xs text-gray-500 mt-2">신고자 #{report.reporter_id ?? "삭제됨"} · 대상 #{report.reported_user_id ?? "삭제됨"}</Text>
             <Text className="text-xs text-gray-400 mt-1">{date(report.created_at)}</Text>
-            <Text className="bg-gray-50 rounded-xl p-4 text-gray-800 my-4">{report.content_snapshot}</Text>
+            {!!report.target_post_title && (
+              <View className="bg-blue-50 rounded-xl p-4 mt-4 mb-3">
+                <Text className="text-xs font-bold text-[#13708D] mb-2">
+                  신고 대상 게시글 · {report.target_post_board_slug ?? "게시판"}
+                </Text>
+                <Text className="font-bold text-gray-900">{report.target_post_title}</Text>
+                {!!report.target_post_content && (
+                  <Text className="text-gray-700 mt-2">{report.target_post_content}</Text>
+                )}
+                {report.target_post_is_hidden && (
+                  <Text className="text-xs text-red-600 font-bold mt-2">현재 숨김 처리된 게시글</Text>
+                )}
+              </View>
+            )}
+            <Text className="text-xs font-bold text-gray-500 mb-2">
+              {report.comment_id != null ? "신고된 댓글 내용" : "신고된 게시글 내용"}
+            </Text>
+            <Text className="bg-gray-50 rounded-xl p-4 text-gray-800">{report.content_snapshot}</Text>
             {!!report.description && <Text className="text-gray-600 mb-4">신고 설명: {report.description}</Text>}
-            <Text className="text-xs text-gray-500 mb-4">신고 당시 {report.post_id != null ? "게시글" : "댓글"} 내용입니다. 처리 상태 변경만으로 원본이 삭제되거나 사용자가 정지되지는 않습니다.</Text>
+            <Text className="text-xs text-gray-500 mb-4 mt-3">신고 당시 {report.comment_id != null ? "댓글" : "게시글"} 내용입니다. 처리 상태 변경만으로 원본이 삭제되거나 사용자가 정지되지는 않습니다.</Text>
             {report.reviewed_at && <Text className="text-xs text-gray-400 mb-3">최근 처리: {date(report.reviewed_at)} · 관리자 #{report.reviewed_by_id ?? "삭제됨"}</Text>}
             <View className="flex-row mb-4">
               {(["reviewing", "resolved", "dismissed"] as const)

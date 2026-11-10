@@ -11,6 +11,11 @@ export type AdminReport = CommentReport & {
   pending_report_count: number;
   post_id: number | null;
   comment_is_hidden: boolean | null;
+  target_post_title: string | null;
+  target_post_content: string | null;
+  target_post_board_slug: string | null;
+  target_post_created_at: string | null;
+  target_post_is_hidden: boolean | null;
 };
 export type AdminBlock = { id: number; blocker_id: number; blocked_user_id: number; created_at: string };
 export const getAdminReports = async (skip: number) =>

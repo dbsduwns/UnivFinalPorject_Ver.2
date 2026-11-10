@@ -89,3 +89,8 @@ class AdminCommentReportResponse(CommentReportResponse):
     pending_report_count: int = 0
     post_id: int | None = None
     comment_is_hidden: bool | None = None
+    target_post_title: str | None = None
+    target_post_content: str | None = None
+    target_post_board_slug: str | None = None
+    target_post_created_at: datetime | None = None
+    target_post_is_hidden: bool | None = None

@@ -51,7 +51,11 @@ def enrich_reports(db: Session, reports: list[CommentReport]) -> list[CommentRep
         ).filter(CommentReport.comment_id.in_(ids)).group_by(CommentReport.comment_id).all()
     } if ids else {}
     comments = {comment.id: comment for comment in db.query(Comment).filter(Comment.id.in_(ids)).all()} if ids else {}
-    post_ids = {report.post_id for report in reports if report.post_id is not None}
+    post_ids = {
+        report.post_id or (comments.get(report.comment_id).post_id if comments.get(report.comment_id) else None)
+        for report in reports
+    }
+    post_ids.discard(None)
     posts = {post.id: post for post in db.query(Post).filter(Post.id.in_(post_ids)).all()} if post_ids else {}
     for report in reports:
         report.report_count, report.pending_report_count = counts.get(report.comment_id, (0, 0))
@@ -59,8 +63,13 @@ def enrich_reports(db: Session, reports: list[CommentReport]) -> list[CommentRep
         if report.comment_id is not None:
             report.post_id = comment.post_id if comment else None
             report.comment_is_hidden = comment.is_hidden if comment else None
-        elif report.post_id is not None:
-            post = posts.get(report.post_id)
+        post = posts.get(report.post_id) if report.post_id is not None else None
+        report.target_post_title = post.title if post else None
+        report.target_post_content = post.content if post else None
+        report.target_post_board_slug = post.board_slug if post else None
+        report.target_post_created_at = post.created_at if post else None
+        report.target_post_is_hidden = post.is_hidden if post else None
+        if report.comment_id is None:
             report.comment_is_hidden = post.is_hidden if post else None
     return reports
 
