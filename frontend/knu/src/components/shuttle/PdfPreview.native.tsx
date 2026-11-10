@@ -44,7 +44,7 @@ export default function PdfPreview({ sourceUrl }: PdfPreviewProps) {
 
   if (hasError) {
     return (
-      <Text className="mb-4 text-center text-gray-500">
+      <Text className="flex-1 px-5 text-center text-gray-500">
         미리보기를 불러오지 못했습니다. 아래 PDF 열기를 이용해주세요.
       </Text>
     );
@@ -52,7 +52,7 @@ export default function PdfPreview({ sourceUrl }: PdfPreviewProps) {
 
   if (!previewUri) {
     return (
-      <View className="mb-4 items-center">
+      <View className="flex-1 items-center justify-center">
         <ActivityIndicator size="large" color="#2563eb" />
         <Text className="mt-3 text-gray-500">PDF 미리보기 준비 중...</Text>
       </View>
@@ -60,7 +60,7 @@ export default function PdfPreview({ sourceUrl }: PdfPreviewProps) {
   }
 
   return (
-    <View className="w-full flex-1 mb-4">
+    <View className="w-full flex-1">
       <Pdf
         source={{ uri: previewUri, cache: false }}
         style={{ flex: 1 }}

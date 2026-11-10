@@ -1216,6 +1216,11 @@ def _match_segment_diagnostic(stops, request, *, route_info=None, validate_path=
     details["boarding_stop_name"] = start.stop_name
     details["alighting_stop_id"] = end.stop_id
     details["alighting_stop_name"] = end.stop_name
+    details["matched_segment_stops"] = [
+        _stop_for_log(stop)
+        for stop in sorted(stops, key=lambda item: item.stop_order)
+        if start.stop_order <= stop.stop_order <= end.stop_order
+    ]
     details["boarding_match_distance_m"] = _distance_to_stop(
         start, request.departure_stop_location
     )
@@ -1291,6 +1296,7 @@ def _log_matched_segment(request, provider, route_id, city_code, details):
         "alighting_stop_id": details.get("alighting_stop_id"),
         "boarding_match_distance_m": details.get("boarding_match_distance_m"),
         "alighting_match_distance_m": details.get("alighting_match_distance_m"),
+        "matched_segment_stops": details.get("matched_segment_stops", []),
         "polyline_validation": details.get("polyline_validation"),
         "stop_count_validation": details.get("stop_count_validation"),
         "route_direction_validation": details.get("route_direction_validation"),
@@ -1657,7 +1663,7 @@ def _gyeonggi_arrival_for_log(item):
     }
 
 
-def _gyeonggi_positions_for_log(positions):
+def _gyeonggi_positions_for_log(positions, stops):
     return [
         {
             "vehicle_number": _text(position.get("plateNo"))
@@ -1665,6 +1671,46 @@ def _gyeonggi_positions_for_log(positions):
             or None,
             "stop_id": _text(position.get("stationId")) or None,
             "stop_order": _number(position.get("stationSeq")),
+            "stop_name": next(
+                (
+                    stop.stop_name
+                    for stop in stops
+                    if stop.stop_id == _text(position.get("stationId"))
+                    or stop.stop_order == _number(position.get("stationSeq"))
+                ),
+                None,
+            ),
+        }
+        for position in positions
+    ]
+
+
+def _seoul_positions_for_log(positions, stops):
+    return [
+        {
+            "vehicle_number": _text(position.get("plainNo"))
+            or _text(position.get("vehId"))
+            or None,
+            "vehicle_id": _text(position.get("vehId")) or None,
+            "stop_order": _number(position.get("sectOrd")),
+            "stop_id": next(
+                (
+                    stop.stop_id
+                    for stop in stops
+                    if stop.stop_order == _number(position.get("sectOrd"))
+                ),
+                None,
+            ),
+            "stop_name": next(
+                (
+                    stop.stop_name
+                    for stop in stops
+                    if stop.stop_order == _number(position.get("sectOrd"))
+                ),
+                None,
+            ),
+            "latitude": _coordinates(position, ("posY", "tmY"), ("posX", "tmX"))[0],
+            "longitude": _coordinates(position, ("posY", "tmY"), ("posX", "tmX"))[1],
         }
         for position in positions
     ]
@@ -1871,7 +1917,7 @@ def _read_arrival(provider, route_id, city_code, stops, start, end, route_info=N
             provider=provider,
             route_id=route_id,
             position_count=len(positions),
-            positions=_gyeonggi_positions_for_log(positions),
+            positions=_gyeonggi_positions_for_log(positions, stops),
         )
         vehicles = []
         for position in positions:
@@ -1940,6 +1986,16 @@ def _read_arrival(provider, route_id, city_code, stops, start, end, route_info=N
             return (minutes, message, fallback, item.get("_fetched_at"), status,
                     "location_api_failed",
                     "서울 버스 위치 API 권한 또는 연결 상태를 확인해주세요.")
+        _log_live_stage(
+            "seoul_bus_positions_received",
+            "provider_vehicle_positions",
+            provider=provider,
+            route_id=route_id,
+            position_count=len(positions),
+            positions=_seoul_positions_for_log(positions, stops),
+            boarding_stop=_stop_for_log(start),
+            alighting_stop=_stop_for_log(end),
+        )
         all_vehicles = []
         for position in positions:
             position_order = _number(position.get("sectOrd"))
@@ -2172,6 +2228,7 @@ def get_transit_live(request: TransitLiveRequest):
         google_headsign=request.headsign or None,
         total_stop_count=len(stops),
         displayed_stop_count=len(displayed_stops),
+        displayed_stops=[_stop_for_log(stop) for stop in displayed_stops],
         boarding_stop={"id": start.stop_id, "name": start.stop_name, "order": start.stop_order},
         alighting_stop={"id": end.stop_id, "name": end.stop_name, "order": end.stop_order},
         direction=direction_diagnostic,

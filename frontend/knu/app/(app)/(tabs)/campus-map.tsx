@@ -401,6 +401,45 @@ function TransitStopAccordion({
     onLiveDataChange(stepIndex, realtimeQueryEnabled ? data ?? null : null);
     return () => onLiveDataChange(stepIndex, null);
   }, [data, onLiveDataChange, realtimeQueryEnabled, stepIndex]);
+  useEffect(() => {
+    if (!data || !realtimeQueryEnabled) return;
+    console.log("[Transit] live response", {
+      route: step.transit_line_name,
+      departure: step.departure_stop_name,
+      arrival: step.arrival_stop_name,
+      status: data.status,
+      provider: data.provider,
+      arrivalMinutes: data.arrival_minutes,
+      arrivalMessage: data.arrival_message,
+      boardingStop: {
+        id: data.route_stops.find((stop) => stop.stop_order === data.boarding_stop_order)?.stop_id ?? null,
+        name: step.departure_stop_name,
+        order: data.boarding_stop_order ?? null,
+      },
+      alightingStop: {
+        id: data.route_stops.find((stop) => stop.stop_order === data.alighting_stop_order)?.stop_id ?? null,
+        name: step.arrival_stop_name,
+        order: data.alighting_stop_order ?? null,
+      },
+      routeStops: data.route_stops.map((stop) => ({
+        id: stop.stop_id,
+        name: stop.stop_name,
+        order: stop.stop_order,
+      })),
+      vehicles: data.vehicles.map((vehicle) => ({
+        number: vehicle.vehicle_number,
+        stopId: vehicle.current_stop_id,
+        stopName: vehicle.current_stop_name,
+        stopOrder: vehicle.current_stop_order,
+        direction: vehicle.direction,
+        destination: vehicle.destination_name,
+        source: vehicle.position_source,
+      })),
+      vehiclePositionStatus: data.vehicle_position_status,
+      vehiclePositionReason: data.vehicle_position_reason,
+      cachedAt: data.cached_at,
+    });
+  }, [data, realtimeQueryEnabled, step.arrival_stop_name, step.departure_stop_name, step.transit_line_name]);
   // 응답에는 탑승 전 5개부터 하차 후 3개까지의 연속 정류장 구간이 포함된다.
   const visibleStops = data?.route_stops ?? [];
   const boardingOrder = data?.boarding_stop_order;
