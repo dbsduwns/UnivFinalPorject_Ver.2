@@ -117,6 +117,12 @@ def crawl_notices_safely(max_pages: int = 1000):
                     for item in new_items:
                         # 한 번 더 개별적으로 중복 체크 (세션 내 중복 방지)
                         content, attachment_url, published_at = crawl_detail(page, item["encMenuSeq"], item["encMenuBoardSeq"])
+                        source_url = (
+                            f"{BASE_URL}/menu/board/info/"
+                            f"f19069e6134f8f8aa7f689a4a675e66f.do"
+                            f"?scrtWrtiYn=false&encMenuSeq={item['encMenuSeq']}"
+                            f"&encMenuBoardSeq={item['encMenuBoardSeq']}"
+                        )
                         
                         if content:
                             rag_indexed = False
@@ -127,6 +133,7 @@ def crawl_notices_safely(max_pages: int = 1000):
                                     title=item["title"],
                                     content=content,
                                     category=category_name,
+                                    source_url=source_url,
                                     attachment_url=attachment_url,
                                     published_at=published_at
                                 )
@@ -135,13 +142,22 @@ def crawl_notices_safely(max_pages: int = 1000):
                                 
                                 # RAG 인덱싱
                                 doc = Document(
-                                    page_content=f"제목: {item['title']}\n카테고리: {category_name}\n내용: {content}",
+                                    page_content=(
+                                        f"제목: {item['title']}\n"
+                                        f"카테고리: {category_name}\n"
+                                        f"게시일: {published_at or '확인되지 않음'}\n"
+                                        f"원문 링크: {source_url}\n"
+                                        f"내용: {content}"
+                                    ),
                                     metadata={
                                         "source": "공지사항",
                                         "source_key": item["source_key"],
                                         "notice_id": notice.id,
                                         "category": category_name,
-                                        "title": item["title"]
+                                        "title": item["title"],
+                                        "published_at": published_at,
+                                        "source_url": source_url,
+                                        "attachment_url": attachment_url,
                                     }
                                 )
                                 campus_ai_bot.add_documents([doc])
@@ -268,17 +284,29 @@ def save_to_db_and_rag(notices: list):
                 title=n["title"],
                 content=n["content"],
                 category=n["category"],
+                source_url=n.get("source_url"),
                 attachment_url=n["attachment_url"],
                 published_at=n.get("published_at")
             )
             db.add(notice)
             
             doc = Document(
-                page_content=f"제목: {n['title']}\n카테고리: {n['category']}\n내용: {n['content']}",
+                page_content=(
+                    f"제목: {n['title']}\n"
+                    f"카테고리: {n['category']}\n"
+                    f"게시일: {n.get('published_at') or '확인되지 않음'}\n"
+                    f"원문 링크: {n.get('source_url') or '없음'}\n"
+                    f"내용: {n['content']}"
+                ),
                 metadata={
                     "source": "공지사항",
                     "category": n["category"],
-                    "title": n["title"]
+                    "title": n["title"],
+                    "notice_id": n.get("id"),
+                    "source_key": n.get("source_key"),
+                    "published_at": n.get("published_at"),
+                    "source_url": n.get("source_url"),
+                    "attachment_url": n.get("attachment_url"),
                 }
             )
             indexed_docs.append(doc)

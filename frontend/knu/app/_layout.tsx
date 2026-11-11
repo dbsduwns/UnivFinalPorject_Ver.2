@@ -17,6 +17,7 @@ import { usePresenceStore } from "@/features/presence/store/presence-store";
 import { useAuthBootstrap } from "@/hooks/use-auth-bootstrap";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AppUpdateManager } from "@/features/app-update/components/AppUpdateManager";
+import { StartupLoadingScreen } from "@/components/StartupLoadingScreen";
 
 // 앱 최상단에서 포그라운드 알림 핸들러 등록
 Notifications.setNotificationHandler({
@@ -242,6 +243,10 @@ function NavigationTree() {
 
     return () => subscription.remove();
   }, []);
+
+  if (!authReady) {
+    return <StartupLoadingScreen />;
+  }
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>

@@ -92,6 +92,8 @@ function ZoomableImage({ uri }: { uri: string }) {
 
   const panGesture = useMemo(() => Gesture.Pan()
     .maxPointers(1)
+    // 짧은 터치는 부모/다른 버튼으로 전달하고, 실제 드래그부터 팬을 시작한다.
+    .minDistance(8)
     .onStart(() => {
       panStartTranslateX.value = translateX.value;
       panStartTranslateY.value = translateY.value;
@@ -130,9 +132,12 @@ function ZoomableImage({ uri }: { uri: string }) {
       savedTranslateY.value = 0;
     }), [savedTranslateX, savedTranslateY, scale, translateX, translateY]);
 
-  // 핀치와 팬만 동시에 허용하고, 더블탭은 별도 우선순위로 처리한다.
+  // Exclusive로 더블 탭을 우선하면 두 손가락 핀치가 더블 탭 판정을
+  // 기다리다가 실패하는 기기/버전이 있다. 세 제스처를 동시에 연결하면
+  // 두 손가락은 핀치, 확대 후 한 손가락은 팬, 두 번의 짧은 터치는
+  // 더블 탭으로 각각 처리된다.
   const composed = useMemo(
-    () => Gesture.Exclusive(doubleTap, Gesture.Simultaneous(pinchGesture, panGesture)),
+    () => Gesture.Simultaneous(pinchGesture, panGesture, doubleTap),
     [doubleTap, panGesture, pinchGesture],
   );
 
@@ -154,7 +159,7 @@ function ZoomableImage({ uri }: { uri: string }) {
         containerHeight.value = height;
       }}>
       <GestureDetector gesture={composed}>
-        <Animated.View style={[{ flex: 1 }, animatedStyle]}>
+        <Animated.View collapsable={false} style={[{ flex: 1 }, animatedStyle]}>
           <Image
             source={{ uri }}
             style={{ width: "100%", height: "100%" }}

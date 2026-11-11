@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getAxiosErrorMessage, logDevAxiosError } from "@/api/errors";
 import { useAuthStore } from "@/features/auth/store/auth-store";
 import { API_BASE_URL } from '@/constants/config';
+import { LoginLoadingOverlay } from "@/components/LoginLoadingOverlay";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -181,12 +182,12 @@ export default function LoginScreen() {
 
 
   return (
-    
-    <KeyboardAvoidingView
-      className="flex-1 bg-white dark:bg-neutral-950"
-      behavior={Platform.OS === "ios" ? "padding" : "padding"}
-      keyboardVerticalOffset={0}
-    >
+    <View className="flex-1">
+      <KeyboardAvoidingView
+        className="flex-1 bg-white dark:bg-neutral-950"
+        behavior={Platform.OS === "ios" ? "padding" : "padding"}
+        keyboardVerticalOffset={0}
+      >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <ScrollView
           contentContainerStyle={{
@@ -296,6 +297,11 @@ export default function LoginScreen() {
           </View>
         </ScrollView>
       </TouchableWithoutFeedback>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+      <LoginLoadingOverlay
+        visible={submitting || googleSubmitting}
+        message={googleSubmitting ? "Google 로그인 중입니다" : "로그인 중입니다"}
+      />
+    </View>
   );
 }

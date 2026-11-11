@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="794" height="1123" viewBox="0 0 794 1123">
+  <rect width="794" height="1123" fill="#F5F7FB"/>
+  <rect width="794" height="16" fill="#2457E6"/>
+
+  <text x="68" y="82" font-family="Malgun Gothic, Arial, sans-serif" font-size="18" font-weight="700" fill="#2457E6" letter-spacing="2">02  BACKGROUND</text>
+  <text x="68" y="142" font-family="Malgun Gothic, Arial, sans-serif" font-size="42" font-weight="700" fill="#111827">왜 이 앱을 만들었을까?</text>
+  <text x="68" y="180" font-family="Malgun Gothic, Arial, sans-serif" font-size="18" fill="#667085">학교생활에 필요한 정보는 많지만, 필요한 순간 한곳에서 찾기는 어려웠습니다.</text>
+
+  <rect x="68" y="226" width="658" height="208" rx="24" fill="#111827"/>
+  <circle cx="122" cy="280" r="24" fill="#2457E6"/>
+  <text x="122" y="288" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#FFFFFF">!</text>
+  <text x="166" y="286" font-family="Malgun Gothic, Arial, sans-serif" font-size="24" font-weight="700" fill="#FFFFFF">학생의 하루는 여러 앱과 페이지 사이를 오갑니다.</text>
+  <text x="108" y="339" font-family="Malgun Gothic, Arial, sans-serif" font-size="18" fill="#D0D5DD">공지사항은 학교 홈페이지에서, 식단은 별도 게시판에서,</text>
+  <text x="108" y="372" font-family="Malgun Gothic, Arial, sans-serif" font-size="18" fill="#D0D5DD">셔틀 시간표와 강의 정보는 또 다른 경로에서 확인해야 합니다.</text>
+  <rect x="108" y="398" width="140" height="4" rx="2" fill="#5EEAD4"/>
+
+  <text x="68" y="500" font-family="Malgun Gothic, Arial, sans-serif" font-size="25" font-weight="700" fill="#111827">기존 이용 과정에서 발견한 불편함</text>
+
+  <g font-family="Malgun Gothic, Arial, sans-serif">
+    <rect x="68" y="532" width="312" height="132" rx="18" fill="#FFFFFF" stroke="#E4E7EC"/>
+    <circle cx="108" cy="574" r="18" fill="#E8EEFF"/>
+    <text x="108" y="581" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#2457E6">01</text>
+    <text x="140" y="581" font-size="18" font-weight="700" fill="#1D2939">정보가 흩어져 있음</text>
+    <text x="92" y="620" font-size="15" fill="#667085">학교생활 정보가 여러 서비스에</text>
+    <text x="92" y="644" font-size="15" fill="#667085">분산되어 있어 찾는 시간이 걸립니다.</text>
+
+    <rect x="414" y="532" width="312" height="132" rx="18" fill="#FFFFFF" stroke="#E4E7EC"/>
+    <circle cx="454" cy="574" r="18" fill="#E8EEFF"/>
+    <text x="454" y="581" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#2457E6">02</text>
+    <text x="486" y="581" font-size="18" font-weight="700" fill="#1D2939">확인 과정이 반복됨</text>
+    <text x="438" y="620" font-size="15" fill="#667085">공지, 식단, 셔틀, 시간표를</text>
+    <text x="438" y="644" font-size="15" fill="#667085">각각 따로 확인해야 합니다.</text>
+
+    <rect x="68" y="686" width="312" height="132" rx="18" fill="#FFFFFF" stroke="#E4E7EC"/>
+    <circle cx="108" cy="728" r="18" fill="#E8EEFF"/>
+    <text x="108" y="735" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#2457E6">03</text>
+    <text x="140" y="735" font-size="18" font-weight="700" fill="#1D2939">필요한 순간 놓치기 쉬움</text>
+    <text x="92" y="774" font-size="15" fill="#667085">일정 변경이나 새로운 공지를</text>
+    <text x="92" y="798" font-size="15" fill="#667085">적시에 확인하기 어렵습니다.</text>
+
+    <rect x="414" y="686" width="312" height="132" rx="18" fill="#FFFFFF" stroke="#E4E7EC"/>
+    <circle cx="454" cy="728" r="18" fill="#E8EEFF"/>
+    <text x="454" y="735" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#2457E6">04</text>
+    <text x="486" y="735" font-size="18" font-weight="700" fill="#1D2939">개인 상황을 반영하기 어려움</text>
+    <text x="438" y="774" font-size="15" fill="#667085">나의 시간표와 이동 상황에 맞는</text>
+    <text x="438" y="798" font-size="15" fill="#667085">맞춤형 안내가 부족합니다.</text>
+  </g>
+
+  <rect x="68" y="870" width="658" height="170" rx="24" fill="#E8EEFF"/>
+  <text x="102" y="920" font-family="Malgun Gothic, Arial, sans-serif" font-size="17" font-weight="700" fill="#2457E6">PROJECT INSIGHT</text>
+  <text x="102" y="962" font-family="Malgun Gothic, Arial, sans-serif" font-size="27" font-weight="700" fill="#111827">흩어진 캠퍼스 정보를 하나의 경험으로 연결하다.</text>
+  <text x="102" y="1002" font-family="Malgun Gothic, Arial, sans-serif" font-size="16" fill="#475467">KNU Campus Life는 학생의 하루 흐름에 맞춰 필요한 정보를 모으고,</text>
+  <text x="102" y="1028" font-family="Malgun Gothic, Arial, sans-serif" font-size="16" fill="#475467">더 빠르고 편리한 캠퍼스 생활을 제안합니다.</text>
+
+  <text x="68" y="1080" font-family="Arial, sans-serif" font-size="13" fill="#98A2B3">KNU CAMPUS LIFE  ·  GRADUATION EXHIBITION 2026</text>
+</svg>

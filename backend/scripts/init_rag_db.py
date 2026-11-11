@@ -50,6 +50,8 @@ def build_notice_records(notices: list[Notice]) -> list[tuple[str, Document]]:
                         page_content=(
                             f"제목: {notice.title}\n"
                             f"카테고리: {notice.category}\n"
+                            f"게시일: {notice.published_at.isoformat() if notice.published_at else '확인되지 않음'}\n"
+                            f"원문 링크: {notice.source_url or '없음'}\n"
                             f"내용: {chunk}"
                         ),
                         metadata={

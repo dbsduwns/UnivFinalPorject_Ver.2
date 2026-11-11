@@ -14,8 +14,8 @@ export function useAuthBootstrap() {
     ran.current = true;
 
     void (async () => {
-      await useAuthStore.getState().hydrate();
       await SplashScreen.hideAsync();
+      await useAuthStore.getState().hydrate();
     })();
   }, []);
 }
