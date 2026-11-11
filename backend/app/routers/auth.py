@@ -14,11 +14,20 @@ from app.services import google_auth as google_auth_service
 from app.services import student_verification as student_verification_service
 from app.services import account as account_service
 from app.services import password_reset as password_reset_service
+from app.services import biometric as biometric_service
 from app.schemas.user import PasswordVerifyRequest, PasswordChangeRequest
 from app.models.user import User
 from app.models.notification_setting import NotificationSetting
 from app.models.refresh_session import RefreshSession
+from app.schemas.biometric import (
+    BiometricLockRequest,
+    BiometricRegisterRequest,
+    BiometricRegisterResponse,
+    BiometricUnlockRequest,
+    BiometricUnlockResponse,
+)
 from app.core.dependencies import get_current_user
+from app.core.dependencies import AuthContext, get_current_auth_context
 from app.core.notification import send_push_notification
 from app.core.security import (
     create_access_token,
@@ -61,6 +70,56 @@ class AccountStudentVerificationConfirmRequest(BaseModel):
     verification_id: int = Field(gt=0)
     otp: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
 
+
+@router.post("/biometric/register", response_model=BiometricRegisterResponse)
+def register_biometric(
+    data: BiometricRegisterRequest,
+    context: AuthContext = Depends(get_current_auth_context),
+    db: Session = Depends(get_db),
+):
+    credential = biometric_service.register_credential(
+        db,
+        context.user,
+        data.credential,
+        data.device_id,
+        data.platform,
+        context.refresh_session,
+    )
+    return BiometricRegisterResponse(enabled=True, credential_id=credential.id)
+
+
+@router.post("/biometric/unlock", response_model=BiometricUnlockResponse)
+def unlock_biometric(
+    data: BiometricUnlockRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        return biometric_service.unlock(db, data.credential, data.device_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+
+@router.post("/biometric/lock", status_code=status.HTTP_204_NO_CONTENT)
+def lock_biometric(
+    data: BiometricLockRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        biometric_service.lock_session(db, current_user, data.session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/biometric", status_code=status.HTTP_204_NO_CONTENT)
+def disable_biometric(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    biometric_service.revoke_credentials(db, current_user)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
 @router.post("/refresh", response_model=RefreshResponse, status_code=status.HTTP_200_OK)
 def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
     payload = decode_token(data.refresh_token)
@@ -85,6 +144,9 @@ def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
         session.revoked_at = now
         db.commit()
         raise HTTPException(status_code=401, detail="리프레시 세션이 만료되었습니다. 다시 로그인해주세요.")
+
+    if session.biometric_locked_at is not None:
+        raise HTTPException(status_code=401, detail="생체 인증이 필요합니다.")
 
     if hash_jti(payload["jti"]) != session.current_jti_hash:
         session.revoked_at = now
@@ -117,6 +179,8 @@ def refresh_token(data: RefreshRequest, db: Session = Depends(get_db)):
     new_access_token = create_access_token({
         "sub": str(user.id),
         "token_version": user.token_version,
+        "session_id": session.session_id,
+        "auth_level": session.auth_level,
     })
 
     db.commit()

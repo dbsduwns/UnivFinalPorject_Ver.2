@@ -24,6 +24,7 @@ from app.models import (
     room_participants,
     user_notification,
     app_release,
+    biometric_Credential,
 )
 from app.routers import (
     auth,

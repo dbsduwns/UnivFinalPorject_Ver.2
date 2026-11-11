@@ -23,6 +23,22 @@ export type TokenResponse = {
   token_type?: string;
 };
 
+export type BiometricRegisterBody = {
+  credential: string;
+  device_id: string;
+  platform: "android" | "ios";
+};
+
+export type BiometricUnlockBody = {
+  credential: string;
+  device_id: string;
+};
+
+export type BiometricRegisterResponse = {
+  enabled: boolean;
+  credential_id: number;
+};
+
 export type GoogleLoginResponse =
   | ({ status: "authenticated" } & TokenResponse)
   | { status: "student_verification_required"; onboarding_token: string; expires_at: string }

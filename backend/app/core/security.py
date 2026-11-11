@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import os
 import secrets
 from jose import JWTError, jwt
@@ -51,7 +52,7 @@ def create_access_token(data: dict) -> str:
     """ 엑세스 토큰 생성 """
     to_encode = data.copy()
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"type": "access", "exp": expires_at})
+    to_encode.update({"type": "access", "iat": datetime.now(timezone.utc), "exp": expires_at})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 def create_refresh_token(data: dict) -> str:
@@ -71,6 +72,15 @@ def decode_token(token: str) -> dict | None:
 def hash_jti(jti: str) -> str:
     """ JTI를 해싱 """
     return hashlib.sha256(jti.encode("utf-8")).hexdigest()
+
+
+def hash_biometric_credential(credential: str) -> str:
+    """Hash a high-entropy device credential without storing the raw value."""
+    return hmac.new(
+        SECRET_KEY.encode("utf-8"),
+        credential.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
 
 def create_reset_token() -> str:
     """ 비밀번호 재설정 토큰 생성 (무작위 난수 32) """

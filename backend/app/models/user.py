@@ -51,6 +51,11 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    biometric_credentials = relationship(
+        "BiometricCredential",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
     identities = relationship(
         "UserIdentity",
         back_populates="user",

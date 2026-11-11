@@ -1,44 +1,75 @@
+from dataclasses import dataclass
+from datetime import datetime, timezone
+
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from jose import JWTError
-
 from app.database import get_db
 from app.core.security import decode_token
+from app.models.refresh_session import RefreshSession
 from app.models.user import User
 
 bearer_scheme = HTTPBearer()
 
 
-def get_current_user(
+@dataclass
+class AuthContext:
+    user: User
+    payload: dict
+    refresh_session: RefreshSession | None
+
+
+def get_current_auth_context(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: Session = Depends(get_db),
-):
-    token = credentials.credentials
-    # 토큰 존재 여부 확인
-    payload = decode_token(token)
-    if payload is None:
+) -> AuthContext:
+    payload = decode_token(credentials.credentials)
+    if payload is None or payload.get("type") != "access":
         raise HTTPException(status_code=401, detail="Invalid token")
-    # 사용자 ID 확인
-    user_id = payload.get("sub")
-    if user_id is None:
+
+    try:
+        user_id = int(payload["sub"])
+    except (KeyError, TypeError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid token")
-    # 사용자 확인(비활성화 여부도)
-    user = db.query(User).filter(User.id == int(user_id)).first()
+
+    user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         raise HTTPException(status_code=401, detail="User not found")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="비활성화된 계정입니다")
-    # 토큰 타입 확인
-    token_type = payload.get("type")
-    if token_type != "access":
-        raise HTTPException(status_code=401, detail="Invalid token type")
-    # 토큰 버전 확인
-    token_version = payload.get("token_version")
-    if token_version is None or token_version != user.token_version:
+    if payload.get("token_version") != user.token_version:
         raise HTTPException(status_code=401, detail="Session has expired")
 
-    return user
+    refresh_session = None
+    session_id = payload.get("session_id")
+    if session_id:
+        refresh_session = (
+            db.query(RefreshSession)
+            .filter(
+                RefreshSession.session_id == session_id,
+                RefreshSession.user_id == user.id,
+            )
+            .first()
+        )
+        if refresh_session is None or refresh_session.revoked_at is not None:
+            raise HTTPException(status_code=401, detail="Session has expired")
+
+        if refresh_session.biometric_locked_at is not None:
+            issued_at = payload.get("iat")
+            if issued_at is None:
+                raise HTTPException(status_code=401, detail="Biometric authentication required")
+            if isinstance(issued_at, (int, float)):
+                issued_at = datetime.fromtimestamp(issued_at, tz=timezone.utc)
+            if issued_at <= refresh_session.biometric_locked_at:
+                raise HTTPException(status_code=401, detail="Biometric authentication required")
+
+    return AuthContext(user=user, payload=payload, refresh_session=refresh_session)
+
+
+def get_current_user(
+    context: AuthContext = Depends(get_current_auth_context),
+):
+    return context.user
 
 def get_current_admin_user(
         current_user: User = Depends(get_current_user),

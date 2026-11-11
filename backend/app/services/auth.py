@@ -53,7 +53,7 @@ def login(db: Session, data: UserLogin):
     return issue_token_pair(db, user)
 
 
-def issue_token_pair(db: Session, user: User) -> dict:
+def issue_token_pair(db: Session, user: User, *, auth_level: str = "standard") -> dict:
     """Create a refresh session and access/refresh token pair."""
     session_id = secrets.token_urlsafe(32)
     jti = secrets.token_urlsafe(32)
@@ -67,6 +67,7 @@ def issue_token_pair(db: Session, user: User) -> dict:
             session_id=session_id,
             current_jti_hash=hash_jti(jti),
             expires_at=expires_at,
+            auth_level=auth_level,
         )
     )
     db.flush()
@@ -75,6 +76,8 @@ def issue_token_pair(db: Session, user: User) -> dict:
         {
             "sub": str(user.id),
             "token_version": user.token_version,
+            "session_id": session_id,
+            "auth_level": auth_level,
         }
     )
     refresh_token = create_refresh_token(
@@ -91,6 +94,7 @@ def issue_token_pair(db: Session, user: User) -> dict:
         "access_token": access_token,
         "refresh_token": refresh_token,
         "user": user,
+        "session_id": session_id,
     }
 
 

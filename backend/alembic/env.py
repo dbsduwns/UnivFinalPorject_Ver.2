@@ -28,6 +28,7 @@ from app.models import friend_invite, password_reset_request_log, password_reset
 from app.models import ai_chat_room, ai_message
 from app.models import subway_line_station
 from app.models import refresh_session
+from app.models import biometric_Credential
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

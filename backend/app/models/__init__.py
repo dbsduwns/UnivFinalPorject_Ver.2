@@ -28,6 +28,7 @@ from .friend_invite import FriendInvite
 from .password_reset_token import PasswordResetToken
 from .password_reset_request_log import PasswordResetRequestLog
 from .refresh_session import RefreshSession
+from .biometric_Credential import BiometricCredential
 from .user_identitiy import UserIdentity
 from .student_verification_session import StudentVerificationSession
 from .oauth_onboarding_sessions import OauthOnboardingSession

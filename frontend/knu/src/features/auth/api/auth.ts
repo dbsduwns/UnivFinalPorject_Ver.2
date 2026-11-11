@@ -9,6 +9,9 @@ import type {
   GoogleLoginResponse,
   StudentVerificationRequestBody,
   StudentVerificationConfirmBody,
+  BiometricRegisterBody,
+  BiometricRegisterResponse,
+  BiometricUnlockBody,
 } from "@/features/auth/api/types";
 
 export async function loginRequest(body: UserLoginBody): Promise<TokenResponse> {
@@ -45,13 +48,8 @@ export async function logoutRequest(refreshToken: string): Promise<void> {
   await apiClient.post("/auth/logout", { refresh_token: refreshToken });
 }
 
-export async function meRequest() {
-  console.log("ME START");
-
-  const { data } = await apiClient.get("/auth/me");
-
-  console.log("ME SUCCESS");
-
+export async function meRequest(): Promise<User> {
+  const { data } = await apiClient.get<User>("/auth/me");
   return data;
 }
 
@@ -105,4 +103,29 @@ export async function getNotificationSettingsRequest(): Promise<NotificationSett
 export async function updateNotificationSettingsRequest(body: NotificationSettingsUpdateBody): Promise<NotificationSettings> {
   const { data } = await apiClient.put<NotificationSettings>("/auth/notification-settings", body);
   return data;
+}
+
+export async function registerBiometricRequest(
+  payload: BiometricRegisterBody,
+): Promise<BiometricRegisterResponse> {
+  const { data } = await apiClient.post<BiometricRegisterResponse>("/auth/biometric/register", payload);
+  return data;
+}
+
+export async function unlockBiometricRequest(payload: BiometricUnlockBody): Promise<TokenResponse> {
+  const { data } = await apiClient.post<{
+    access_token: string;
+    refresh_token: string;
+    token_type: string;
+  }>("/auth/biometric/unlock", payload);
+
+  return data;
+}
+
+export async function lockBiometricRequest(sessionId: string): Promise<void> {
+  await apiClient.post("/auth/biometric/lock", { session_id: sessionId });
+}
+
+export async function disableBiometricRequest(): Promise<void> {
+  await apiClient.delete("/auth/biometric");
 }

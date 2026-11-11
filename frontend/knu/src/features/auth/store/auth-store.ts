@@ -1,6 +1,4 @@
 import { create } from "zustand";
-import * as LocalAuthentication from "expo-local-authentication";
-
 import {
   deleteMeRequest,
   googleLoginRequest,
@@ -9,7 +7,11 @@ import {
   meRequest,
   signupRequest,
   updateMeRequest,
+  registerBiometricRequest,
+  unlockBiometricRequest,
+  lockBiometricRequest,
 } from "@/features/auth/api/auth";
+import { Platform } from "react-native";
 import * as tokenStorage from "@/features/auth/services/token-storage";
 import * as onboardingStorage from "@/features/auth/services/onboarding-storage";
 import * as biometricStorage from "@/features/auth/services/biometric-storage";
@@ -33,6 +35,7 @@ type AuthState = {
   googleLogin: (idToken: string) => Promise<GoogleLoginResponse>;
   completeGoogleLogin: (tokens: { access_token: string; refresh_token: string }) => Promise<void>;
   unlockWithBiometric: () => Promise<boolean>;
+  enableBiometricLogin: () => Promise<void>;
   lockForBiometric: () => Promise<boolean>;
 };
 
@@ -54,7 +57,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const access = await tokenStorage.getAccessToken();
       const pendingOnboarding = await onboardingStorage.getPendingOnboarding();
       if (!access) {
-        set({ user: null, pendingOnboarding, ready: true, biometricRequired: false });
+        const biometricEnabled = await biometricStorage.isBiometricLoginEnabled();
+        set({
+          user: null,
+          pendingOnboarding,
+          ready: true,
+          biometricRequired: biometricEnabled,
+        });
         return;
       }
 
@@ -150,17 +159,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user, pendingOnboarding: null, ready: true, biometricRequired: false });
   },
 
+  enableBiometricLogin: async () => {
+    const credential = await biometricStorage.createCredential();
+    const deviceId = await biometricStorage.getOrCreateDeviceId();
+
+    try {
+      // 자격정보를 기기 생체인증으로 보호한 뒤 서버에 등록한다.
+      await biometricStorage.setCredential(credential);
+      await registerBiometricRequest({
+        credential,
+        device_id: deviceId,
+        platform: Platform.OS === "ios" ? "ios" : "android",
+      });
+      await biometricStorage.setBiometricLoginEnabled(true);
+    } catch (error) {
+      await biometricStorage.clearBiometricData();
+      throw error;
+    }
+  },
+
   unlockWithBiometric: async () => {
-    const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: "KNU Campus Life에 로그인",
-      promptDescription: "등록된 생체 인증으로 로그인합니다.",
-      cancelLabel: "취소",
-      biometricsSecurityLevel: "weak",
-      disableDeviceFallback: false,
-    });
+    const credential = await biometricStorage.getCredential();
+    if (!credential) return false;
 
-    if (!result.success) return false;
-
+    const deviceId = await biometricStorage.getOrCreateDeviceId();
+    const tokens = await unlockBiometricRequest({ credential, device_id: deviceId });
+    await tokenStorage.setTokens(tokens.access_token, tokens.refresh_token);
     const user = await meRequest();
     set({ user, ready: true, biometricRequired: false });
     return true;
@@ -170,6 +194,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!get().user || !(await biometricStorage.isBiometricLoginEnabled())) return false;
 
     console.log("[AuthStore] Locking session after background timeout");
+    const sessionId = await tokenStorage.getAccessTokenSessionId();
+    if (sessionId) {
+      try {
+        await lockBiometricRequest(sessionId);
+      } catch (error) {
+        console.warn("[AuthStore] Failed to lock biometric session on server", error);
+      }
+    }
+    await tokenStorage.clearAccessToken();
     set({ user: null, ready: true, biometricRequired: true });
     return true;
   },

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, TIMESTAMP, func
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, TIMESTAMP, func
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -10,6 +10,11 @@ class RefreshSession(Base):
 
     session_id = Column(String(64), unique=True, nullable=False, index=True)
     current_jti_hash = Column(String(64), nullable=False)
+
+    biometric_enabled = Column(Boolean, nullable=False, default=False)
+    biometric_locked_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    last_biometric_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    auth_level = Column(String(20), nullable=False, default="standard", server_default="standard")
 
     expires_at = Column(TIMESTAMP(timezone=True), nullable=False)
     revoked_at = Column(TIMESTAMP(timezone=True), nullable=True)

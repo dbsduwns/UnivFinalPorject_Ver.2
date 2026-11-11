@@ -15,6 +15,7 @@ export default function LoginSuccessScreen() {
   const [enabled, setEnabled] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const enableBiometric = useAuthStore((state) => state.enableBiometricLogin);
 
   const destination =
     typeof redirect === "string" && redirect.startsWith("/") && !redirect.startsWith("//")
@@ -49,19 +50,7 @@ export default function LoginSuccessScreen() {
     setMessage(null);
 
     try {
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: "생체 인증 로그인을 설정합니다",
-        cancelLabel: "취소",
-        biometricsSecurityLevel: "weak",
-        disableDeviceFallback: false,
-      });
-
-      if (!result.success) {
-        setMessage("생체 인증이 완료되지 않았습니다. 나중에 다시 설정할 수 있습니다.");
-        return;
-      }
-
-      await biometricStorage.setBiometricLoginEnabled(true);
+      await enableBiometric();
       setEnabled(true);
       setMessage("생체 인증 로그인이 설정되었습니다.");
     } catch {
