@@ -41,10 +41,25 @@ MEAL_TERMS = (
 
 NOTICE_INTENT_TERMS = (
     "공지",
+    "공지사항",
     "안내",
+    "소식",
     "모집",
     "채용",
+    "접수",
+    "지원",
+    "선발",
+    "참여",
     "신청 방법",
+)
+
+NOTICE_RECENCY_TERMS = (
+    "최신",
+    "최근",
+    "새로 올라온",
+    "방금 올라온",
+    "현재",
+    "요즘",
 )
 
 CALENDAR_TIME_TERMS = (
@@ -175,6 +190,63 @@ def _notice_category(question: str) -> str | None:
     return None
 
 
+def notice_date_range(
+    question: str,
+    *,
+    today: date | None = None,
+) -> tuple[date, date] | None:
+    """공지 게시일 기준으로 검색할 날짜 범위를 추출합니다."""
+    normalized = " ".join(question.split())
+    reference_date = today or date.today()
+
+    year_match = re.search(r"(20\d{2})\s*년?", normalized)
+    year = int(year_match.group(1)) if year_match else reference_date.year
+
+    month_match = re.search(r"(?<!\d)(\d{1,2})\s*월", normalized)
+    if month_match:
+        month = int(month_match.group(1))
+        if 1 <= month <= 12:
+            start = date(year, month, 1)
+            end = (
+                date(year + 1, 1, 1) - timedelta(days=1)
+                if month == 12
+                else date(year, month + 1, 1) - timedelta(days=1)
+            )
+            return start, end
+
+    if "이번 달" in normalized:
+        start = reference_date.replace(day=1)
+        end = (
+            date(start.year + 1, 1, 1) - timedelta(days=1)
+            if start.month == 12
+            else date(start.year, start.month + 1, 1) - timedelta(days=1)
+        )
+        return start, end
+
+    if "지난달" in normalized or "지난 달" in normalized:
+        end = reference_date.replace(day=1) - timedelta(days=1)
+        return end.replace(day=1), end
+
+    if "이번 주" in normalized or "이번주" in normalized:
+        start = reference_date - timedelta(days=reference_date.weekday())
+        return start, start + timedelta(days=6)
+
+    if "다음 주" in normalized or "다음주" in normalized:
+        start = reference_date - timedelta(days=reference_date.weekday()) + timedelta(days=7)
+        return start, start + timedelta(days=6)
+
+    return None
+
+
+def is_notice_recency_query(question: str) -> bool:
+    """최신순 정렬이 필요한 공지 질문인지 판별합니다."""
+    normalized = " ".join(question.split())
+    return bool(
+        any(term in normalized for term in NOTICE_RECENCY_TERMS)
+        or notice_date_range(normalized) is not None
+    )
+
+
 def infer_retrieval_filter(
     question: str,
     *,
@@ -204,7 +276,11 @@ def infer_retrieval_filter(
             reasons=("셔틀 운행 관련 고유어 감지",),
         )
 
-    notice_intent = _contains_any(normalized, NOTICE_INTENT_TERMS)
+    notice_intent = (
+        _contains_any(normalized, NOTICE_INTENT_TERMS)
+        or _contains_any(normalized, NOTICE_RECENCY_TERMS)
+        or _notice_category(normalized) is not None
+    )
     calendar_intent = _contains_any(normalized, ACADEMIC_CALENDAR_TERMS) and _contains_any(
         normalized, CALENDAR_TIME_TERMS
     )

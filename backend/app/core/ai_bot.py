@@ -19,7 +19,11 @@ from app.services.academic_calendar import (
 from app.database import SessionLocal
 from app.services.timetable_context import is_timetable_only_query
 from app.services.regulations import build_regulation_context_from_db, is_regulation_query
-from app.core.retrieval_filters import infer_retrieval_filter
+from app.core.retrieval_filters import (
+    infer_retrieval_filter,
+    is_notice_recency_query,
+    notice_date_range,
+)
 
 if TYPE_CHECKING:
     from langchain_core.documents import Document
@@ -419,7 +423,49 @@ class CampusAIBot:
             if decision.metadata_filter.get("source") == "학식" and meal_date:
                 retrieval_query = f"{retrieval_query}\n식단 날짜: {meal_date}"
 
-            if decision.confidence == "high":
+            latest_notice_documents: list[Document] | None = None
+            if (
+                decision.metadata_filter.get("source") == "공지사항"
+                and is_notice_recency_query(question)
+                and hasattr(self.retriever, "adocuments_by_metadata")
+            ):
+                # 최신 공지는 의미 유사도보다 게시일이 우선이므로
+                # 공지 후보 전체를 조회한 뒤 published_at 기준으로 정렬합니다.
+                latest_notice_documents = await self.retriever.adocuments_by_metadata(
+                    decision.metadata_filter
+                )
+                date_range = notice_date_range(
+                    question,
+                    today=datetime.now(SEOUL_TIMEZONE).date(),
+                )
+                if date_range:
+                    start_date, end_date = date_range
+                    filtered_documents: list[Document] = []
+                    for document in latest_notice_documents:
+                        published_at = document.metadata.get("published_at")
+                        if not published_at:
+                            continue
+                        try:
+                            published_date = datetime.fromisoformat(
+                                str(published_at).replace("Z", "+00:00")
+                            ).date()
+                        except ValueError:
+                            continue
+                        if start_date <= published_date <= end_date:
+                            filtered_documents.append(document)
+                    latest_notice_documents = filtered_documents
+
+                latest_notice_documents.sort(
+                    key=lambda document: str(
+                        document.metadata.get("published_at") or ""
+                    ),
+                    reverse=True,
+                )
+                retrieved = latest_notice_documents[:DEFAULT_QDRANT_SEARCH_LIMIT]
+            else:
+                retrieved = None
+
+            if retrieved is None and decision.confidence == "high":
                 try:
                     filtered = await self.retriever.asearch(
                         retrieval_query,
@@ -440,7 +486,9 @@ class CampusAIBot:
                 and "date" in decision.metadata_filter
             )
 
-            if exact_meal_date_filter:
+            if retrieved is not None:
+                pass
+            elif exact_meal_date_filter:
                 # 다른 날짜의 메뉴로 빈 자리를 채우면 "오늘 학식" 답변이 틀릴 수 있습니다.
                 retrieved = filtered
             elif len(filtered) < DEFAULT_QDRANT_SEARCH_LIMIT:

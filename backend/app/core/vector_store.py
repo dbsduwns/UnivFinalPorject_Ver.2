@@ -604,6 +604,44 @@ class QdrantDocumentStore:
                 field["values"] = dict(sorted_values[:100])
         return {"total_points": total, "by_source": by_source}
 
+    def documents_by_metadata(
+        self,
+        metadata_filter: dict[str, Any] | None = None,
+        *,
+        page_size: int = 256,
+    ) -> list[Document]:
+        """메타데이터 조건에 맞는 문서를 전체 조회합니다."""
+        from langchain_core.documents import Document
+
+        if not self.client.collection_exists(self.collection_name):
+            return []
+
+        documents: list[Document] = []
+        offset = None
+        query_filter = build_qdrant_filter(metadata_filter or {})
+        while True:
+            points, offset = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=query_filter,
+                limit=page_size,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            for point in points:
+                payload = point.payload or {}
+                page_content = payload.get("page_content")
+                if not page_content:
+                    continue
+                metadata = dict(payload.get("metadata") or {})
+                metadata["_retrieval_point_id"] = str(point.id)
+                documents.append(
+                    Document(page_content=str(page_content), metadata=metadata)
+                )
+            if offset is None:
+                break
+        return documents
+
     def iter_documents(self, *, page_size: int = 256):
         """Yield indexed payloads for diagnostics without fetching stored vectors."""
         from langchain_core.documents import Document
@@ -645,4 +683,13 @@ class QdrantDocumentStore:
                 query,
                 metadata_filter=metadata_filter,
             )["hybrid"]
+        )
+
+    async def adocuments_by_metadata(
+        self,
+        metadata_filter: dict[str, Any] | None = None,
+    ) -> list[Document]:
+        return await asyncio.to_thread(
+            self.documents_by_metadata,
+            metadata_filter,
         )
