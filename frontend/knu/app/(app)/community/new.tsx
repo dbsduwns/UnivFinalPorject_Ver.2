@@ -2,6 +2,7 @@ import { useState } from "react";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react-native";
+import * as ImagePicker from "expo-image-picker";
 import {
   ActivityIndicator,
   Alert,
@@ -19,6 +20,7 @@ import { getAxiosErrorMessage } from "@/api/errors";
 import { createCommunityPost } from "@/features/community/api/community";
 import { getCommunityBoard } from "@/features/community/data/community";
 import { communityQueryKeys } from "@/features/community/hooks/use-community";
+import type { CommunityImageAsset } from "@/features/community/api/types";
 
 export default function CreateCommunityPostScreen() {
   const insets = useSafeAreaInsets();
@@ -29,6 +31,37 @@ export default function CreateCommunityPostScreen() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
+  const [image, setImage] = useState<CommunityImageAsset | null>(null);
+
+  const pickImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("사진 권한 필요", "게시물에 사진을 첨부하려면 사진 접근 권한이 필요합니다.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: false,
+      quality: 1,
+      selectionLimit: 1,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    if (asset.fileSize && asset.fileSize > 10 * 1024 * 1024) {
+      Alert.alert("파일이 너무 커요", "이미지 파일은 10MB 이하만 첨부할 수 있습니다.");
+      return;
+    }
+    const type = asset.mimeType ?? "image/jpeg";
+    if (!["image/jpeg", "image/png", "image/webp"].includes(type)) {
+      Alert.alert("지원하지 않는 형식", "JPG, PNG, WEBP 이미지만 첨부할 수 있습니다.");
+      return;
+    }
+    setImage({
+      uri: asset.uri,
+      name: asset.fileName ?? `community-${Date.now()}.jpg`,
+      type,
+    });
+  };
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -36,7 +69,7 @@ export default function CreateCommunityPostScreen() {
         title: title.trim(),
         content: content.trim(),
         is_anonymous: isAnonymous,
-      }),
+      }, image),
     onSuccess: (post) => {
       void queryClient.invalidateQueries({ queryKey: communityQueryKeys.all });
       router.replace({
@@ -110,6 +143,27 @@ export default function CreateCommunityPostScreen() {
             className="min-h-[260px] rounded-2xl bg-white border border-gray-200 px-4 py-4 text-[15px] leading-6 text-gray-900"
           />
         </KeyboardAvoidingView>
+
+        <Text className="text-sm font-extrabold text-gray-700 mt-6 mb-2">첨부파일</Text>
+        <View className="rounded-2xl bg-white border border-gray-200 p-4">
+          <View className="flex-row items-center">
+            <Pressable
+              onPress={() => void pickImage()}
+              disabled={createMutation.isPending}
+              className="px-4 py-3 rounded-xl bg-cyan-50 active:bg-cyan-100 disabled:opacity-50"
+            >
+              <Text className="text-sm font-extrabold text-[#13708D]">사진 선택</Text>
+            </Pressable>
+            {image && (
+              <Pressable onPress={() => setImage(null)} className="ml-3 flex-1">
+                <Text className="text-sm text-gray-700" numberOfLines={1}>{image.name}</Text>
+                <Text className="text-xs text-gray-400 mt-1">탭해서 첨부 취소</Text>
+              </Pressable>
+            )}
+          </View>
+          <Text className="text-xs text-gray-400 mt-3">사진 파일만 첨부할 수 있어요. 최대 10MB</Text>
+          <Text className="text-[11px] text-gray-400 mt-1">지원 형식: JPG, JPEG, PNG, WEBP</Text>
+        </View>
 
         <Pressable
           onPress={() => setIsAnonymous((value) => !value)}

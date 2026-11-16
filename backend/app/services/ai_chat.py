@@ -20,6 +20,7 @@ from app.services.timetable_context import (
     build_main_timetable_context,
     needs_timetable_context,
 )
+from app.services.ai_fallback import build_ai_fallback_reply
 
 
 AI_REQUEST_LIMIT = 4
@@ -246,12 +247,40 @@ async def stream_message(
             f"❌ [chat_service] 스트리밍 답변 생성 실패: {exc}",
             flush=True,
         )
-        yield encode_stream_event(
-            {
-                "type": "error",
-                "message": "답변 생성 중 오류가 발생했습니다.",
-            }
-        )
+        try:
+            fallback_reply = build_ai_fallback_reply(question)
+            with SessionLocal() as fallback_db:
+                assistant_message = Message(
+                    chat_room_id=room.id,
+                    role="assistant",
+                    content=fallback_reply,
+                    navigation_targets=[],
+                )
+                fallback_db.add(assistant_message)
+                fallback_db.commit()
+                fallback_db.refresh(assistant_message)
+                persisted_room = fallback_db.get(ChatRoom, room.id)
+                if persisted_room is None:
+                    raise RuntimeError("Chat room disappeared while saving the fallback response")
+
+                yield encode_stream_event(
+                    {
+                        "type": "fallback",
+                        "room": _serialize_room(persisted_room),
+                        "assistant_message": _serialize_message(assistant_message),
+                    }
+                )
+        except Exception as fallback_exc:
+            print(
+                f"❌ [chat_service] fallback 답변 저장 실패: {fallback_exc}",
+                flush=True,
+            )
+            yield encode_stream_event(
+                {
+                    "type": "error",
+                    "message": "답변 생성 중 오류가 발생했습니다.",
+                }
+            )
 
 
 async def demo_reply(message: str) -> str:

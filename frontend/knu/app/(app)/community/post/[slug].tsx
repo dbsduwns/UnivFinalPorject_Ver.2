@@ -23,6 +23,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { getAxiosErrorMessage } from "@/api/errors";
@@ -341,6 +342,13 @@ export default function CommunityPostScreen() {
           {(post.is_hidden || post.is_pinned) && <Text className="text-xs font-bold text-[#13708D] mt-3">{[post.is_pinned ? "상단 고정" : "", post.is_hidden ? "숨김 처리됨 (관리자에게만 표시)" : ""].filter(Boolean).join(" · ")}</Text>}
           <Text className="text-2xl font-extrabold text-gray-900 mt-4">{post.title}</Text>
           <Text className="text-[15px] leading-7 text-gray-700 mt-5">{post.content}</Text>
+          {post.image_url && (
+            <Image
+              source={{ uri: post.image_url }}
+              contentFit="contain"
+              style={{ width: "100%", height: 280, marginTop: 20, borderRadius: 16, backgroundColor: "#F1F5F9" }}
+            />
+          )}
 
           <View className="flex-row mt-7 pt-4 border-t border-gray-100">
             <Pressable

@@ -36,6 +36,10 @@ class UserBlock(Base):
     blocker = relationship("User", foreign_keys=[blocker_id])
     blocked_user = relationship("User", foreign_keys=[blocked_user_id])
 
+    @property
+    def display_name(self) -> str | None:
+        return self.blocked_user.name if self.blocked_user is not None else None
+
     __table_args__ = (
         UniqueConstraint(
             "blocker_id",

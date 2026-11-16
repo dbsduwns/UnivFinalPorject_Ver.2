@@ -9,9 +9,10 @@ class CreateUserBlock(BaseModel):
 
 
 class UserBlockResponse(BaseModel):
-    # 익명 작성자 식별 방지를 위해 blocked_user_id는 응답하지 않습니다.
     id: int
     created_at: datetime
+    blocked_user_id: int | None = None
+    display_name: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

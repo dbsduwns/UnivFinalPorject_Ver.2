@@ -6,9 +6,10 @@ import { useAuthStore } from "@/features/auth/store/auth-store";
 
 type FormProps = {
     onClose: () => void;
+    biometricVerified?: boolean;
 }
 
-export default function ProfileEditForm({ onClose }: FormProps) {
+export default function ProfileEditForm({ onClose, biometricVerified = false }: FormProps) {
     const user = useAuthStore((s) => s.user);
     const updateProfile = useAuthStore((s) => s.updateProfile);
     const insets = useSafeAreaInsets();
@@ -32,6 +33,7 @@ export default function ProfileEditForm({ onClose }: FormProps) {
             department,
             grade: grade ? parseInt(grade, 10) : undefined,
             student_id: studentId,
+            biometric_auth: biometricVerified,
         });
         Alert.alert("성공", "회원 정보가 수정되었습니다.");
         } catch (error: any) {

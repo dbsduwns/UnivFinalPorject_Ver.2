@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user, get_current_admin_user
@@ -11,6 +11,7 @@ from app.schemas.community import (
     UpdatePost,
     PostResponse,
 )
+from app.core.storage import delete_community_image, upload_community_image
 
 router = APIRouter(prefix="/api/community", tags=["community"])
 admin_router = APIRouter(prefix="/api/admin/community/posts", tags=["admin"])
@@ -82,17 +83,39 @@ def get_post_by_slug(
 @router.post("/posts", response_model=PostResponse)
 def create_post(
     board_slug: str,
-    data: CreatePost,
+    title: str = Form(...),
+    content: str = Form(...),
+    is_anonymous: bool = Form(False),
+    image: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    uploaded_image_path = None
     try:
+        image_url = None
+        image_path = None
+        if image is not None:
+            image_url, image_path = upload_community_image(image, user.id)
+            uploaded_image_path = image_path
+        data = CreatePost(
+            title=title,
+            content=content,
+            is_anonymous=is_anonymous,
+            image_url=image_url,
+        )
         post = post_service.create_post(db, user, board_slug, data)
+        post.image_path = image_path
+        db.commit()
+        db.refresh(post)
         return post_service.to_post_response(post, user)
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception:
+        db.rollback()
+        delete_community_image(uploaded_image_path)
+        raise
 
 @router.put("/{post_slug}", response_model=PostResponse)
 def update_post(

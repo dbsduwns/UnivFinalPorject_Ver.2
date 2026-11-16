@@ -27,7 +27,7 @@ from app.schemas.biometric import (
     BiometricUnlockResponse,
 )
 from app.core.dependencies import get_current_user
-from app.core.dependencies import AuthContext, get_current_auth_context
+from app.core.dependencies import AuthContext, get_current_auth_context, has_recent_biometric_auth
 from app.core.notification import send_push_notification
 from app.core.security import (
     create_access_token,
@@ -222,12 +222,16 @@ def verify_user_password(
 def change_password(
     data: PasswordChangeRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    context: AuthContext = Depends(get_current_auth_context),
 ):
+    if not data.biometric_auth or not has_recent_biometric_auth(context):
+        raise HTTPException(status_code=401, detail="회원 정보 수정은 생체 인증이 필요합니다.")
+    if not data.current_password and not data.biometric_auth:
+        raise HTTPException(status_code=400, detail="현재 비밀번호 또는 생체 인증이 필요합니다.")
     try:
         auth_service.change_user_password(
             db,
-            current_user,
+            context.user,
             data.current_password,
             data.new_password,
             data.confirm_password,
@@ -378,9 +382,12 @@ def delete_me(
 @router.put("/update", response_model=UserResponse)
 def update_profile(
     data: UserUpdate, 
-    current_user: User = Depends(get_current_user),
+    context: AuthContext = Depends(get_current_auth_context),
     db: Session = Depends(get_db)
 ):
+    if data.biometric_auth and not has_recent_biometric_auth(context):
+        raise HTTPException(status_code=401, detail="생체 인증이 만료되었습니다. 다시 인증해주세요.")
+    current_user = context.user
     try:
         if data.name: current_user.name = data.name
         if data.department: current_user.department = data.department

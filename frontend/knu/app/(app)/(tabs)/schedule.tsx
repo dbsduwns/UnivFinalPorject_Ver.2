@@ -300,6 +300,10 @@ const CourseSearchPanel = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const isExpandedRef = useRef(false);
   const dragStartRef = useRef(0);
+  const dragReadyRef = useRef(false);
+  const isDraggingRef = useRef(false);
+  const isAnimatingRef = useRef(false);
+  const panelHeightRef = useRef(0);
   const translateY = useRef(new Animated.Value(0)).current;
   const collapsedOffset = Math.max(panelHeight - COLLAPSED_SEARCH_PANEL_HEIGHT, 0);
 
@@ -307,6 +311,7 @@ const CourseSearchPanel = ({
     isExpandedRef.current = expanded;
     setIsExpanded(expanded);
     if (!expanded) Keyboard.dismiss();
+    isAnimatingRef.current = true;
 
     Animated.spring(translateY, {
       toValue: expanded ? 0 : collapsedOffset,
@@ -314,10 +319,13 @@ const CourseSearchPanel = ({
       stiffness: 220,
       mass: 0.9,
       useNativeDriver: true,
-    }).start();
+    }).start(() => {
+      isAnimatingRef.current = false;
+    });
   }, [collapsedOffset, translateY]);
 
   useEffect(() => {
+    if (isDraggingRef.current || isAnimatingRef.current) return;
     translateY.setValue(isExpandedRef.current ? 0 : collapsedOffset);
   }, [collapsedOffset, translateY]);
 
@@ -327,11 +335,18 @@ const CourseSearchPanel = ({
         onMoveShouldSetPanResponder: (_event, gesture) =>
           Math.abs(gesture.dy) > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
         onPanResponderGrant: () => {
+          isDraggingRef.current = true;
+          isAnimatingRef.current = false;
+          dragReadyRef.current = false;
           translateY.stopAnimation((value) => {
             dragStartRef.current = value;
+            dragReadyRef.current = true;
           });
         },
         onPanResponderMove: (_event, gesture) => {
+          // stopAnimation의 콜백이 오기 전에 들어온 move 이벤트는
+          // 이전 위치(대개 0)를 기준으로 계산하지 않도록 무시한다.
+          if (!dragReadyRef.current) return;
           const nextValue = Math.min(
             Math.max(dragStartRef.current + gesture.dy, 0),
             collapsedOffset
@@ -339,6 +354,15 @@ const CourseSearchPanel = ({
           translateY.setValue(nextValue);
         },
         onPanResponderRelease: (_event, gesture) => {
+          if (!dragReadyRef.current) {
+            translateY.stopAnimation((value) => {
+              dragStartRef.current = value;
+              dragReadyRef.current = true;
+              isDraggingRef.current = false;
+              animatePanel(isExpandedRef.current);
+            });
+            return;
+          }
           const releasedAt = Math.min(
             Math.max(dragStartRef.current + gesture.dy, 0),
             collapsedOffset
@@ -346,9 +370,13 @@ const CourseSearchPanel = ({
           const shouldExpand =
             gesture.vy < -0.45 ||
             (gesture.vy <= 0.45 && releasedAt < collapsedOffset / 2);
+          isDraggingRef.current = false;
+          dragReadyRef.current = false;
           animatePanel(shouldExpand);
         },
         onPanResponderTerminate: () => {
+          isDraggingRef.current = false;
+          dragReadyRef.current = false;
           animatePanel(isExpandedRef.current);
         },
       }),
@@ -364,7 +392,12 @@ const CourseSearchPanel = ({
       <View
         pointerEvents="box-none"
         style={{ flex: 1, overflow: "hidden" }}
-        onLayout={({ nativeEvent }) => setPanelHeight(nativeEvent.layout.height)}
+        onLayout={({ nativeEvent }) => {
+          const nextHeight = nativeEvent.layout.height;
+          if (panelHeightRef.current === nextHeight) return;
+          panelHeightRef.current = nextHeight;
+          setPanelHeight(nextHeight);
+        }}
       >
         <Animated.View
           style={{

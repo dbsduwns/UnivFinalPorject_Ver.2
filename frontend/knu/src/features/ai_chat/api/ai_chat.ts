@@ -85,7 +85,7 @@ export async function streamChatMessage(
     }
     const event = JSON.parse(line) as ChatStreamEvent;
     onEvent(event);
-    if (event.type === "done") {
+    if (event.type === "done" || event.type === "fallback") {
       completed = true;
     } else if (event.type === "error") {
       throw new Error(event.message);

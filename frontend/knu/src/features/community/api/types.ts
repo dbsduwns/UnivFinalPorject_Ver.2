@@ -4,6 +4,7 @@ export type CommunityPost = {
   board_slug: string;
   title: string;
   content: string;
+  image_url: string | null;
   author_name: string;
   is_anonymous: boolean;
   is_hidden: boolean;
@@ -17,6 +18,12 @@ export type CreatePostBody = {
   title: string;
   content: string;
   is_anonymous?: boolean;
+};
+
+export type CommunityImageAsset = {
+  uri: string;
+  name: string;
+  type: string;
 };
 
 export type UpdatePostBody = Partial<CreatePostBody>;
@@ -65,7 +72,9 @@ export type CommentReport = {
   post_id: number | null;
   reason: CommentReportReason;
   description: string | null;
+  content_snapshot: string;
   status: "pending" | "reviewing" | "resolved" | "dismissed";
+  resolution_note: string | null;
   created_at: string;
   reviewed_at: string | null;
 };
@@ -73,6 +82,8 @@ export type CommentReport = {
 export type UserBlock = {
   id: number;
   created_at: string;
+  blocked_user_id?: number;
+  display_name?: string;
 };
 
 export type LikeToggleResponse = {

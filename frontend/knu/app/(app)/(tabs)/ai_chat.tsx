@@ -20,8 +20,11 @@ import { Send, Bot, User, Inbox, Plus, MessageSquare, X, Trash2, Edit3, Square, 
 import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
 import { chatApi } from "@/features/ai_chat/api/ai_chat";
 import type { ChatMessage, ChatNavigationTarget, ChatRoom, ChatStreamStatus } from "@/features/ai_chat/api/types";
+import { buildExhibitionReply } from "@/features/ai_chat/exhibition-fallback";
+import { IS_EXHIBITION_MODE } from "@/constants/config";
 
 const DRAWER_WIDTH = 300;
+const AI_FAILURE_MESSAGE = "잠시 후 다시 시도해주세요.";
 
 export default function AIChatScreen() {
   const { q } = useLocalSearchParams<{ q?: string }>();
@@ -180,6 +183,32 @@ export default function AIChatScreen() {
     setInputText("");
     setIsLoading(true);
 
+    if (IS_EXHIBITION_MODE) {
+      const requestId = Date.now();
+      const createdAt = new Date().toISOString();
+      const exhibitionRoomId = currentRoom?.id ?? 0;
+      shouldScrollRef.current = true;
+      setMessages((previous) => [
+        ...previous,
+        {
+          id: -requestId,
+          chat_room_id: exhibitionRoomId,
+          role: "user",
+          content: userContent,
+          created_at: createdAt,
+        },
+        {
+          id: -(requestId + 1),
+          chat_room_id: exhibitionRoomId,
+          role: "assistant",
+          content: buildExhibitionReply(userContent),
+          created_at: createdAt,
+        },
+      ]);
+      setIsLoading(false);
+      return;
+    }
+
     let targetRoom = currentRoom;
 
     // 만약 현재 선택된 채팅방이 없다면 새 채팅방 생성
@@ -214,6 +243,14 @@ export default function AIChatScreen() {
       role: "assistant",
       content: "",
       created_at: createdAt,
+    };
+    const failureAssistantMessage: ChatMessage = {
+      id: -(requestId + 2),
+      chat_room_id: targetRoom.id,
+      role: "assistant",
+      content: AI_FAILURE_MESSAGE,
+      created_at: createdAt,
+      is_error: true,
     };
 
     shouldScrollRef.current = true;
@@ -283,6 +320,19 @@ export default function AIChatScreen() {
                   : message,
               ),
             );
+            return;
+          }
+
+          if (event.type === "fallback") {
+            setCurrentRoom(event.room);
+            setStreamStatus(null);
+            setMessages((previous) =>
+              previous.map((message) =>
+                message.id === tempAssistantId
+                  ? event.assistant_message
+                  : message,
+              ),
+            );
           }
         },
         controller.signal,
@@ -293,18 +343,30 @@ export default function AIChatScreen() {
     } catch (error: unknown) {
       if (!controller.signal.aborted) {
         console.error("Failed to stream message:", error);
-        const message =
-          error instanceof Error
-            ? error.message
-            : "메시지 전송에 실패했습니다.";
-        Alert.alert("답변 생성 실패", message);
       }
 
       try {
         const messagesResponse = await chatApi.getMessages(targetRoom.id);
-        setMessages(messagesResponse.data);
+        setMessages((previous) => {
+          const hasFailureMessage = previous.some(
+            (message) => message.id === failureAssistantMessage.id,
+          );
+          if (controller.signal.aborted || hasFailureMessage) {
+            return messagesResponse.data;
+          }
+          return [...messagesResponse.data, failureAssistantMessage];
+        });
       } catch (refreshError) {
         console.error("Failed to refresh messages after stream error", refreshError);
+        if (!controller.signal.aborted) {
+          setMessages((previous) => [
+            ...previous.filter(
+              (message) =>
+                message.id !== tempUserId && message.id !== tempAssistantId,
+            ),
+            failureAssistantMessage,
+          ]);
+        }
       }
     } finally {
       if (streamAbortControllerRef.current === controller) {
@@ -457,7 +519,7 @@ export default function AIChatScreen() {
   const renderMessage = ({ item }: { item: ChatMessage }) => {
     const isAssistant = item.role === "assistant";
     const displayedContent =
-      isAssistant && !item.content
+      isAssistant && !item.content && !item.is_error
         ? streamStatus === "searching"
           ? "관련 정보를 찾고 있어요..."
           : "답변을 작성하고 있어요..."
@@ -475,13 +537,21 @@ export default function AIChatScreen() {
         )}
         <View
           className={`max-w-[80%] p-3 rounded-2xl ${
-            isAssistant
+            item.is_error
+              ? "bg-rose-50 border border-rose-100 rounded-tl-none"
+              : isAssistant
               ? "bg-gray-200 rounded-tl-none"
               : "bg-blue-500 rounded-tr-none"
           }`}
         >
           <Text
-            className={isAssistant ? "text-gray-800" : "text-white"}
+            className={
+              item.is_error
+                ? "text-rose-700"
+                : isAssistant
+                  ? "text-gray-800"
+                  : "text-white"
+            }
             style={{ lineHeight: 22 }}
             selectable={isAssistant}
           >

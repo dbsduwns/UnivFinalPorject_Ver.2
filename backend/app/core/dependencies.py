@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -17,6 +17,18 @@ class AuthContext:
     user: User
     payload: dict
     refresh_session: RefreshSession | None
+
+
+def has_recent_biometric_auth(context: AuthContext, max_age_seconds: int = 300) -> bool:
+    """최근 OS 생체 인증으로 발급된 세션인지 확인한다."""
+    if context.payload.get("auth_level") != "biometric":
+        return False
+    last_biometric_at = context.refresh_session.last_biometric_at if context.refresh_session else None
+    if last_biometric_at is None:
+        return False
+    if last_biometric_at.tzinfo is None:
+        last_biometric_at = last_biometric_at.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - last_biometric_at <= timedelta(seconds=max_age_seconds)
 
 
 def get_current_auth_context(

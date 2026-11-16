@@ -72,7 +72,9 @@ class CommentReportResponse(BaseModel):
     post_id: int | None = None
     reason: CommentReportReason
     description: str | None
+    content_snapshot: str
     status: CommentReportStatus
+    resolution_note: str | None
     created_at: datetime
     reviewed_at: datetime | None
 

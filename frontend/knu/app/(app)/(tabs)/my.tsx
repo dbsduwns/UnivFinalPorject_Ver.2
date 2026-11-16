@@ -1,5 +1,6 @@
-import { Text, View, TouchableOpacity, Switch, Alert, ScrollView, Modal, ActivityIndicator, Linking } from "react-native";
+import { Text, View, TouchableOpacity, Switch, Alert, ScrollView, Modal, ActivityIndicator, Linking, Pressable } from "react-native";
 import { useState, useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { 
   User as UserIcon, 
@@ -14,6 +15,9 @@ import {
   Mail,
   Info,
   Navigation,
+  Flag,
+  UserRoundX,
+  UserRound,
 } from "lucide-react-native";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -25,17 +29,27 @@ import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
 import {
   getNotificationSettingsRequest,
   updateNotificationSettingsRequest,
+  linkGoogleAccount,
 } from "@/features/auth/api/auth";
 import { NotificationSettings } from "@/features/auth/api/types";
 import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
-import { linkGoogleAccount } from "@/features/auth/api/auth";
+import { getAxiosErrorMessage } from "@/api/errors";
+import {
+  deleteUserBlock,
+  getMyCommentReports,
+  getUserBlocks,
+} from "@/features/community/api/community";
+import { deleteFriend, getFriends } from "@/features/friend/api/friend";
+import type { CommentReport, UserBlock } from "@/features/community/api/types";
+import type { FriendUser } from "@/features/friend/api/types";
 
 WebBrowser.maybeCompleteAuthSession();
 
 export default function MyScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const deleteAccount = useAuthStore((s) => s.deleteAccount);
@@ -50,7 +64,12 @@ export default function MyScreen() {
   // 모달 상태
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [isPasswordChangeModalVisible, setIsPasswordChangeModalVisible] = useState(false);
-  const closeModal = () => setIsEditModalVisible(false);
+  const [isBiometricVerified, setIsBiometricVerified] = useState(false);
+  const closeModal = () => {
+    setIsEditModalVisible(false);
+    setIsPasswordVerified(false);
+    setIsBiometricVerified(false);
+  };
 
   // 알림 설정 상태
   const [notifSettings, setNotifSettings] = useState<NotificationSettings | null>(null);
@@ -60,6 +79,40 @@ export default function MyScreen() {
 
   // 비밀번호 인증 상태 확인
   const [isPasswordVerified, setIsPasswordVerified] = useState(false);
+  const [isReportsExpanded, setIsReportsExpanded] = useState(false);
+  const [isBlocksExpanded, setIsBlocksExpanded] = useState(false);
+  const [selectedReport, setSelectedReport] = useState<CommentReport | null>(null);
+
+  const reportsQuery = useQuery({
+    queryKey: ["my-community-reports"],
+    queryFn: getMyCommentReports,
+    enabled: isReportsExpanded,
+  });
+  const blocksQuery = useQuery({
+    queryKey: ["my-community-blocks"],
+    queryFn: getUserBlocks,
+    enabled: isBlocksExpanded,
+  });
+  const friendsQuery = useQuery({
+    queryKey: ["friends"],
+    queryFn: getFriends,
+    enabled: isBlocksExpanded,
+  });
+
+  const unblockMutation = useMutation({
+    mutationFn: deleteUserBlock,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["my-community-blocks"] });
+    },
+    onError: (error) => Alert.alert("차단 해제 실패", getAxiosErrorMessage(error)),
+  });
+  const deleteFriendMutation = useMutation({
+    mutationFn: deleteFriend,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["friends"] });
+    },
+    onError: (error) => Alert.alert("친구 삭제 실패", getAxiosErrorMessage(error)),
+  });
 
   useEffect(() => {
     fetchSettings();
@@ -301,6 +354,53 @@ export default function MyScreen() {
             />
           </View>
 
+          {/* 커뮤니티 활동 */}
+          <SectionTitle title="커뮤니티 활동" />
+          <View className="bg-white rounded-3xl overflow-hidden shadow-sm border border-gray-100 mb-6">
+            <ExpandableSettingLink
+              icon={<Flag size={20} color="#4B5563" />}
+              title="내 신고 내역"
+              expanded={isReportsExpanded}
+              onPress={() => setIsReportsExpanded((expanded) => !expanded)}
+            />
+            {isReportsExpanded && (
+              <ReportHistoryList
+                reports={reportsQuery.data ?? []}
+                isLoading={reportsQuery.isLoading}
+                isError={reportsQuery.isError}
+                onSelect={setSelectedReport}
+              />
+            )}
+            <View className="h-[1px] bg-gray-50 mx-4" />
+            <ExpandableSettingLink
+              icon={<UserRoundX size={20} color="#4B5563" />}
+              title="차단한 사용자"
+              expanded={isBlocksExpanded}
+              onPress={() => setIsBlocksExpanded((expanded) => !expanded)}
+            />
+            {isBlocksExpanded && (
+              <BlockedUserList
+                blocks={blocksQuery.data ?? []}
+                friends={friendsQuery.data ?? []}
+                isLoading={blocksQuery.isLoading || friendsQuery.isLoading}
+                isError={blocksQuery.isError}
+                isPending={unblockMutation.isPending || deleteFriendMutation.isPending}
+                onUnblock={(block) => {
+                  Alert.alert("차단 해제", `${block.display_name ?? "이 사용자"}의 차단을 해제할까요?`, [
+                    { text: "취소", style: "cancel" },
+                    { text: "해제", onPress: () => unblockMutation.mutate(block.id) },
+                  ]);
+                }}
+                onDeleteFriend={(friendId, name) => {
+                  Alert.alert("친구 삭제", `${name}님을 친구 목록에서 삭제할까요?`, [
+                    { text: "취소", style: "cancel" },
+                    { text: "삭제", style: "destructive", onPress: () => deleteFriendMutation.mutate(friendId) },
+                  ]);
+                }}
+              />
+            )}
+          </View>
+
           {/* 관리자 도구 (조건부 렌더링) */}
           {user.is_admin && (
             <>
@@ -362,10 +462,13 @@ export default function MyScreen() {
         visible={isEditModalVisible}
       >
         {isPasswordVerified ? (
-          <ProfileEditForm onClose={closeModal}/>
+          <ProfileEditForm onClose={closeModal} biometricVerified={isBiometricVerified} />
         ) : (
           <PasswordVerificationForm 
-            onVerified={() => setIsPasswordVerified(true)}
+            onVerified={(usedBiometric) => {
+              setIsPasswordVerified(true);
+              setIsBiometricVerified(Boolean(usedBiometric));
+            }}
             onClose={closeModal}
           />
         )}
@@ -386,6 +489,11 @@ export default function MyScreen() {
           }}
         />
       </Modal>
+
+      <ReportDetailModal
+        report={selectedReport}
+        onClose={() => setSelectedReport(null)}
+      />
     </AppScreenLayout>
   );
 }
@@ -423,6 +531,261 @@ function SettingLink({
       <ChevronRight size={18} color="#D1D5DB" />
     </TouchableOpacity>
   );
+}
+
+function ExpandableSettingLink({
+  icon,
+  title,
+  expanded,
+  onPress,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  expanded: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityState={{ expanded }}
+      onPress={onPress}
+      className="flex-row items-center px-5 py-4 active:bg-gray-50"
+    >
+      <View className="w-8">{icon}</View>
+      <Text className="flex-1 ml-1 font-medium text-gray-700">{title}</Text>
+      {expanded ? <ChevronDown size={18} color="#9CA3AF" /> : <ChevronRight size={18} color="#D1D5DB" />}
+    </TouchableOpacity>
+  );
+}
+
+function ReportHistoryList({
+  reports,
+  isLoading,
+  isError,
+  onSelect,
+}: {
+  reports: CommentReport[];
+  isLoading: boolean;
+  isError: boolean;
+  onSelect: (report: CommentReport) => void;
+}) {
+  if (isLoading) return <ActivityIndicator className="py-6" color="#13708D" />;
+  if (isError) return <Text className="px-5 py-5 text-sm text-red-500">신고 내역을 불러오지 못했습니다.</Text>;
+  if (reports.length === 0) return <Text className="px-5 py-5 text-sm text-gray-400">신고한 내역이 없습니다.</Text>;
+
+  return (
+    <View className="px-5 pb-2">
+      {reports.map((report, index) => (
+        <TouchableOpacity
+          key={report.id}
+          activeOpacity={0.75}
+          onPress={() => onSelect(report)}
+          className={`py-4 ${index > 0 ? "border-t border-gray-100" : ""}`}
+        >
+          <View className="flex-row items-center">
+            <Text className="flex-1 font-bold text-gray-800">
+              {report.post_id != null ? "게시글 신고" : "댓글 신고"}
+            </Text>
+            <ReportStatusBadge status={report.status} />
+          </View>
+          <Text className="text-xs text-gray-400 mt-2">접수일 {formatCommunityDate(report.created_at)}</Text>
+          {report.reviewed_at && (
+            <Text className="text-xs text-gray-500 mt-1">처리일 {formatCommunityDate(report.reviewed_at)}</Text>
+          )}
+          {report.description && (
+            <Text className="text-sm text-gray-600 mt-2" numberOfLines={2}>{report.description}</Text>
+          )}
+          <Text className="text-xs text-[#13708D] font-bold mt-3">상세 내역 보기 ›</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
+function ReportDetailModal({
+  report,
+  onClose,
+}: {
+  report: CommentReport | null;
+  onClose: () => void;
+}) {
+  if (!report) return null;
+
+  return (
+    <Modal
+      visible
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <Pressable className="flex-1 justify-center bg-black/50 px-5" onPress={onClose}>
+        <Pressable className="max-h-[86%] rounded-3xl bg-white p-6" onPress={() => {}}>
+          <View className="flex-row items-center">
+            <Text className="flex-1 text-xl font-extrabold text-gray-900">신고 상세 내역</Text>
+            <TouchableOpacity onPress={onClose} className="px-2 py-1">
+              <Text className="text-2xl text-gray-400">×</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} className="mt-5">
+            <View className="flex-row items-center mb-4">
+              <Text className="flex-1 text-base font-bold text-gray-800">
+                {report.post_id != null ? "게시글 신고" : "댓글 신고"}
+              </Text>
+              <ReportStatusBadge status={report.status} />
+            </View>
+
+            <ReportDetailRow label="신고 사유" value={REPORT_REASON_LABELS[report.reason]} />
+            <ReportDetailRow label="접수일" value={formatCommunityDateTime(report.created_at)} />
+            <ReportDetailRow
+              label="처리일"
+              value={report.reviewed_at ? formatCommunityDateTime(report.reviewed_at) : "아직 처리되지 않았습니다."}
+            />
+
+            <ReportDetailSection label="신고 당시 내용">
+              <Text className="rounded-2xl bg-gray-50 p-4 leading-6 text-gray-700">
+                {report.content_snapshot || "신고 당시 내용을 확인할 수 없습니다."}
+              </Text>
+            </ReportDetailSection>
+
+            <ReportDetailSection label="신고자 설명">
+              <Text className="rounded-2xl bg-gray-50 p-4 leading-6 text-gray-700">
+                {report.description || "작성한 설명이 없습니다."}
+              </Text>
+            </ReportDetailSection>
+
+            <ReportDetailSection label="처리 결과 및 사유">
+              <Text className="rounded-2xl bg-gray-50 p-4 leading-6 text-gray-700">
+                {report.resolution_note || "관리자 검토가 아직 완료되지 않았습니다."}
+              </Text>
+            </ReportDetailSection>
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const REPORT_REASON_LABELS: Record<CommentReport["reason"], string> = {
+  abuse: "욕설·비방·괴롭힘",
+  hate: "혐오·차별 표현",
+  sexual: "음란·성적 콘텐츠",
+  spam: "도배·광고·스팸",
+  personal_info: "개인정보 노출",
+  impersonation: "사칭",
+  illegal: "불법 콘텐츠",
+  other: "기타",
+};
+
+function ReportDetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View className="flex-row border-b border-gray-100 py-3">
+      <Text className="w-20 text-sm font-bold text-gray-500">{label}</Text>
+      <Text className="flex-1 text-sm text-gray-800">{value}</Text>
+    </View>
+  );
+}
+
+function ReportDetailSection({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <View className="mt-5">
+      <Text className="mb-2 text-sm font-bold text-gray-700">{label}</Text>
+      {children}
+    </View>
+  );
+}
+
+function ReportStatusBadge({ status }: { status: CommentReport["status"] }) {
+  const statusMap = {
+    pending: { label: "접수됨", color: "#D97706", background: "#FEF3C7" },
+    reviewing: { label: "검토 중", color: "#2563EB", background: "#DBEAFE" },
+    resolved: { label: "처리 완료", color: "#16A34A", background: "#DCFCE7" },
+    dismissed: { label: "반려됨", color: "#6B7280", background: "#F3F4F6" },
+  }[status];
+
+  return (
+    <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: statusMap.background }}>
+      <Text className="text-xs font-bold" style={{ color: statusMap.color }}>{statusMap.label}</Text>
+    </View>
+  );
+}
+
+function BlockedUserList({
+  blocks,
+  friends,
+  isLoading,
+  isError,
+  isPending,
+  onUnblock,
+  onDeleteFriend,
+}: {
+  blocks: UserBlock[];
+  friends: FriendUser[];
+  isLoading: boolean;
+  isError: boolean;
+  isPending: boolean;
+  onUnblock: (block: UserBlock) => void;
+  onDeleteFriend: (friendId: number, name: string) => void;
+}) {
+  if (isLoading) return <ActivityIndicator className="py-6" color="#13708D" />;
+  if (isError) return <Text className="px-5 py-5 text-sm text-red-500">차단 목록을 불러오지 못했습니다.</Text>;
+  if (blocks.length === 0) return <Text className="px-5 py-5 text-sm text-gray-400">차단한 사용자가 없습니다.</Text>;
+
+  return (
+    <View className="px-5 pb-2">
+      {blocks.map((block, index) => {
+        const friend = friends.find((item) => item.id === block.blocked_user_id);
+        const name = block.display_name ?? "차단한 사용자";
+        return (
+          <View key={block.id} className={`py-4 ${index > 0 ? "border-t border-gray-100" : ""}`}>
+            <View className="flex-row items-center mb-3">
+              <View className="w-9 h-9 rounded-full bg-gray-100 items-center justify-center">
+                <UserRound size={18} color="#6B7280" />
+              </View>
+              <View className="flex-1 ml-3">
+                <Text className="font-bold text-gray-800">{name}</Text>
+                <Text className="text-xs text-gray-400 mt-1">차단일 {formatCommunityDate(block.created_at)}</Text>
+              </View>
+            </View>
+            <View className="flex-row gap-2">
+              <TouchableOpacity
+                className="flex-1 rounded-xl border border-gray-200 py-2.5 items-center"
+                disabled={isPending}
+                onPress={() => onUnblock(block)}
+              >
+                <Text className="text-sm font-bold text-gray-700">차단 해제</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className={`flex-1 rounded-xl border py-2.5 items-center ${friend ? "border-red-200" : "border-gray-100"}`}
+                disabled={isPending || !friend}
+                onPress={() => friend && onDeleteFriend(friend.id, friend.name)}
+              >
+                <Text className={`text-sm font-bold ${friend ? "text-red-500" : "text-gray-300"}`}>친구 삭제</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function formatCommunityDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("ko-KR", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function formatCommunityDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("ko-KR", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 // 서브 컴포넌트: 토글형 설정 항목

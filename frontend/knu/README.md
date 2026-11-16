@@ -25,6 +25,12 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+## Exhibition AI mode
+
+Set `EXPO_PUBLIC_EXHIBITION_MODE=true` in the app environment to demonstrate the AI screen with deterministic local replies for the representative questions, without calling Cloudflare AI or Qdrant. Set it to `false` or remove it for the normal AI streaming behavior.
+
+This mode is intended for the exhibition build. It does not replace app authentication or the backend services used by the other app features.
+
 ## Get a fresh project
 
 When you're ready, run:

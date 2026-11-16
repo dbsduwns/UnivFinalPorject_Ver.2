@@ -15,6 +15,7 @@ export type UserUpdateBody = {
   department?: string;
   grade?: number;
   student_id?: string;
+  biometric_auth?: boolean;
 };
 
 export type TokenResponse = {
@@ -72,9 +73,10 @@ export type PasswordVerifyRequest = {
 }
 
 export type PasswordChangeRequest = {
-  current_password: string;
+  current_password?: string;
   new_password: string;
   confirm_password: string;
+  biometric_auth?: boolean;
 };
 
 export type NotificationSettings = {

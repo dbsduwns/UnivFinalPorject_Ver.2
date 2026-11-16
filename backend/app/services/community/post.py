@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.models.community.post import Post
 from app.schemas.community.post import CreatePost, UpdatePost, PostResponse
 from app.models.user import User
+from app.core.storage import delete_community_image
 
 def get_posts(
         db: Session,
@@ -54,6 +55,7 @@ def create_post(db: Session, user: User, board_slug: str, data: CreatePost) -> P
         board_slug=board_slug,
         title=data.title,
         content=data.content,
+        image_url=data.image_url,
         author_id=user.id,
         is_anonymous=data.is_anonymous
     )
@@ -93,12 +95,14 @@ def delete_post(db: Session, user: User, post_slug: str) -> None:
     if not user.is_admin and post.author_id != user.id:
         raise PermissionError("You do not have permission to delete this post")
 
+    image_path = post.image_path
     db.delete(post)
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
         raise
+    delete_community_image(image_path)
 
 def generate_post_slug(db: Session, title: str) -> str:
     base = re.sub(r"[^a-zA-Z0-9가-힣]+", "-", title).strip("-")
@@ -118,6 +122,7 @@ def to_post_response(post: Post, current_user: User | None = None) -> PostRespon
         board_slug=post.board_slug,
         title=post.title,
         content=post.content,
+        image_url=post.image_url,
         author_name="익명" if post.is_anonymous else post.author.name,
         is_anonymous=post.is_anonymous,
         is_hidden=post.is_hidden,

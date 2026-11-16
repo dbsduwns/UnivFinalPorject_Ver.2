@@ -13,6 +13,8 @@ export interface ChatMessage {
     content: string;
     created_at: string;
     navigation_targets?: ChatNavigationTarget[];
+    /** 로컬에서만 사용하는 스트리밍 실패 안내 메시지 표시 플래그 */
+    is_error?: boolean;
 }
 
 export interface ChatNavigationTarget {
@@ -49,6 +51,11 @@ export type ChatStreamEvent =
     }
     | {
         type: 'done';
+        room: ChatRoom;
+        assistant_message: ChatMessage;
+    }
+    | {
+        type: 'fallback';
         room: ChatRoom;
         assistant_message: ChatMessage;
     }

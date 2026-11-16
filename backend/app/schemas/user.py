@@ -31,6 +31,7 @@ class UserUpdate(BaseModel):
     student_id: str | None = None
     department: str | None = None
     grade: int | None = None
+    biometric_auth: bool = False
 
 class UserLogin(BaseModel):
     email: str
@@ -82,13 +83,16 @@ class PasswordVerifyRequest(BaseModel):
     password: str = Field(min_length=8, max_length=72)
 
 class PasswordChangeRequest(BaseModel):
-    current_password: str = Field(min_length=8, max_length=72)
+    current_password: str | None = Field(default=None, min_length=8, max_length=72)
     new_password: str = Field(min_length=8, max_length=72)
     confirm_password: str = Field(min_length=8, max_length=72)
+    biometric_auth: bool = False
 
     @field_validator("current_password", "new_password", "confirm_password")
     @classmethod
-    def validate_password_bytes(cls, value: str) -> str:
+    def validate_password_bytes(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
         if len(value.encode("utf-8")) > 72:
             raise ValueError("Password must be at most 72 UTF-8 bytes.")
         return value

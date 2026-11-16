@@ -187,7 +187,7 @@ def save_shuttle_schedule(schedule):
         notify_users_by_type_sync(
             db, 
             "shuttle_alert", 
-            "🚌 셔틀버스 크롤링 업데이트",
+            "🚌 셔틀버스 업데이트",
             f"[{schedule['semester']}] 새로운 셔틀버스 시간표가 등록되었습니다.",
             {
                 "type": "shuttle",

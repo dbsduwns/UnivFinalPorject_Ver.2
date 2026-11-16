@@ -4,11 +4,13 @@ from pydantic import BaseModel, ConfigDict, Field
 class CreatePost(BaseModel):
     title: str
     content: str
+    image_url: str | None = None
     is_anonymous: bool = False
 
 class UpdatePost(BaseModel):
     title: str | None = None
     content: str | None = None
+    image_url: str | None = None
     is_anonymous: bool | None = None
 
 class PostResponse(BaseModel):
@@ -17,6 +19,7 @@ class PostResponse(BaseModel):
     board_slug: str
     title: str
     content: str
+    image_url: str | None = None
     author_name: str
     is_anonymous: bool
     is_hidden: bool = False

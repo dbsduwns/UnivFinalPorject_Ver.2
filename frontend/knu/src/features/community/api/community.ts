@@ -7,6 +7,7 @@ import type {
   CreateCommentBody,
   CreateCommentReportBody,
   CreatePostBody,
+  CommunityImageAsset,
   GetPostsParams,
   LikeToggleResponse,
   UpdateCommentBody,
@@ -38,10 +39,17 @@ export const getCommunityPost = async (postSlug: string, admin = false): Promise
 
 export const createCommunityPost = async (
   boardSlug: string,
-  body: CreatePostBody
+  body: CreatePostBody,
+  image?: CommunityImageAsset | null,
 ): Promise<CommunityPost> => {
-  const { data } = await apiClient.post<CommunityPost>("/api/community/posts", body, {
+  const formData = new FormData();
+  formData.append("title", body.title);
+  formData.append("content", body.content);
+  formData.append("is_anonymous", String(Boolean(body.is_anonymous)));
+  if (image) formData.append("image", image as unknown as Blob);
+  const { data } = await apiClient.post<CommunityPost>("/api/community/posts", formData, {
     params: { board_slug: boardSlug },
+    headers: { "Content-Type": "multipart/form-data" },
   });
   return data;
 };
@@ -121,6 +129,21 @@ export const reportPost = async (
     body,
     { params: { post_id: postId } },
   );
+  return data;
+};
+
+export const getMyCommentReports = async (): Promise<CommentReport[]> => {
+  const { data } = await apiClient.get<CommentReport[]>('/api/community/my-comment-reports');
+  return data;
+};
+
+export const getUserBlocks = async (): Promise<UserBlock[]> => {
+  const { data } = await apiClient.get<UserBlock[]>('/api/community/userblocks');
+  return data;
+};
+
+export const deleteUserBlock = async (blockId: number): Promise<{ message: string }> => {
+  const { data } = await apiClient.delete<{ message: string }>(`/api/community/userblocks/${blockId}`);
   return data;
 };
 
