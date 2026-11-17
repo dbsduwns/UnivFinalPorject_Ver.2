@@ -69,6 +69,11 @@ def build_notice_records(notices: list[Notice]) -> list[tuple[str, Document]]:
                                 if notice.published_at
                                 else None
                             ),
+                            "crawled_at": (
+                                notice.crawled_at.isoformat()
+                                if notice.crawled_at
+                                else None
+                            ),
                         },
                     ),
                 )

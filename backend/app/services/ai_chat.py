@@ -197,7 +197,6 @@ async def stream_message(
 
     chunks: list[str] = []
     navigation_targets: list[dict[str, Any]] = []
-    navigation_event_sent = False
     generation_started = False
     try:
         async for chunk in campus_ai_bot.astream_answer(
@@ -205,11 +204,6 @@ async def stream_message(
             personal_context=personal_context,
             on_navigation_targets=navigation_targets.extend,
         ):
-            if navigation_targets and not navigation_event_sent:
-                navigation_event_sent = True
-                yield encode_stream_event(
-                    {"type": "navigation", "targets": navigation_targets}
-                )
             if not generation_started:
                 generation_started = True
                 yield encode_stream_event(
@@ -221,6 +215,11 @@ async def stream_message(
         reply = "".join(chunks)
         if not reply:
             raise RuntimeError("AI bot returned an empty response")
+
+        if navigation_targets:
+            yield encode_stream_event(
+                {"type": "navigation", "targets": navigation_targets}
+            )
 
         with SessionLocal() as stream_db:
             assistant_message = Message(

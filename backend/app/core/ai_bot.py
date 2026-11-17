@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from collections import Counter
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -206,9 +207,11 @@ class CampusAIBot:
 9. 일정 정보는 날짜, 시간, 장소를 구분하고 Context의 표기를 정확히 유지하세요.
 10. 사용자가 해야 할 일이 있으면 '확인할 내용' 아래에 간단히 정리하세요.
 11. 학칙·규정 답변에는 규정명과 조항을 표시하고, 번호가 있는 검색 문서는 [1], [2]처럼 표시하세요.
-12. 정보가 없는 항목의 제목은 만들지 마세요.
-13. 단순 질문은 짧게 답하고, 여러 일정이나 조건을 비교할 때만 항목을 나누세요.
-14. Markdown 굵게 문법이나 표는 사용하지 마세요.
+12. 공지사항을 근거로 답변할 때는 해당 문서의 공지ID를 문장 끝에 [근거 #공지ID] 형식으로 표시하세요. 답변에 사용하지 않은 공지의 ID는 표시하지 마세요.
+13. 공지 보기 버튼으로 원문을 열 수 있으므로 답변 본문에 URL, 링크 주소, Markdown 링크를 포함하지 마세요.
+14. 정보가 없는 항목의 제목은 만들지 마세요.
+15. 단순 질문은 짧게 답하고, 여러 일정이나 조건을 비교할 때만 항목을 나누세요.
+16. Markdown 굵게 문법이나 표는 사용하지 마세요.
 
 # 오늘 날짜
 {current_date}
@@ -329,10 +332,14 @@ class CampusAIBot:
             lines.append(f"{index}. 출처: {source}")
             if title:
                 lines.append(f"   제목/행사: {title}")
+            if source == "공지사항" and metadata.get("notice_id") is not None:
+                lines.append(f"   공지ID: {metadata['notice_id']}")
             if metadata.get("category"):
                 lines.append(f"   카테고리: {metadata['category']}")
             if metadata.get("published_at"):
                 lines.append(f"   게시일: {metadata['published_at']}")
+            if source == "공지사항" and metadata.get("crawled_at"):
+                lines.append(f"   앱 수집일: {metadata['crawled_at']}")
             if metadata.get("start_date") or metadata.get("end_date"):
                 lines.append(
                     "   일정: "
@@ -367,9 +374,10 @@ class CampusAIBot:
 
             target: dict[str, Any] | None = None
             if source == "공지사항" and metadata.get("notice_id") is not None:
+                notice_title = str(metadata.get("title") or "공지사항")
                 target = {
                     "type": "notice",
-                    "label": "공지 보기",
+                    "label": f"공지 보기: {notice_title}",
                     "params": {"id": str(metadata["notice_id"])},
                 }
             elif source == "학식" and metadata.get("date"):
@@ -398,6 +406,33 @@ class CampusAIBot:
                 targets.append(target)
 
         return targets[:3]
+
+    @staticmethod
+    def _select_cited_navigation_targets(
+        answer: str,
+        targets: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Keep only notice links whose IDs were cited in the generated answer."""
+        cited_notice_ids = {
+            match.group(1)
+            for match in re.finditer(r"\[근거\s*#(\d+)\]", answer)
+        }
+        if not cited_notice_ids:
+            return [target for target in targets if target.get("type") != "notice"]
+        return [
+            target
+            for target in targets
+            if target.get("type") != "notice"
+            or str(target.get("params", {}).get("id")) in cited_notice_ids
+        ]
+
+    @staticmethod
+    def _remove_urls(answer: str) -> str:
+        """Remove link addresses while preserving readable link labels."""
+        answer = re.sub(r"\[([^\]]+)\]\(https?://[^)]+\)", r"\1", answer)
+        answer = re.sub(r"(?im)^\s*(?:원문|링크|URL)\s*[:：]\s*https?://\S+\s*$", "", answer)
+        answer = re.sub(r"https?://\S+", "", answer)
+        return answer.strip()
 
     async def _retrieve_documents(
         self,
@@ -430,7 +465,7 @@ class CampusAIBot:
                 and hasattr(self.retriever, "adocuments_by_metadata")
             ):
                 # 최신 공지는 의미 유사도보다 게시일이 우선이므로
-                # 공지 후보 전체를 조회한 뒤 published_at 기준으로 정렬합니다.
+                # 공지 후보 전체를 조회한 뒤 앱에 수집된 시각 기준으로 정렬합니다.
                 latest_notice_documents = await self.retriever.adocuments_by_metadata(
                     decision.metadata_filter
                 )
@@ -457,7 +492,7 @@ class CampusAIBot:
 
                 latest_notice_documents.sort(
                     key=lambda document: str(
-                        document.metadata.get("published_at") or ""
+                        document.metadata.get("crawled_at") or ""
                     ),
                     reverse=True,
                 )
@@ -651,8 +686,6 @@ class CampusAIBot:
                 include_navigation_targets=True,
             )
             context, navigation_targets = context_result
-            if on_navigation_targets is not None:
-                on_navigation_targets(navigation_targets)
             print(
                 f"📚 [AI Bot] Context 구성 완료: {len(context)}자",
                 flush=True,
@@ -663,15 +696,14 @@ class CampusAIBot:
                 "question": question,
                 "current_date": datetime.now(SEOUL_TIMEZONE).strftime("%Y-%m-%d"),
             }
-            produced_chunk = False
+            raw_answer_chunks: list[str] = []
             try:
                 async for chunk in self.answer_chain.astream(answer_input):
                     if not chunk:
                         continue
-                    produced_chunk = True
-                    yield chunk
+                    raw_answer_chunks.append(chunk)
             except ValidationError as exc:
-                if produced_chunk:
+                if raw_answer_chunks:
                     raise
                 print(
                     "⚠️ [AI Bot] 공급자 스트림 형식 오류로 일반 응답을 사용합니다: "
@@ -679,14 +711,19 @@ class CampusAIBot:
                     flush=True,
                 )
                 response = await self.answer_chain.ainvoke(answer_input)
-                for start in range(0, len(response), 24):
-                    chunk = response[start : start + 24]
-                    if chunk:
-                        produced_chunk = True
-                        yield chunk
+                raw_answer_chunks = [response] if response else []
 
-            if not produced_chunk:
+            answer = self._remove_urls("".join(raw_answer_chunks))
+            if not answer:
                 raise RuntimeError("LLM이 빈 답변을 반환했습니다.")
+            for start in range(0, len(answer), 24):
+                yield answer[start : start + 24]
+            if on_navigation_targets is not None:
+                on_navigation_targets(
+                    self._select_cited_navigation_targets(
+                        answer, navigation_targets
+                    )
+                )
             print("✅ [AI Bot] 답변 생성 완료", flush=True)
         except Exception as exc:
             print(f"❌ [AI Bot] 질문 처리 중 오류 발생: {exc}", flush=True)

@@ -3,6 +3,7 @@ import sys
 import time
 import json
 import random
+from datetime import datetime, timezone
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
@@ -127,6 +128,7 @@ def crawl_notices_safely(max_pages: int = 1000):
                         if content:
                             rag_indexed = False
                             try:
+                                crawled_at = datetime.now(timezone.utc)
                                 # 즉시 DB 저장 및 RAG 인덱싱
                                 notice = Notice(
                                     source_key=item["source_key"],
@@ -135,7 +137,8 @@ def crawl_notices_safely(max_pages: int = 1000):
                                     category=category_name,
                                     source_url=source_url,
                                     attachment_url=attachment_url,
-                                    published_at=published_at
+                                    published_at=published_at,
+                                    crawled_at=crawled_at,
                                 )
                                 db.add(notice)
                                 db.flush()
@@ -156,6 +159,7 @@ def crawl_notices_safely(max_pages: int = 1000):
                                         "category": category_name,
                                         "title": item["title"],
                                         "published_at": published_at,
+                                        "crawled_at": crawled_at.isoformat(),
                                         "source_url": source_url,
                                         "attachment_url": attachment_url,
                                     }
