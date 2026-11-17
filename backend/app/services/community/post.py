@@ -1,10 +1,14 @@
 import re, uuid
+from datetime import datetime, timedelta
 from typing import List
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.community.post import Post
-from app.schemas.community.post import CreatePost, UpdatePost, PostResponse
+from app.models.community.comment import Comment
+from app.models.community.like import PostLike
+from app.schemas.community.post import CreatePost, UpdatePost, PostResponse, HotPostResponse
 from app.models.user import User
 from app.core.storage import delete_community_image
 
@@ -41,6 +45,80 @@ def get_posts(
     return(
         [to_post_response(post, current_user) for post in posts]
     )
+
+
+def get_hot_posts(
+    db: Session,
+    current_user: User | None = None,
+    limit: int = 2,
+) -> list[HotPostResponse]:
+    """Return the top recent posts that meet the demo engagement threshold.
+
+    Candidates are visible posts from the last seven days with at least two
+    combined likes and non-hidden comments. The score favors likes slightly
+    more than comments and decays as a post gets older.
+    """
+    now = datetime.utcnow()
+    since = now - timedelta(days=7)
+    like_counts = (
+        db.query(
+            PostLike.post_id.label("post_id"),
+            func.count(PostLike.id).label("like_count"),
+        )
+        .group_by(PostLike.post_id)
+        .subquery()
+    )
+    comment_counts = (
+        db.query(
+            Comment.post_id.label("post_id"),
+            func.count(Comment.id).label("comment_count"),
+        )
+        .filter(Comment.is_hidden.is_(False))
+        .group_by(Comment.post_id)
+        .subquery()
+    )
+
+    candidates = (
+        db.query(
+            Post,
+            func.coalesce(like_counts.c.like_count, 0).label("like_count"),
+            func.coalesce(comment_counts.c.comment_count, 0).label("comment_count"),
+        )
+        .options(selectinload(Post.author))
+        .outerjoin(like_counts, like_counts.c.post_id == Post.id)
+        .outerjoin(comment_counts, comment_counts.c.post_id == Post.id)
+        .filter(
+            Post.is_hidden.is_(False),
+            Post.created_at >= since,
+        )
+        .all()
+    )
+
+    ranked: list[tuple[float, Post, int, int]] = []
+    for post, like_count, comment_count in candidates:
+        like_count = int(like_count)
+        comment_count = int(comment_count)
+        if like_count + comment_count < 2:
+            continue
+
+        created_at = post.created_at
+        if created_at.tzinfo is not None:
+            created_at = created_at.replace(tzinfo=None)
+        age_hours = max((now - created_at).total_seconds() / 3600, 0)
+        engagement_score = like_count * 3 + comment_count * 2
+        hot_score = engagement_score / ((age_hours + 2) ** 1.2)
+        ranked.append((hot_score, post, like_count, comment_count))
+
+    ranked.sort(key=lambda item: (-item[0], -item[1].created_at.timestamp(), -item[1].id))
+    return [
+        HotPostResponse(
+            **to_post_response(post, current_user).model_dump(),
+            like_count=like_count,
+            comment_count=comment_count,
+            hot_score=round(hot_score, 4),
+        )
+        for hot_score, post, like_count, comment_count in ranked[:limit]
+    ]
 
 def get_post_by_slug(db: Session, post_slug: str):
     return (

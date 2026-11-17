@@ -17,11 +17,11 @@ import {
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "@/features/auth/store/auth-store";
+import { useHotCommunityPosts } from "@/features/community/hooks/use-community";
+import type { HotCommunityPost } from "@/features/community/api/types";
 
 import {
   COMMUNITY_BOARDS,
-  HOT_POSTS,
-  type CommunityPost,
 } from "@/features/community/data/community";
 import { AppScreenLayout } from "@/components/ui/AppScreenLayout";
 
@@ -38,6 +38,8 @@ const BOARD_ICONS: Record<string, ReactNode> = {
 
 export default function CommunityScreen() {
   const isAdmin = useAuthStore(s => s.user?.is_admin === true);
+  const hotPostsQuery = useHotCommunityPosts();
+  const hotPosts = hotPostsQuery.data ?? [];
 
   return (
     <AppScreenLayout>
@@ -63,7 +65,7 @@ export default function CommunityScreen() {
               <Flame size={22} color="#F97316" fill="#F97316" style={{ marginLeft: 5 }} />
             </View>
 
-            {HOT_POSTS.length === 0 ? (
+            {hotPosts.length === 0 ? (
               <View className="mx-5 h-40 rounded-3xl bg-white border border-gray-100 items-center justify-center px-6">
                 <View className="w-12 h-12 rounded-full bg-orange-50 items-center justify-center">
                   <Flame size={23} color="#FDBA74" />
@@ -79,7 +81,7 @@ export default function CommunityScreen() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ paddingHorizontal: 20, gap: 14 }}
               >
-                {HOT_POSTS.map((post) => <HotPostCard key={post.id} post={post} />)}
+                {hotPosts.map((post) => <HotPostCard key={post.id} post={post} />)}
               </ScrollView>
             )}
           </View>
@@ -121,11 +123,16 @@ export default function CommunityScreen() {
   );
 }
 
-const HotPostCard = ({ post }: { post: CommunityPost }) => {
-  const board = COMMUNITY_BOARDS.find((item) => item.slug === post.boardSlug);
+const HotPostCard = ({ post }: { post: HotCommunityPost }) => {
+  const board = COMMUNITY_BOARDS.find((item) => item.slug === post.board_slug);
 
   return (
-    <Pressable className="w-[320px] h-44 rounded-3xl bg-white border border-gray-100 p-5 active:bg-gray-50">
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${post.title} 게시물 열기`}
+      onPress={() => router.push({ pathname: "/(app)/community/post/[slug]", params: { slug: post.slug } })}
+      className="w-[320px] h-44 rounded-3xl bg-white border border-gray-100 p-5 active:bg-gray-50"
+    >
       <View className="flex-row items-center">
         <View className="px-3 py-1 rounded-full bg-cyan-50">
           <Text className="text-xs font-extrabold" style={{ color: BRAND }}>
@@ -134,16 +141,16 @@ const HotPostCard = ({ post }: { post: CommunityPost }) => {
         </View>
         <View className="ml-auto flex-row items-center">
           <Heart size={15} color="#EF4444" fill="#EF4444" />
-          <Text className="ml-1 text-xs font-bold text-gray-500">{post.likeCount}</Text>
+          <Text className="ml-1 text-xs font-bold text-gray-500">{post.like_count}</Text>
           <MessageCircle size={15} color="#94A3B8" style={{ marginLeft: 10 }} />
-          <Text className="ml-1 text-xs font-bold text-gray-500">{post.commentCount}</Text>
+          <Text className="ml-1 text-xs font-bold text-gray-500">{post.comment_count}</Text>
         </View>
       </View>
       <Text className="text-base font-extrabold text-gray-900 mt-4" numberOfLines={1}>
         {post.title}
       </Text>
       <Text className="text-sm leading-5 text-gray-500 mt-1.5" numberOfLines={2}>
-        {post.preview}
+        {post.content}
       </Text>
     </Pressable>
   );

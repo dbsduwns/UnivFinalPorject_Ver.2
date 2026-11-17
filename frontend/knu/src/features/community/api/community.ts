@@ -4,6 +4,7 @@ import type {
   CommentReport,
   CommunityComment,
   CommunityPost,
+  HotCommunityPost,
   CreateCommentBody,
   CreateCommentReportBody,
   CreatePostBody,
@@ -27,6 +28,11 @@ export const getCommunityPosts = async (
       limit: params.limit ?? 20,
     },
   });
+  return data;
+};
+
+export const getHotCommunityPosts = async (): Promise<HotCommunityPost[]> => {
+  const { data } = await apiClient.get<HotCommunityPost[]>("/api/community/hot");
   return data;
 };
 

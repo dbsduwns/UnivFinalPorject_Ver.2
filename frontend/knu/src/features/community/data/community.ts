@@ -4,16 +4,6 @@ export type CommunityBoard = {
   description: string;
 };
 
-export type CommunityPost = {
-  id: number;
-  boardSlug: string;
-  title: string;
-  preview: string;
-  likeCount: number;
-  commentCount: number;
-  createdAt: string;
-};
-
 export const COMMUNITY_BOARDS: CommunityBoard[] = [
   {
     slug: "free",
@@ -46,10 +36,6 @@ export const COMMUNITY_BOARDS: CommunityBoard[] = [
     description: "취업 정보와 진로 고민을 나눠요.",
   },
 ];
-
-// 커뮤니티 API 연결 전까지 빈 배열을 사용합니다.
-// 추후 HOT 게시물 응답을 이 타입에 맞춰 전달하면 카드가 바로 표시됩니다.
-export const HOT_POSTS: CommunityPost[] = [];
 
 export const getCommunityBoard = (slug?: string) =>
   COMMUNITY_BOARDS.find((board) => board.slug === slug);

@@ -14,6 +14,12 @@ export type CommunityPost = {
   is_mine: boolean;
 };
 
+export type HotCommunityPost = CommunityPost & {
+  like_count: number;
+  comment_count: number;
+  hot_score: number;
+};
+
 export type CreatePostBody = {
   title: string;
   content: string;

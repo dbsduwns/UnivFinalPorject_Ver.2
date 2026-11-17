@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user, get_current_admin_user
-from app.schemas.community.post import AdminPostUpdate
+from app.schemas.community.post import AdminPostUpdate, HotPostResponse
 from app.database import get_db
 from app.models.user import User
 from app.services.community import post as post_service
@@ -68,6 +68,14 @@ def get_posts(
     user: User = Depends(get_current_user),
 ):
     return post_service.get_posts(db, board_slug, keyword, skip, limit, current_user=user)
+
+
+@router.get("/hot", response_model=list[HotPostResponse])
+def get_hot_posts(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    return post_service.get_hot_posts(db, current_user=user, limit=2)
 
 @router.get("/slug", response_model=PostResponse)
 def get_post_by_slug(

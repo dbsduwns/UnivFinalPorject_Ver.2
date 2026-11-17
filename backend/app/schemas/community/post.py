@@ -31,6 +31,12 @@ class PostResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class HotPostResponse(PostResponse):
+    like_count: int
+    comment_count: int
+    hot_score: float
+
+
 class AdminPostUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
     content: str | None = Field(default=None, min_length=1)

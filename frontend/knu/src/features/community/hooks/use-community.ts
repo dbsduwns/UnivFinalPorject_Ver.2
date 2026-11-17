@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { getCommunityPost, getCommunityPosts } from "@/features/community/api/community";
+import { getCommunityPost, getCommunityPosts, getHotCommunityPosts } from "@/features/community/api/community";
 import { useAuthStore } from "@/features/auth/store/auth-store";
 
 export const communityQueryKeys = {
@@ -25,5 +25,13 @@ export function useCommunityPost(postSlug?: string) {
     queryKey: [...communityQueryKeys.post(postSlug ?? ""), admin ? "admin" : "user"],
     queryFn: () => getCommunityPost(postSlug!, admin),
     enabled: Boolean(postSlug),
+  });
+}
+
+export function useHotCommunityPosts() {
+  return useQuery({
+    queryKey: [...communityQueryKeys.all, "hot"],
+    queryFn: getHotCommunityPosts,
+    staleTime: 30_000,
   });
 }

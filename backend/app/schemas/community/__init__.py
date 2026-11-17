@@ -1,4 +1,4 @@
-from .post import CreatePost, UpdatePost, PostResponse
+from .post import CreatePost, UpdatePost, PostResponse, HotPostResponse
 from .comment import CreateComment, UpdateComment, CommentResponse
 from .like import PostLikeResponse, CommentLikeResponse
 from .comment_report import (
@@ -21,6 +21,7 @@ __all__ = [
     "CreatePost",
     "UpdatePost",
     "PostResponse",
+    "HotPostResponse",
     "CreateComment",
     "UpdateComment",
     "CommentResponse",
