@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f4f8fa" />
+    <title>KNU Campus | Android 앱 다운로드</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="download-card" aria-labelledby="page-title">
+        <div class="brand-mark" aria-hidden="true">K</div>
+        <p class="eyebrow">KNU CAMPUS LIFE</p>
+        <h1 id="page-title">KNU Campus 앱 다운로드</h1>
+        <p class="intro">QR코드를 스캔하거나 아래 버튼을 눌러 최신 Android 앱을 설치해 주세요.</p>
+
+        <div class="qr-frame">
+          <img id="qr-code" alt="KNU Campus 앱 다운로드 QR코드" />
+          <p id="qr-status" class="qr-status">QR코드를 준비하는 중...</p>
+        </div>
+
+        <div id="release-status" class="status" role="status" aria-live="polite">최신 버전을 확인하는 중...</div>
+        <section id="release-card" class="release-card" hidden>
+          <div class="release-heading">
+            <div>
+              <p class="label">최신 Android 버전</p>
+              <h2 id="version-name">-</h2>
+            </div>
+            <span id="version-code" class="version-badge">-</span>
+          </div>
+          <p id="published-at" class="small"></p>
+          <ul id="release-notes" class="release-notes"></ul>
+          <a id="download-button" class="download-button" href="#">APK 다운로드</a>
+        </section>
+
+        <div id="error-message" class="status error" role="alert" hidden></div>
+        <p class="hint">Android 기기에서 설치가 차단되면 브라우저 안내에 따라 이 출처의 앱 설치를 허용해 주세요.</p>
+      </section>
+      <p class="footer">KNU Campus · 강남대학교 통합 캠퍼스 앱</p>
+    </main>
+    <script src="/config.js"></script>
+    <script src="/app.js" defer></script>
+  </body>
+</html>
