@@ -86,7 +86,7 @@ async def stream_message(
 ):
     """Stream an AI reply as newline-delimited JSON events."""
     try:
-        room, user_message, personal_context = chat_service.prepare_stream_message(
+        room, user_message, personal_context, conversation_context = chat_service.prepare_stream_message(
             db,
             current_user,
             room_id,
@@ -105,6 +105,7 @@ async def stream_message(
         user_message,
         data.content,
         personal_context=personal_context,
+        conversation_context=conversation_context,
     )
     return StreamingResponse(
         event_stream,

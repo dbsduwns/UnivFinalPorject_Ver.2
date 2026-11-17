@@ -70,6 +70,7 @@ MEAL_QUERY_KEYWORDS = (
 QUERY_REWRITE_CUES = (
     "그거", "그건", "그 일정", "그 내용", "그 날짜", "그 시간", "거기는",
     "거기서", "아까", "방금", "위 내용", "더 자세히", "다시 설명", "그럼", "그리고",
+    "신청기간", "신청 기간", "지원 자격", "제출 서류", "신청 방법", "언제까지",
 )
 
 
@@ -201,20 +202,24 @@ class CampusAIBot:
 3. 학사일정은 시작일과 종료일을 정확히 구분하세요.
 4. Context에 없는 날짜, 자격, 신청 방법이나 링크를 추측하지 마세요.
 5. 근거가 부족하면 "확인할 수 있는 정보가 없습니다"라고 명확히 안내하세요.
-6. 학생에게 설명하듯 자연스러운 "해요"체를 사용하세요.
-7. 질문에 대한 직접적인 답을 첫 문장에 제시하세요.
-8. 여러 항목은 '• ' 글머리표로 구분하고 같은 내용을 반복하지 마세요.
-9. 일정 정보는 날짜, 시간, 장소를 구분하고 Context의 표기를 정확히 유지하세요.
-10. 사용자가 해야 할 일이 있으면 '확인할 내용' 아래에 간단히 정리하세요.
-11. 학칙·규정 답변에는 규정명과 조항을 표시하고, 번호가 있는 검색 문서는 [1], [2]처럼 표시하세요.
-12. 공지사항을 근거로 답변할 때는 해당 문서의 공지ID를 문장 끝에 [근거 #공지ID] 형식으로 표시하세요. 답변에 사용하지 않은 공지의 ID는 표시하지 마세요.
-13. 공지 보기 버튼으로 원문을 열 수 있으므로 답변 본문에 URL, 링크 주소, Markdown 링크를 포함하지 마세요.
-14. 정보가 없는 항목의 제목은 만들지 마세요.
-15. 단순 질문은 짧게 답하고, 여러 일정이나 조건을 비교할 때만 항목을 나누세요.
-16. Markdown 굵게 문법이나 표는 사용하지 마세요.
+6. 이전 대화는 사용자의 생략된 대상을 파악하는 참고 자료로만 사용하고, 사실 확인은 항상 현재 검색 Context를 우선하세요.
+7. 학생에게 설명하듯 자연스러운 "해요"체를 사용하세요.
+8. 질문에 대한 직접적인 답을 첫 문장에 제시하세요.
+9. 여러 항목은 '• ' 글머리표로 구분하고 같은 내용을 반복하지 마세요.
+10. 일정 정보는 날짜, 시간, 장소를 구분하고 Context의 표기를 정확히 유지하세요.
+11. 사용자가 해야 할 일이 있으면 '확인할 내용' 아래에 간단히 정리하세요.
+12. 학칙·규정 답변에는 규정명과 조항을 표시하고, 번호가 있는 검색 문서는 [1], [2]처럼 표시하세요.
+13. 공지사항을 근거로 답변할 때는 해당 문서의 공지ID를 문장 끝에 [근거 #공지ID] 형식으로 표시하세요. 답변에 사용하지 않은 공지의 ID는 표시하지 마세요.
+14. 공지 보기 버튼으로 원문을 열 수 있으므로 답변 본문에 URL, 링크 주소, Markdown 링크를 포함하지 마세요.
+15. 정보가 없는 항목의 제목은 만들지 마세요.
+16. 단순 질문은 짧게 답하고, 여러 일정이나 조건을 비교할 때만 항목을 나누세요.
+17. Markdown 굵게 문법이나 표는 사용하지 마세요.
 
 # 오늘 날짜
 {current_date}
+
+# 이전 대화
+{conversation_context}
 
 # Context
 {context}
@@ -228,7 +233,11 @@ class CampusAIBot:
         rewrite_template = """사용자의 질문을 강남대학교 정보 검색에 적합한 한 문장으로 정리하세요.
 원래 질문의 의도를 바꾸지 말고, 공지사항 질문을 학사일정 질문으로 바꾸지 마세요.
 고유명사, 공지 제목의 핵심어, 날짜, 학기, 장학·모집·시험 등의 구분을 반드시 보존하세요.
+이전 대화가 있으면 현재 질문의 생략된 대상을 보완하되, 새 질문의 주제가 명확하면 이전 대화와 섞지 마세요.
 설명 없이 검색 문장만 출력하세요.
+
+이전 대화:
+{conversation_context}
 
 사용자 질문: {question}
 검색 문장:"""
@@ -654,6 +663,7 @@ class CampusAIBot:
         self,
         question: str,
         personal_context: str | None = None,
+        conversation_context: str | None = None,
         on_navigation_targets: Callable[[list[dict[str, Any]]], None] | None = None,
     ) -> AsyncIterator[str]:
         """RAG 검색을 수행하고 LLM 답변을 문자열 조각 단위로 반환합니다."""
@@ -667,7 +677,10 @@ class CampusAIBot:
             print(f"🔍 [AI Bot] 원본 질문: {question}", flush=True)
             try:
                 rewritten_question = (
-                    await self.rewrite_chain.ainvoke({"question": question})
+                    await self.rewrite_chain.ainvoke({
+                        "question": question,
+                        "conversation_context": conversation_context or "이전 대화 없음",
+                    })
                     if self._needs_query_rewrite(question)
                     else question
                 )
@@ -694,6 +707,7 @@ class CampusAIBot:
             answer_input = {
                 "context": context,
                 "question": question,
+                "conversation_context": conversation_context or "이전 대화 없음",
                 "current_date": datetime.now(SEOUL_TIMEZONE).strftime("%Y-%m-%d"),
             }
             raw_answer_chunks: list[str] = []
@@ -736,6 +750,7 @@ class CampusAIBot:
         self,
         question: str,
         personal_context: str | None = None,
+        conversation_context: str | None = None,
         on_navigation_targets: Callable[[list[dict[str, Any]]], None] | None = None,
     ) -> str:
         """기존 호출자를 위해 스트림을 모아 완성된 답변 문자열로 반환합니다."""
@@ -744,6 +759,7 @@ class CampusAIBot:
             async for chunk in self.astream_answer(
                 question,
                 personal_context=personal_context,
+                conversation_context=conversation_context,
                 on_navigation_targets=on_navigation_targets,
             ):
                 chunks.append(chunk)

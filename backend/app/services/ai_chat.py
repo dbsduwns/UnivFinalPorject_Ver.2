@@ -57,6 +57,36 @@ def _build_personal_context(db: Session, user: User, content: str) -> str | None
     return personal_context
 
 
+def _build_conversation_context(
+    db: Session,
+    room_id: int,
+    before_message_id: int,
+    limit: int = 8,
+) -> str | None:
+    """Return only the recent history from this room for follow-up questions."""
+    messages = (
+        db.query(Message)
+        .filter(
+            Message.chat_room_id == room_id,
+            Message.id < before_message_id,
+        )
+        .order_by(Message.id.desc())
+        .limit(limit)
+        .all()
+    )
+    if not messages:
+        return None
+
+    messages.reverse()
+    lines = []
+    for message in messages:
+        role = "사용자" if message.role == "user" else "AI"
+        content = (message.content or "").strip()
+        if content:
+            lines.append(f"{role}: {content[:2000]}")
+    return "\n".join(lines) if lines else None
+
+
 def _set_initial_room_title(room: ChatRoom, content: str) -> None:
     if room.title in {"새 채팅", "새로운 채팅"}:
         room.title = content[:20] + ("..." if len(content) > 20 else "")
@@ -125,11 +155,13 @@ async def send_message(db: Session, user: User, room_id: int, data: ChatMessageC
     # AI 봇에게 RAG 기반 질문 답변 요청
     print(f"DEBUG: [chat_service] Calling AI bot for room {room_id}...")
     personal_context = _build_personal_context(db, user, data.content)
+    conversation_context = _build_conversation_context(db, room.id, user_message.id)
 
     navigation_targets: list[dict[str, Any]] = []
     reply = await campus_ai_bot.ask(
         data.content,
         personal_context=personal_context,
+        conversation_context=conversation_context,
         on_navigation_targets=navigation_targets.extend,
     )
     print(f"DEBUG: [chat_service] AI bot replied. Saving assistant message...")
@@ -175,7 +207,8 @@ def prepare_stream_message(
     db.commit()
     db.refresh(room)
     db.refresh(user_message)
-    return room, user_message, personal_context
+    conversation_context = _build_conversation_context(db, room.id, user_message.id)
+    return room, user_message, personal_context, conversation_context
 
 
 async def stream_message(
@@ -184,6 +217,7 @@ async def stream_message(
     question: str,
     *,
     personal_context: str | None = None,
+    conversation_context: str | None = None,
 ) -> AsyncIterator[bytes]:
     """Stream one assistant reply as NDJSON and persist it after completion."""
     yield encode_stream_event(
@@ -202,6 +236,7 @@ async def stream_message(
         async for chunk in campus_ai_bot.astream_answer(
             question,
             personal_context=personal_context,
+            conversation_context=conversation_context,
             on_navigation_targets=navigation_targets.extend,
         ):
             if not generation_started:

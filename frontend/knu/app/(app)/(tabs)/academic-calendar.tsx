@@ -131,12 +131,20 @@ export default function AcademicCalendarScreen() {
                   {weekEvents.slice(0, 3).map((event, eventIndex) => {
                     const start = Math.max(0, week.findIndex((day) => format(day, "yyyy-MM-dd") >= event.start_date));
                     const end = Math.min(6, week.findLastIndex((day) => format(day, "yyyy-MM-dd") <= event.end_date));
+                    const eventStartIndex = week.findIndex((day) => format(day, "yyyy-MM-dd") === event.start_date);
                     return end >= start ? (
-                      <View
-                        key={`${event.title}-${event.start_date}`}
-                        className="absolute h-1 rounded-full bg-[#1AAEDB]"
-                        style={{ left: `${start * DAY_WIDTH + 2}%`, top: 43 + eventIndex * 7, width: `${(end - start + 1) * DAY_WIDTH - 4}%` }}
-                      />
+                      <View key={`${event.title}-${event.start_date}`}>
+                        <View
+                          className="absolute h-1.5 rounded-full bg-[#A7C7D8]"
+                          style={{ left: `${start * DAY_WIDTH + 2}%`, top: 43 + eventIndex * 7, width: `${(end - start + 1) * DAY_WIDTH - 4}%` }}
+                        />
+                        {eventStartIndex >= 0 && (
+                          <View
+                            className="absolute h-2.5 w-2.5 rounded-full bg-[#F97316]"
+                            style={{ left: `${eventStartIndex * DAY_WIDTH + 1.2}%`, top: 41 + eventIndex * 7 }}
+                          />
+                        )}
+                      </View>
                     ) : null;
                   })}
                 </View>
