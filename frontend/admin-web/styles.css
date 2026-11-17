@@ -215,6 +215,67 @@ nav a:hover, nav a.active {
     color:#185952;
     border:1px solid #d6ece8
 }
+.section-heading {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px
+}
+.section-heading h3 { margin:0 }
+.section-heading .muted { margin:5px 0 0 }
+.moderation-columns { align-items:start }
+.clickable-row { cursor:pointer }
+.clickable-row:hover td { background:#f2f9f7 }
+.crawl-cards {
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    margin-top:18px
+}
+.crawl-card {
+    padding:16px;
+    border:1px solid #e0e9e7;
+    border-radius:12px;
+    background:#fbfdfd
+}
+.crawl-card h4 { margin:0 0 14px }
+.crawl-action-row {
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap
+}
+.crawl-last-run {
+    color:#60706f;
+    font-size:12px
+}
+.crawl-last-run b { color:#28504d }
+.dashboard-item {
+    width:100%;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+    margin-top:10px;
+    padding:12px;
+    border:1px solid #e4ecea;
+    border-radius:10px;
+    background:#fbfdfd;
+    color:#172033;
+    text-align:left
+}
+.dashboard-item:hover {
+    background:#f2f9f7;
+    border-color:#b9ded8
+}
+.dashboard-item-main {
+    min-width:0;
+    display:grid;
+    gap:4px
+}
+.dashboard-item-main b {
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap
+}
 .toolbar {
     display:flex;
     gap:8px;
@@ -361,12 +422,12 @@ dialog::backdrop { background:#10252488 }
     .workspace{
         padding:22px 16px
     }
-    .stats,.split{
+    .stats,.split,.crawl-cards{
         grid-template-columns:1fr 1fr
     }
 }
 @media(max-width:560px){
-    .stats,.split,.form-grid{
+    .stats,.split,.form-grid,.crawl-cards{
         grid-template-columns:1fr
     }
     .workspace header{

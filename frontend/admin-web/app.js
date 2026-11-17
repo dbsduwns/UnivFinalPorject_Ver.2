@@ -68,7 +68,11 @@ async function renderView(view) {
 }
 
 async function dashboard() {
-  const d = await request("/api/admin/dashboard");
+  const [d, recentBlocks] = await Promise.all([
+    request("/api/admin/dashboard"),
+    request("/api/admin/user-blocks?limit=5"),
+  ]);
+  const statusLabel = { pending: "대기 중", reviewing: "검토 중", resolved: "처리 완료", dismissed: "기각" };
   $("#content").innerHTML = 
   `<div class="grid stats">${[["전체 회원",d.total_users],["활성 회원",d.active_users],["게시글",d.total_posts],["미처리 신고",d.pending_reports]].map(([l,n])=>
     `<div class="card stat">
@@ -76,8 +80,7 @@ async function dashboard() {
       <div class="number">${n}</div>
     </div>`).join("")}
   </div>
-  <div class="grid split" style="margin-top:16px">
-    <section class="card">
+  <section class="card" style="margin-top:16px">
       <h3>주요 관리 메뉴</h3>
       <div class="quick">
         <button data-go="notices">공지사항 관리<br><small>등록·수정·크롤링</small></button>
@@ -85,14 +88,38 @@ async function dashboard() {
         <button data-go="data">서비스 데이터<br><small>크롤링·강의 등록</small></button>
         <button data-go="users">회원 관리<br><small>권한·계정 상태</small></button>
       </div>
+  </section>
+  <div class="grid split" style="margin-top:16px">
+    <section class="card">
+      <div class="section-heading">
+        <h3>최근 신고</h3>
+        <span class="badge warn">${d.pending_reports}건 미처리</span>
+      </div>
+      ${d.recent_reports.length ?
+        d.recent_reports.map(r=>`<button class="dashboard-item" data-report-detail="${r.id}">
+          <span class="dashboard-item-main"><b>#${r.id} · ${esc(r.content_snapshot).slice(0,90)}</b><span class="small">${esc(r.reason)} · ${date(r.created_at)}</span></span>
+          <span class="badge ${r.status === "pending" || r.status === "reviewing" ? "warn" : ""}">${statusLabel[r.status] || esc(r.status)}</span>
+        </button>`).join("")
+        :
+        `<p class="muted">최근 신고가 없습니다.</p>`}
     </section>
     <section class="card">
-      <h3>최근 신고 상태</h3>
-      ${d.recent_reports.length ? 
-        d.recent_reports.map(r=>`<div class="result"><b>#${r.id} · ${esc(r.status)}</b><br>${esc(r.content_snapshot).slice(0,90)}<br><span class="small">${date(r.created_at)}</span></div>`).join("") 
+      <div class="section-heading">
+        <h3>최근 차단</h3>
+        <span class="badge off">${recentBlocks.length}건</span>
+      </div>
+      ${recentBlocks.length ?
+        recentBlocks.map(b=>`<button class="dashboard-item" data-block-detail="${b.id}">
+          <span class="dashboard-item-main"><b>#${b.blocker_id} → #${b.blocked_user_id}</b><span class="small">사용자 차단 · ${date(b.created_at)}</span></span>
+          <span class="badge off">차단됨</span>
+        </button>`).join("")
         :
-        `<p class="muted">최근 신고가 없습니다.</p>`}</section></div>`;
+        `<p class="muted">최근 차단 내역이 없습니다.</p>`}
+    </section>
+  </div>`;
   $("#content").querySelectorAll("[data-go]").forEach(b => b.onclick = () => navigate(b.dataset.go));
+  $("#content").querySelectorAll("[data-report-detail]").forEach(b => b.onclick = () => reportDetail(b.dataset.reportDetail));
+  $("#content").querySelectorAll("[data-block-detail]").forEach(b => b.onclick = () => blockDetail(b.dataset.blockDetail, recentBlocks));
 }
 
 async function notices() {
@@ -235,52 +262,67 @@ function noticeForm(n = null) {
   }
 
 async function community() {
-  const loadPosts = async () => { 
-    const q=$("#post-query").value.trim(); 
-    const rows=await request(`/api/admin/community/posts?limit=100${q?`&keyword=${encodeURIComponent(q)}`:""}`); 
-    
-    $("#post-rows").innerHTML=rows.length?rows.map(p=>
-      `<tr class="user-row" style="cursor:pointer" data-user="${u.id}" data-name="${esc(u.name)}">
-        <td>${esc(p.board_slug)}</td>
-        <td class="wrap">
-          <b>${esc(p.title)}</b><br>
-          <span class="small">${esc(p.author_name)} · ${date(p.created_at)}</span>
-        </td>
-        <td>${p.is_hidden?'<span class="badge off">숨김</span>':'공개'}</td>
-        <td><button data-post="${esc(p.slug)}">상세·수정</button></td>
-      </tr>`).join("")
-        :
-      `<tr>
-        <td colspan="4" class="empty">게시글이 없습니다.</td>
-      </tr>`;
-      
-    $("#post-rows").onclick=e=>{const s=e.target.dataset.post;if(s)postDetail(s);}; 
+  let blockRows = [];
+  $("#content").innerHTML =
+    `<div class="grid split moderation-columns">
+      <section class="card table-wrap">
+        <div class="section-heading">
+          <div>
+            <h3>댓글 신고 목록</h3>
+            <p class="muted">신고 내용을 확인하고 처리 상태를 변경합니다.</p>
+          </div>
+          <button id="refresh-reports" class="secondary">새로고침</button>
+        </div>
+        <table class="table">
+          <thead><tr><th>번호</th><th>신고 내용</th><th>상태</th><th>접수일</th></tr></thead>
+          <tbody id="community-report-rows"><tr><td colspan="4" class="empty">불러오는 중…</td></tr></tbody>
+        </table>
+      </section>
+      <section class="card table-wrap">
+        <div class="section-heading">
+          <div>
+            <h3>사용자 차단 현황</h3>
+            <p class="muted">차단한 사용자와 차단된 사용자를 확인합니다.</p>
+          </div>
+          <button id="refresh-blocks" class="secondary">새로고침</button>
+        </div>
+        <table class="table">
+          <thead><tr><th>차단한 사용자</th><th>차단된 사용자</th><th>차단일</th></tr></thead>
+          <tbody id="community-block-rows"><tr><td colspan="3" class="empty">불러오는 중…</td></tr></tbody>
+        </table>
+      </section>
+    </div>`;
+
+  const loadReports = async () => {
+    const rows = await request("/api/admin/comment-reports?limit=100");
+    $("#community-report-rows").innerHTML = rows.length ? rows.map(r =>
+      `<tr class="clickable-row" data-report-detail="${r.id}">
+        <td>#${r.id}</td>
+        <td class="wrap">${esc(r.content_snapshot)}</td>
+        <td><span class="badge ${r.status === "pending" || r.status === "reviewing" ? "warn" : ""}">${esc({pending:"대기 중",reviewing:"검토 중",resolved:"처리 완료",dismissed:"기각"}[r.status] || r.status)}</span></td>
+        <td>${date(r.created_at)}</td>
+      </tr>`).join("") : `<tr><td colspan="4" class="empty">신고 내역이 없습니다.</td></tr>`;
+    $("#community-report-rows").onclick = e => {
+      const row = e.target.closest("[data-report-detail]");
+      if (row) reportDetail(row.dataset.reportDetail);
+    };
   };
-  $("#content").innerHTML=
-    `<div class="toolbar">
-      <input id="post-query" placeholder="게시글 제목·내용 검색">
-      <button id="post-search" class="secondary">검색</button>
-      <button id="reports">댓글 신고 목록</button>
-      <button id="blocks" class="secondary">사용자 차단 현황</button>
-    </div>
-    <div class="card table-wrap">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>게시판</th>
-            <th>게시글</th>
-            <th>공개</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="post-rows"></tbody>
-      </table>
-    </div>`; 
-  $("#post-search").onclick=loadPosts; 
-  $("#reports").onclick=reports; 
-  $("#blocks").onclick=blocks; 
-  
-  loadPosts();
+  const loadBlocks = async () => {
+    blockRows = await request("/api/admin/user-blocks?limit=100");
+    $("#community-block-rows").innerHTML = blockRows.length ? blockRows.map(b =>
+      `<tr class="clickable-row" data-block-detail="${b.id}">
+        <td>#${b.blocker_id}</td>
+        <td>#${b.blocked_user_id}</td>
+        <td>${date(b.created_at)}</td>
+      </tr>`).join("") : `<tr><td colspan="3" class="empty">차단 내역이 없습니다.</td></tr>`;
+    $("#community-block-rows").onclick = e => {
+      const row = e.target.closest("[data-block-detail]");
+      if (row) blockDetail(row.dataset.blockDetail, blockRows);
+    };
+  };
+  $("#refresh-reports").onclick = () => loadReports().catch(e => flash(e.message, true));
+  $("#refresh-blocks").onclick = () => loadBlocks().catch(e => flash(e.message, true));
+  await Promise.all([loadReports(), loadBlocks()]);
 }
 
 async function postDetail(slug) { 
@@ -359,16 +401,17 @@ async function reports() {
 
 async function reportDetail(id) { 
   const r=await request(`/api/admin/comment-reports/${id}`); 
+  const statusLabel = { pending: "대기 중", reviewing: "검토 중", resolved: "처리 완료", dismissed: "기각" };
   
   openModal(`신고 #${r.id}`,
-   `<p class="result">${esc(r.content_snapshot)}</p>
+   `<div class="result"><b>신고 상태: ${statusLabel[r.status] || esc(r.status)}</b><br>${esc(r.content_snapshot)}</div>
     <p class="small">신고자 #${r.reporter_id ?? "삭제됨"} · 대상 #${r.reported_user_id ?? "삭제됨"}</p>
     <form id="report-form" class="form-grid">
       <label>처리 상태
         <select name="status">
-          <option value="reviewing">검토 중</option>
-          <option value="resolved">처리 완료</option>
-          <option value="dismissed">기각</option>
+          <option value="reviewing" ${r.status === "reviewing" ? "selected" : ""}>검토 중</option>
+          <option value="resolved" ${r.status === "resolved" ? "selected" : ""}>처리 완료</option>
+          <option value="dismissed" ${r.status === "dismissed" ? "selected" : ""}>기각</option>
         </select>
       </label>
       <label>댓글 모더레이션
@@ -414,6 +457,21 @@ async function reportDetail(id) {
     flash("신고 처리를 저장했습니다.");
   }; 
 }
+function blockDetail(id, rows) {
+  const block = rows.find(item => String(item.id) === String(id));
+  if (!block) return;
+  openModal(`차단 내역 #${block.id}`,
+    `<div class="result">
+      <b>차단 상태: 차단됨</b>
+      <br>차단한 사용자: #${block.blocker_id}
+      <br>차단된 사용자: #${block.blocked_user_id}
+      <br>차단 일시: ${date(block.created_at)}
+    </div>
+    <div class="modal-actions">
+      <button class="secondary" onclick="closeModal()">닫기</button>
+    </div>`
+  );
+}
 async function blocks() { 
   const rows=await request("/api/admin/user-blocks?limit=100"); 
   
@@ -443,73 +501,29 @@ async function blocks() {
 }
 
 async function data() {
-  $("#content").innerHTML = 
-    `<div class="grid split">
-      <section class="card">
-        <h3>크롤링 실행</h3>
-        <p class="muted">실행 결과는 아래에 표시됩니다. 기록·실패 로그 API는 확장용으로만 서버에 연결됩니다.</p>
-        <div class="actions">
-          <button data-crawl="/api/shuttles/crawl">셔틀 시간표 수집</button>
-          <button data-crawl="/api/daily-menus/crawl">학식 메뉴 수집</button>
-          <button data-crawl="/api/notices/crawl">학교 공지 수집 시작</button>
-        </div>
-        <div id="crawl-result"></div>
-      </section>
-      <section class="card">
-        <h3>강의 HTML 등록</h3>
-        <p class="muted">수강신청 시스템에서 저장한 HTML 파일을 선택해 등록합니다.</p>
-        <input id="course-file" type="file" accept=".html,text/html">
-        <label class="small">학과(선택)
-          <input id="course-dept" placeholder="예: 소프트웨어전공">
-        </label>
-        <p><button id="course-upload">HTML 등록</button></p>
-        <div id="course-result"></div>
-      </section>
-    </div>
-    <section class="card" style="margin-top:16px">
-      <h3>학과별 강의 크롤링</h3>
-      <p class="muted">수강신청 세션 정보가 필요한 관리자 작업입니다. 서버 요청 형식(JSON)을 입력해 실행합니다.</p>
-      <textarea 
-        id="crawl-json" 
-        style="width:100%;min-height:130px;border:1px solid #d6e1df;border-radius:8px;padding:11px" 
-        placeholder='{"session_cookie":"…","year":"2026","semester":"2","student_number":"…","student_department_code":"…","fact_code":"…","fact_srch":"…","departments":[{"code":"…","name":"…"}]}'
-      ></textarea>
-      <p><button id="course-crawl">학과별 강의 크롤링 실행</button></p>
-      <div id="department-result"></div>
-    </section>
-    <section class="card" style="margin-top:16px">
-      <h3>Android APK 버전 관리</h3>
-      <p class="muted">동일한 EAS 서명키로 빌드한 APK를 HTTPS 저장소에 업로드한 뒤 새 버전을 등록합니다. 활성 버전은 플랫폼당 하나만 유지됩니다.</p>
-      <form id="app-release-form" class="form-grid">
-        <div class="grid split">
-          <label>버전 이름
-            <input id="release-version-name" required placeholder="예: 1.2.0">
-          </label>
-          <label>versionCode
-            <input id="release-version-code" required type="number" min="1" placeholder="예: 3">
-          </label>
-        </div>
-        <label>최소 지원 versionCode
-          <input id="release-min-version-code" required type="number" min="1" value="1">
-        </label>
-        <label>APK HTTPS 주소
-          <input id="release-apk-url" required type="url" placeholder="https://downloads.example.com/knu-campus-1.2.0.apk">
-        </label>
-        <label>SHA-256 (선택)
-          <input id="release-sha256" maxlength="64" placeholder="64자리 SHA-256">
-        </label>
-        <label>릴리스 노트
-          <textarea id="release-notes" rows="4" placeholder="한 줄에 변경사항 하나씩 입력"></textarea>
-        </label>
-        <label><input id="release-mandatory" type="checkbox"> 모든 이전 버전에 필수 업데이트 적용</label>
-        <p><button type="submit">새 APK 버전 활성화</button></p>
-      </form>
-      <div id="release-result"></div>
-      <div class="table-wrap" style="margin-top:16px">
-        <table>
-          <thead><tr><th>버전</th><th>지원 기준</th><th>상태</th><th>등록일</th><th>작업</th></tr></thead>
-          <tbody id="release-rows"><tr><td colspan="5" class="empty">불러오는 중…</td></tr></tbody>
-        </table>
+  const crawlItems = [
+    ["shuttle", "셔틀 시간표 수집", "/api/shuttles/crawl"],
+    ["menu", "학식 메뉴 수집", "/api/daily-menus/crawl"],
+    ["notice", "학교 공지 수집", "/api/notices/crawl"],
+  ];
+  const crawlKey = key => `knu_admin_last_crawl_${key}`;
+  const formatLastCrawl = key => {
+    const value = localStorage.getItem(crawlKey(key));
+    return value ? date(value) : "기록 없음";
+  };
+  $("#content").innerHTML =
+    `<section class="card">
+      <h3>크롤링 실행</h3>
+      <p class="muted">필요한 데이터 수집 작업을 선택해 실행합니다.</p>
+      <div class="grid crawl-cards">
+        ${crawlItems.map(([key, label, endpoint]) => `<div class="crawl-card">
+          <h4>${label}</h4>
+          <div class="crawl-action-row">
+            <button data-crawl="${endpoint}" data-crawl-key="${key}">실행</button>
+            <span class="crawl-last-run">최종 실행: <b data-last-crawl="${key}">${formatLastCrawl(key)}</b></span>
+          </div>
+          <div class="small" data-crawl-result="${key}"></div>
+        </div>`).join("")}
       </div>
     </section>`;
   $("#content").querySelectorAll("[data-crawl]").forEach(b => 
@@ -518,120 +532,17 @@ async function data() {
       
       try { 
         const r=await request(b.dataset.crawl,{method:"POST",timeoutMs:30000});
-        
-        $("#crawl-result").innerHTML=`<p class="result">
-        ${esc(r.message || "완료")} 
-        ${r.count != null ? `(${r.count}건)` : ""}</p>`; 
+        const completedAt = new Date().toISOString();
+        localStorage.setItem(crawlKey(b.dataset.crawlKey), completedAt);
+        $(`[data-last-crawl="${b.dataset.crawlKey}"]`).textContent = date(completedAt);
+        $(`[data-crawl-result="${b.dataset.crawlKey}"]`).textContent = `${r.message || "완료"}${r.count != null ? ` (${r.count}건)` : ""}`;
         flash(r.status === "started" ? "크롤링 작업을 시작했습니다." : "크롤링 작업을 완료했습니다.");
       } catch(e) { 
-        $("#crawl-result").innerHTML=`<p class="error">${esc(e.message)}</p>`; 
+        $(`[data-crawl-result="${b.dataset.crawlKey}"]`).textContent = e.message;
+        $(`[data-crawl-result="${b.dataset.crawlKey}"]`).className = "error";
       } finally { b.disabled=false; } 
     }
   );
-  $("#course-upload").onclick = async () => { 
-    const file=$("#course-file").files[0]; 
-  
-    if(!file) 
-      return flash("HTML 파일을 선택해 주세요.",true); 
-    
-    const form=new FormData();
-    form.append("file",file);
-    form.append("department",$("#course-dept").value.trim());
-    form.append("save","true");
-    
-    try{const r=await request("/api/courses/import-html-file",
-      {
-        method:"POST",
-        body:form
-      });
-      $("#course-result").innerHTML=`<p class="result">분석 ${r.parsed_count}건 · 등록 ${r.saved_count}건</p>`;
-      } catch(e){
-        $("#course-result").innerHTML=`<p class="error">${esc(e.message)}</p>`;
-    }
-  };
-  $("#course-crawl").onclick=async()=>{
-    try{
-      const body=JSON.parse($("#crawl-json").value);
-      const r=await request("/api/courses/crawl-departments",
-        {
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body:JSON.stringify(body)
-        }
-      );
-      $("#department-result").innerHTML=`<p class="result">학과 ${r.department_count}개 · 분석 ${r.parsed_count}건 · 등록 ${r.saved_count}건</p>`;
-    } catch(e){
-      $("#department-result").innerHTML=`<p class="error">${esc(e.message || "JSON 형식을 확인해 주세요.")}</p>`;
-    }
-  };
-
-  const loadReleases = async () => {
-    const rows = await request("/api/app-updates/releases");
-    $("#release-rows").innerHTML = rows.length ? rows.map(release => `
-      <tr>
-        <td><b>${esc(release.version_name)}</b><br><span class="small">versionCode ${release.version_code}</span></td>
-        <td>최소 ${release.minimum_version_code}<br>${release.mandatory ? '<span class="badge">필수</span>' : '<span class="small">선택</span>'}</td>
-        <td>${release.is_active ? '<span class="badge">활성</span>' : '<span class="badge off">비활성</span>'}</td>
-        <td>${date(release.published_at || release.created_at)}</td>
-        <td>${release.is_active ? '-' : `<button data-activate-release="${release.id}">활성화</button>`}</td>
-      </tr>`).join("") : '<tr><td colspan="5" class="empty">등록된 앱 버전이 없습니다.</td></tr>';
-    $("#release-rows").querySelectorAll("[data-activate-release]").forEach(button => {
-      button.onclick = async () => {
-        button.disabled = true;
-        try {
-          await request(`/api/app-updates/releases/${button.dataset.activateRelease}`, {
-            method: "PATCH",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({is_active: true}),
-          });
-          flash("선택한 APK 버전을 활성화했습니다.");
-          await loadReleases();
-        } catch (e) {
-          flash(e.message, true);
-          button.disabled = false;
-        }
-      };
-    });
-  };
-
-  $("#app-release-form").onsubmit = async event => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const submit = event.submitter;
-    if (submit) submit.disabled = true;
-    const body = {
-      platform: "android",
-      version_name: $("#release-version-name").value.trim(),
-      version_code: Number($("#release-version-code").value),
-      minimum_version_code: Number($("#release-min-version-code").value),
-      apk_url: $("#release-apk-url").value.trim(),
-      sha256: $("#release-sha256").value.trim() || null,
-      release_notes: $("#release-notes").value.split("\n").map(value => value.trim()).filter(Boolean),
-      mandatory: $("#release-mandatory").checked,
-      is_active: true,
-    };
-    try {
-      const release = await request("/api/app-updates/releases", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(body),
-      });
-      $("#release-result").innerHTML = `<p class="result">${esc(release.version_name)} 버전을 활성화했습니다.</p>`;
-      form.reset();
-      $("#release-min-version-code").value = "1";
-      await loadReleases();
-    } catch (e) {
-      $("#release-result").innerHTML = `<p class="error">${esc(e.message)}</p>`;
-    } finally {
-      if (submit) submit.disabled = false;
-    }
-  };
-
-  try {
-    await loadReleases();
-  } catch (e) {
-    $("#release-rows").innerHTML = `<tr><td colspan="5" class="error">${esc(e.message)}</td></tr>`;
-  }
 }
 
 async function users() {

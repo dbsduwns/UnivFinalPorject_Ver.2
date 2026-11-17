@@ -116,6 +116,12 @@ export default function TabLayout() {
           href: null,
         }}
       />
+      <Tabs.Screen
+        name="academic-calendar"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

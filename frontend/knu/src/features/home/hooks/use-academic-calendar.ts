@@ -3,8 +3,8 @@ import { addMonths, startOfMonth } from "date-fns";
 
 import { getAcademicCalendarMonth } from "@/features/home/api/academic-calendar";
 
-export function useAcademicCalendar(monthCount = 6) {
-  const firstMonth = startOfMonth(new Date());
+export function useAcademicCalendar(monthCount = 6, startDate = new Date()) {
+  const firstMonth = startOfMonth(startDate);
   const months = Array.from({ length: monthCount }, (_, index) => addMonths(firstMonth, index));
   const queries = useQueries({
     queries: months.map((month) => ({

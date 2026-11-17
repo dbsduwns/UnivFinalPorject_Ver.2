@@ -1,4 +1,4 @@
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { CalendarDays, ChevronRight } from "lucide-react-native";
 import { router } from "expo-router";
 
@@ -18,7 +18,7 @@ const formatRange = (event: AcademicCalendarEvent, month: number) => {
 };
 
 export function AcademicCalendar() {
-  const { calendar, isLoading, isError } = useAcademicCalendar();
+  const { calendar, isLoading, isError } = useAcademicCalendar(1);
 
   return (
     <View className="w-full">
@@ -29,9 +29,9 @@ export function AcademicCalendar() {
         </View>
         <Pressable
           className="flex-row items-center"
-          onPress={() => router.push("/(app)/(tabs)/ai_chat")}
+          onPress={() => router.push("/(app)/(tabs)/academic-calendar" as never)}
         >
-          <Text className="mr-1 text-xs font-semibold text-[#13708D]">AI에게 물어보기</Text>
+          <Text className="mr-1 text-xs font-semibold text-[#13708D]">전체보기</Text>
           <ChevronRight color="#13708D" size={16} />
         </Pressable>
       </View>
@@ -46,9 +46,9 @@ export function AcademicCalendar() {
           <Text className="text-center text-xs text-gray-400">학사일정을 불러오지 못했어요.</Text>
         </View>
       ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+        <View>
           {calendar.map((month) => (
-            <View key={`${month.year}-${month.month}`} className="w-[278px] rounded-2xl border border-gray-200 bg-white p-5">
+            <View key={`${month.year}-${month.month}`} className="w-full rounded-2xl border border-gray-200 bg-white p-5">
               <View className="mb-4 flex-row items-end justify-between">
                 <Text className="text-lg font-extrabold text-gray-900">{month.month}월</Text>
                 <Text className="text-xs font-medium text-gray-400">{month.year} 학사일정</Text>
@@ -72,7 +72,7 @@ export function AcademicCalendar() {
               )}
             </View>
           ))}
-        </ScrollView>
+        </View>
       )}
     </View>
   );
