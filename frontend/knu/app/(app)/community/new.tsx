@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -36,7 +37,14 @@ export default function CreateCommunityPostScreen() {
   const pickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert("사진 권한 필요", "게시물에 사진을 첨부하려면 사진 접근 권한이 필요합니다.");
+      Alert.alert(
+        "사진 권한 필요",
+        "게시물에 사진을 첨부하려면 사진 접근 권한이 필요합니다.",
+        [
+          { text: "취소", style: "cancel" },
+          { text: "설정 열기", onPress: () => { void Linking.openSettings(); } },
+        ],
+      );
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({

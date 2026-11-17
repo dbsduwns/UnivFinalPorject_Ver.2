@@ -40,6 +40,7 @@ from app.routers import (
     admin as admin_router,
     notification as notification_router,
     app_update as app_update_router,
+    academic_calendar as academic_calendar_router,
 )
 from app.routers.community import (
     post as post_router,
@@ -108,6 +109,7 @@ app.include_router(presence_router.router)
 app.include_router(admin_router.router)
 app.include_router(notification_router.router)
 app.include_router(app_update_router.router)
+app.include_router(academic_calendar_router.router)
 app.include_router(post_router.router)
 app.include_router(post_router.admin_router)
 app.include_router(comment_router.router)
