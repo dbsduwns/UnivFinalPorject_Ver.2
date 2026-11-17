@@ -18,6 +18,7 @@ import {
   Flag,
   UserRoundX,
   UserRound,
+  QrCode,
 } from "lucide-react-native";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -45,6 +46,10 @@ import type { CommentReport, UserBlock } from "@/features/community/api/types";
 import type { FriendUser } from "@/features/friend/api/types";
 
 WebBrowser.maybeCompleteAuthSession();
+
+const ANDROID_DOWNLOAD_PAGE_URL =
+  process.env.EXPO_PUBLIC_ANDROID_DOWNLOAD_PAGE_URL?.trim() ||
+  "https://knu-campus-download.vercel.app";
 
 export default function MyScreen() {
   const insets = useSafeAreaInsets();
@@ -419,6 +424,19 @@ export default function MyScreen() {
                     }
 
                     await Linking.openURL(adminUrl);
+                  }}
+                />
+                <View className="h-[1px] bg-gray-50 mx-4" />
+                <SettingLink
+                  icon={<QrCode size={20} color="#2563eb" />}
+                  title="다운로드 QR 보여주기"
+                  onPress={async () => {
+                    try {
+                      await WebBrowser.openBrowserAsync(ANDROID_DOWNLOAD_PAGE_URL);
+                    } catch (error) {
+                      console.error("Failed to open Android download page:", error);
+                      Alert.alert("접속 실패", "앱 다운로드 QR 페이지를 열 수 없습니다.");
+                    }
                   }}
                 />
               </View>
