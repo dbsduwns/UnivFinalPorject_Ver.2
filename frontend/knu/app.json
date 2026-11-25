@@ -2,7 +2,7 @@
   "expo": {
     "name": "KNU-CAMPUS",
     "slug": "knu",
-    "version": "1.1.4",
+    "version": "1.1.5",
     "runtimeVersion": {
       "policy": "appVersion"
     },
