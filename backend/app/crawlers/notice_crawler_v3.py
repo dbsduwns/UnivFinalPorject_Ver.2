@@ -172,8 +172,8 @@ def crawl_notices_safely(max_pages: int = 1000):
                                 notify_users_by_type_sync(
                                     db, 
                                     "notice_alert", 
-                                    f"📢{item[title]}",
-                                    item[content],
+                                    f"📢{item['title']}",
+                                    content,
                                     {
                                         "type": "notice",
                                         "notice_id": notice.id
